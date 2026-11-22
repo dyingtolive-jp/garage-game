@@ -1,0 +1,2719 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="color-scheme" content="dark" />
+<link rel="icon" href="data:," />
+<title>Garage Game</title>
+<style>
+  :root{
+    --ink:#f2f0ea; --dim:#a7a49b; --amber:#ffb03a; --red:#ff4b33;
+    --plate:rgba(10,11,13,.84); --line:rgba(255,255,255,.16);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;overflow:hidden;background:#0b0c0e;font-family:"Barlow","Segoe UI",system-ui,sans-serif;color:var(--ink);
+    touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;}
+  #scene{position:fixed;inset:0;display:block;touch-action:none;}
+  #touchUI,#touchUI *{touch-action:none;}
+  button{font-family:inherit;cursor:pointer;}
+  .noselect{user-select:none;-webkit-user-select:none;}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:5;}
+  #crosshair{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;
+    background:rgba(255,255,255,.9);box-shadow:0 0 0 2px rgba(0,0,0,.45);opacity:0;transition:opacity .3s;}
+  body.playing #crosshair{opacity:1;}
+
+  #foundChip{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;background:var(--plate);
+    border:1px solid var(--line);padding:7px 12px;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:17px;
+    letter-spacing:.08em;font-weight:600;}
+  #foundChip b{color:var(--amber);font-weight:700;}
+  #foundChip.pulse{animation:pulse .35s ease;}
+  @keyframes pulse{40%{transform:scale(1.07);}}
+
+  /* car info plate */
+  #carPlate{position:absolute;left:12px;top:calc(10px + env(safe-area-inset-top));max-width:min(320px,72vw);
+    background:var(--plate);border:1px solid var(--line);border-left:3px solid var(--amber);
+    padding:10px 14px 11px;opacity:0;transform:translateY(-4px);transition:opacity .25s,transform .25s;}
+  #carPlate.show{opacity:1;transform:none;}
+  #carPlate .bay{font-size:11px;letter-spacing:.22em;color:var(--amber);font-weight:600;}
+  #carPlate h2{margin:2px 0 3px;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:26px;line-height:1.02;font-weight:700;letter-spacing:.02em;}
+  #carPlate .spec{font-size:13px;color:var(--dim);line-height:1.45;}
+  #carPlate .note{font-size:13px;margin-top:5px;line-height:1.4;}
+  #carPlate .states{margin-top:8px;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;letter-spacing:.06em;color:var(--dim);}
+  #carPlate .states span::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;
+    background:#3c3f45;margin-right:5px;vertical-align:1px;}
+  #carPlate .states span.on{color:var(--ink);}
+  #carPlate .states span.on::before{background:var(--amber);}
+
+  /* interact prompt */
+  #prompt{position:absolute;left:50%;bottom:calc(118px + env(safe-area-inset-bottom));transform:translate(-50%,8px);
+    background:var(--plate);border:1px solid var(--line);padding:9px 16px;display:flex;align-items:center;gap:10px;
+    opacity:0;transition:opacity .18s,transform .18s;white-space:nowrap;max-width:92vw;}
+  #prompt.show{opacity:1;transform:translate(-50%,0);}
+  #prompt .key{background:var(--amber);color:#141414;font-weight:700;font-family:"Barlow Condensed","Arial Narrow",sans-serif;
+    font-size:16px;padding:2px 9px;letter-spacing:.05em;}
+  #prompt .txt{font-size:15.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;}
+
+  /* toast */
+  #toast{position:absolute;left:50%;top:16%;transform:translate(-50%,-6px);background:var(--plate);
+    border:1px solid var(--amber);color:var(--ink);padding:10px 18px;font-family:"Barlow Condensed","Arial Narrow",sans-serif;
+    font-size:19px;letter-spacing:.06em;font-weight:600;opacity:0;transition:opacity .3s,transform .3s;text-align:center;max-width:88vw;}
+  #toast.show{opacity:1;transform:translate(-50%,0);}
+
+  /* ---------- touch controls ---------- */
+  #touchUI{position:fixed;inset:0;z-index:6;pointer-events:none;display:none;}
+  body.touch.playing #touchUI{display:block;}
+  #stick{position:absolute;left:18px;bottom:calc(20px + env(safe-area-inset-bottom));width:124px;height:124px;
+    border-radius:50%;border:1.5px solid rgba(255,255,255,.28);background:rgba(255,255,255,.05);pointer-events:auto;touch-action:none;}
+  #stickKnob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;
+    background:rgba(255,255,255,.22);border:1.5px solid rgba(255,255,255,.4);}
+  .tbtn{position:absolute;pointer-events:auto;touch-action:none;border:1px solid var(--line);background:var(--plate);
+    color:var(--ink);font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-weight:600;letter-spacing:.06em;}
+  .tbtn:active{background:rgba(255,176,58,.35);}
+  #btnInteract{right:18px;bottom:calc(24px + env(safe-area-inset-bottom));width:96px;height:96px;border-radius:50%;
+    border-color:var(--amber);font-size:16px;line-height:1.15;padding:8px;}
+  #btnInteract small{display:block;font-size:11px;color:var(--amber);letter-spacing:.12em;}
+  #btnTurnL{right:132px;bottom:calc(30px + env(safe-area-inset-bottom));width:52px;height:52px;border-radius:50%;font-size:22px;}
+  #btnTurnR{right:132px;bottom:calc(94px + env(safe-area-inset-bottom));width:52px;height:52px;border-radius:50%;font-size:22px;}
+  #btnRun{left:158px;bottom:calc(30px + env(safe-area-inset-bottom));width:52px;height:52px;border-radius:50%;font-size:12px;}
+
+  /* desktop hints */
+  #keysHint{position:fixed;left:12px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:5;pointer-events:none;
+    font-size:12.5px;color:var(--dim);letter-spacing:.04em;display:none;}
+  body.playing:not(.touch) #keysHint{display:block;}
+  #keysHint b{color:var(--ink);font-weight:600;}
+
+  /* ---------- start card ---------- */
+  #vignette{position:fixed;inset:0;z-index:4;pointer-events:none;
+    background:radial-gradient(ellipse at 50% 42%,transparent 52%,rgba(0,0,0,.38) 100%),
+               linear-gradient(rgba(0,0,0,.14),transparent 18%,transparent 84%,rgba(0,0,0,.22));}
+  /* minimal start menu: title + one button, nothing else. The
+     button reads LOADING while the game preloads behind it and
+     turns into START when the load settles. */
+  #startCard{position:fixed;z-index:10;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:min(320px,calc(100vw - 48px));border:1px solid var(--line);
+    background:rgba(8,9,11,.85);padding:28px 24px 24px;text-align:center;backdrop-filter:blur(6px);}
+  #startCard h1{margin:0;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:40px;
+    font-weight:700;letter-spacing:.04em;line-height:.95;text-shadow:0 1px 8px rgba(0,0,0,.8);}
+  #startCard h1 span{color:var(--amber);}
+  #enterBtn{margin-top:20px;width:100%;min-height:52px;background:var(--amber);color:#161616;border:0;
+    font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:21px;font-weight:700;letter-spacing:.14em;}
+  #enterBtn:active{background:#ffc35e;}
+  #enterBtn:disabled{background:#33363c;color:#8f8c84;cursor:wait;}
+  #startCard .credits{margin:14px 0 0;font-size:10.5px;line-height:1.55;color:var(--dim);}
+  body.playing #startCard{display:none;}
+
+  #errBox{position:fixed;z-index:50;left:12px;right:12px;top:12px;background:#3d0f0a;border:1px solid var(--red);
+    color:#ffd9d2;padding:10px 14px;font-size:13px;display:none;white-space:pre-wrap;}
+</style>
+</head>
+<body class="noselect">
+<canvas id="scene"></canvas>
+<div id="vignette"></div>
+
+<div id="hud">
+  <div id="crosshair"></div>
+  <div id="carPlate">
+    <div class="bay" id="plateBay">BAY 3</div>
+    <h2 id="plateName">Honda Civic</h2>
+    <div class="spec" id="plateSpec"></div>
+    <div class="note" id="plateNote"></div>
+    <div class="states" id="plateStates"></div>
+  </div>
+  <div id="foundChip">FOUND <b id="foundNum">0/8</b></div>
+  <div id="prompt"><span class="key">E</span><span class="txt" id="promptTxt">Pop the hood</span></div>
+  <div id="toast"></div>
+</div>
+
+<div id="touchUI">
+  <div id="stick"><div id="stickKnob"></div></div>
+  <button class="tbtn" id="btnRun">RUN</button>
+  <button class="tbtn" id="btnTurnL" aria-label="Turn left">&#9664;</button>
+  <button class="tbtn" id="btnTurnR" aria-label="Turn right">&#9654;</button>
+  <button class="tbtn" id="btnInteract"><small>INTERACT</small><span id="btnInteractTxt">Open</span></button>
+</div>
+
+<div id="keysHint"><b>WASD</b> walk &nbsp;<b>Mouse</b> look &nbsp;<b>E</b> interact &nbsp;<b>Shift</b> run &nbsp;<b>Click scene</b> lock mouse</div>
+
+<div id="startCard">
+  <h1>THE <span>GARAGE</span></h1>
+  <button id="enterBtn" disabled>LOADING&hellip;</button>
+  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — People: Jungle Jim · BadutSaurus · reizibarrientos — Japan set: ydvisual · Bazylonator · abelGB · tokyo45otaku · Vermos · chertpaderi · ditovirnantio · seirogan · sa6 — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — all CC BY 4.0 · HDRI: Poly Haven CC0</p>
+</div>
+
+<div id="errBox"></div>
+
+<script src="assets/three.min.js"></script>
+<script src="assets/meshopt_decoder.js"></script>
+<script src="assets/postprocessing.min.js"></script>
+<script>
+(function(){
+"use strict";
+var errBox=document.getElementById('errBox');
+window.onerror=function(msg,src,line){ errBox.style.display='block'; errBox.textContent='Error: '+msg+' (line '+line+')'; };
+window.addEventListener('unhandledrejection',function(e){ errBox.style.display='block'; errBox.textContent='Error: '+(e.reason&&e.reason.message||e.reason); });
+
+/* ================= AUDIO (all synthesized) ================= */
+var AC=null;
+function audio(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC&&AC.state==='suspended')AC.resume(); return AC; }
+function noiseBuffer(ac,dur){ var b=ac.createBuffer(1,ac.sampleRate*dur,ac.sampleRate),d=b.getChannelData(0); for(var i=0;i<d.length;i++)d[i]=Math.random()*2-1; return b; }
+function clunk(vol,freq){
+  var ac=audio(); if(!ac)return; var t=ac.currentTime;
+  var src=ac.createBufferSource(); src.buffer=noiseBuffer(ac,.18);
+  var bp=ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=freq||420; bp.Q.value=1.1;
+  var g=ac.createGain(); g.gain.setValueAtTime(vol||.5,t); g.gain.exponentialRampToValueAtTime(.001,t+.16);
+  src.connect(bp); bp.connect(g); g.connect(ac.destination); src.start(t); src.stop(t+.2);
+  var o=ac.createOscillator(),og=ac.createGain(); o.type='sine';
+  o.frequency.setValueAtTime(130,t); o.frequency.exponentialRampToValueAtTime(52,t+.12);
+  og.gain.setValueAtTime((vol||.5)*.7,t); og.gain.exponentialRampToValueAtTime(.001,t+.14);
+  o.connect(og); og.connect(ac.destination); o.start(t); o.stop(t+.16);
+}
+function clickSnd(){ var ac=audio(); if(!ac)return; var t=ac.currentTime;
+  var o=ac.createOscillator(),g=ac.createGain(); o.type='square'; o.frequency.value=1900;
+  g.gain.setValueAtTime(.12,t); g.gain.exponentialRampToValueAtTime(.001,t+.05);
+  o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+.06); }
+function startEngineAudio(car){
+  var ac=audio(); if(!ac)return null; var t=ac.currentTime;
+  /* v15 engine voices — richer, deeper, per-car character.
+     Chain: voices -> waveshaper grit -> rpm-tracking lowpass -> master.
+     Each car gets its own stack recipe (idleHz/crankHz from its spec,
+     plus a character profile by id): the Civic is a buzzy high-strung
+     four, the S15 a deeper turbo four with a faint whistle on the rev,
+     the Gallardo a higher, harder V10. While an engine runs it blips
+     the throttle every few seconds — a real rev, not a looped wobble:
+     pitch, filter cutoff, exhaust noise and (S15) turbo whistle all
+     sweep together, then settle back to the lopey idle. */
+  var prof={ civic:{sub:.85,oct:.22,tri:.05,noise:.10,lope:.045,rev:2.5,revEvery:[4.5,7],whistle:0},
+             s15:{sub:1.0,oct:.16,tri:.03,noise:.15,lope:.055,rev:2.7,revEvery:[5,8],whistle:.02},
+             lambo:{sub:.7,oct:.3,tri:.12,noise:.12,lope:.035,rev:3.2,revEvery:[3.5,6],whistle:0} }[car.id]||
+           {sub:.85,oct:.2,tri:.05,noise:.12,lope:.045,rev:2.6,revEvery:[4.5,7],whistle:0};
+  var master=ac.createGain(); master.gain.value=0;
+  var shaper=ac.createWaveShaper(); var sc=new Float32Array(256);
+  for(var ci=0;ci<256;ci++){ var cx=ci/128-1; sc[ci]=Math.tanh(2.4*cx); }
+  shaper.curve=sc;
+  var lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=280; lp.Q.value=1.4;
+  shaper.connect(lp); lp.connect(master); master.connect(ac.destination);
+  // starter crank: choppy square for .5s (as before)
+  var crank=ac.createOscillator(),cg=ac.createGain(); crank.type='square'; crank.frequency.value=car.crankHz;
+  var lfo=ac.createOscillator(),lg=ac.createGain(); lfo.frequency.value=11; lg.gain.value=.5;
+  cg.gain.value=.5; lfo.connect(lg); lg.connect(cg.gain); crank.connect(cg); cg.connect(shaper);
+  crank.start(t); lfo.start(t); crank.stop(t+.55); lfo.stop(t+.55);
+  // idle stack: fundamental + sub-octave + octave bite + harmonic shimmer
+  var idleGain=ac.createGain(); idleGain.gain.value=.055; idleGain.connect(shaper);
+  var lope=ac.createOscillator(),lopeG=ac.createGain(); lope.frequency.value=car.idleHz/9; lopeG.gain.value=prof.lope;
+  lope.connect(lopeG); lopeG.connect(idleGain.gain);
+  var voices=[];
+  function voice(type,mult,gain){
+    var o=ac.createOscillator(); o.type=type; o.frequency.value=car.idleHz*mult;
+    var g=ac.createGain(); g.gain.value=gain; o.connect(g); g.connect(idleGain);
+    o.start(t+.5); voices.push({o:o,base:car.idleHz*mult}); return o;
+  }
+  voice('sawtooth',1,1); voice('square',0.5,prof.sub); voice('sawtooth',2.01,prof.oct); voice('triangle',3.02,prof.tri);
+  lope.start(t+.5);
+  // exhaust rumble: looped noise through a low bandpass, gain follows rpm
+  var nsrc=ac.createBufferSource(); nsrc.buffer=noiseBuffer(ac,1.6); nsrc.loop=true;
+  var nbp=ac.createBiquadFilter(); nbp.type='bandpass'; nbp.frequency.value=210; nbp.Q.value=.7;
+  var ng=ac.createGain(); ng.gain.value=prof.noise;
+  nsrc.connect(nbp); nbp.connect(ng); ng.connect(shaper); nsrc.start(t+.5);
+  // turbo whistle (S15 only): silent at idle, sweeps up with the rev
+  var wh=null,whg=null;
+  if(prof.whistle>0){ wh=ac.createOscillator(); wh.type='sine'; wh.frequency.value=800;
+    whg=ac.createGain(); whg.gain.value=0; wh.connect(whg); whg.connect(master); wh.start(t+.5); }
+  // the rev: schedule blips while the engine lives
+  var alive=true, revTimer=null;
+  function blip(){
+    if(!alive) return;
+    var bt=ac.currentTime+.05, up=.85, down=1.15;
+    voices.forEach(function(v){
+      v.o.frequency.cancelScheduledValues(bt);
+      v.o.frequency.setValueAtTime(v.o.frequency.value,bt);
+      v.o.frequency.exponentialRampToValueAtTime(v.base*prof.rev,bt+up);
+      v.o.frequency.exponentialRampToValueAtTime(v.base,bt+up+down);
+    });
+    lp.frequency.cancelScheduledValues(bt);
+    lp.frequency.setValueAtTime(lp.frequency.value,bt);
+    lp.frequency.exponentialRampToValueAtTime(1500,bt+up);
+    lp.frequency.exponentialRampToValueAtTime(280,bt+up+down);
+    ng.gain.cancelScheduledValues(bt);
+    ng.gain.setValueAtTime(ng.gain.value,bt);
+    ng.gain.linearRampToValueAtTime(prof.noise*2.6,bt+up);
+    ng.gain.linearRampToValueAtTime(prof.noise,bt+up+down);
+    if(wh){ wh.frequency.cancelScheduledValues(bt);
+      wh.frequency.setValueAtTime(800,bt);
+      wh.frequency.exponentialRampToValueAtTime(2600,bt+up);
+      wh.frequency.exponentialRampToValueAtTime(800,bt+up+down);
+      whg.gain.cancelScheduledValues(bt);
+      whg.gain.setValueAtTime(0,bt);
+      whg.gain.linearRampToValueAtTime(prof.whistle,bt+up*.8);
+      whg.gain.linearRampToValueAtTime(0,bt+up+down);
+    }
+    revTimer=setTimeout(blip,(prof.revEvery[0]+Math.random()*(prof.revEvery[1]-prof.revEvery[0]))*1000);
+  }
+  revTimer=setTimeout(blip,2600);
+  master.gain.setValueAtTime(0,t); master.gain.linearRampToValueAtTime(.5,t+.12);
+  master.gain.linearRampToValueAtTime(.16,t+.55); master.gain.linearRampToValueAtTime(.5,t+.75);
+  return {stop:function(){ alive=false; if(revTimer)clearTimeout(revTimer);
+    var tt=ac.currentTime; try{ master.gain.cancelScheduledValues(tt); master.gain.setValueAtTime(master.gain.value,tt); master.gain.linearRampToValueAtTime(0,tt+.25);
+    setTimeout(function(){ voices.forEach(function(v){try{v.o.stop()}catch(e){}}); [lope,nsrc,wh].forEach(function(o){ if(o)try{o.stop()}catch(e){} }); try{master.disconnect()}catch(e){} },320); }catch(e){} }};
+}
+function stopEngineAudio(car){ if(car._audio){ car._audio.stop(); car._audio=null; } }
+
+/* Defer all heavy scene work until after DOMContentLoaded so the page
+   document finishes loading immediately, even on a slow renderer. */
+function safeBoot(){
+  try{ boot(); }
+  catch(err){
+    errBox.style.display='block';
+    errBox.textContent='Start error: '+(err&&err.message||err)+' — the garage could not start on this device. Tap ENTER THE GARAGE to dismiss this and try again.';
+  }
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',safeBoot);
+else safeBoot();
+function boot(){
+/* ENTER is wired before any heavy scene work: if a later step fails on a
+   weak device, the button still responds and the error box says why,
+   instead of a dead black screen. */
+document.getElementById('enterBtn').addEventListener('click',function(){
+  try{ audio(); }catch(e){}
+  document.body.classList.add('playing');
+});
+/* ---- preload gate: the minimal menu's button starts disabled as
+   LOADING… and becomes START only once the game's loads settle.
+   Every GLTF/texture load in this file flows through three's
+   DefaultLoadingManager, so its progress is the game's progress:
+   enable on a full drain (after a 2 s floor, so late-queued loads
+   count), or after 1.2 s of load silence past that floor — with a
+   15 s hard fallback so a slow device is never locked out. ---- */
+var startBtn=document.getElementById('enterBtn');
+var startReady=false, bootT=performance.now(), lastLoadAct=performance.now();
+function enableStart(){
+  if(startReady) return; startReady=true;
+  startBtn.disabled=false; startBtn.textContent='START';
+}
+if(THREE.DefaultLoadingManager){
+  THREE.DefaultLoadingManager.onProgress=function(){ lastLoadAct=performance.now(); };
+  THREE.DefaultLoadingManager.onLoad=function(){
+    lastLoadAct=performance.now();
+    if(performance.now()-bootT>2000) enableStart();
+  };
+}
+var loadWatch=setInterval(function(){
+  if(startReady){ clearInterval(loadWatch); return; }
+  var now=performance.now();
+  if((now-bootT>2500&&now-lastLoadAct>1200)||now-bootT>15000) enableStart();
+},300);
+
+/* ================= THREE SETUP ================= */
+var canvas=document.getElementById('scene');
+var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true,powerPreference:'high-performance'});
+var touchDev=(('ontouchstart' in window)||navigator.maxTouchPoints>0);
+renderer.setPixelRatio(touchDev?1:Math.min(window.devicePixelRatio||1,1.25));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate=false;
+renderer.shadowMap.needsUpdate=true;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+/* Exposure pulled down (1.18 -> 1.0) in v14: pale skin and light
+   outfits were the first thing this scene clipped to white under
+   the key spot — the cars' darker, saturated paint survived, the
+   girls didn't. The whole light rig below is rebalanced with it. */
+renderer.toneMappingExposure=1.0;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+/* Software renderers (SwiftShader / llvmpipe — CI rigs, VMs, ancient
+   laptops) can't carry the post chain or transmissive glass at any
+   frame rate. Detect them and run the lean path there only; every
+   real GPU, phones included, gets the full treatment. */
+var softwareGL=false;
+try{
+  var glCtx=renderer.getContext();
+  var dbgExt=glCtx.getExtension('WEBGL_debug_renderer_info');
+  var rendererStr=dbgExt?String(glCtx.getParameter(dbgExt.UNMASKED_RENDERER_WEBGL)):String(glCtx.getParameter(glCtx.RENDERER));
+  softwareGL=/swiftshader|llvmpipe|software/i.test(rendererStr);
+}catch(e){ softwareGL=false; }
+if(softwareGL){ renderer.setPixelRatio(0.5); renderer.shadowMap.enabled=false; }
+
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0b0c0e);
+scene.fog=new THREE.Fog(0x0b0c0e,20,46);
+
+var camera=new THREE.PerspectiveCamera(72,1,0.05,80);
+
+var pmrem=new THREE.PMREMGenerator(renderer);
+/* Real environment lighting, two layers:
+   1) three.js RoomEnvironment through PMREM — live from the first frame.
+   2) Poly Haven's "Garage" HDRI (1K, CC0) decoded from Radiance .hdr and
+      run through the same PMREMGenerator — real windows, real lamps, so
+      the paint, chrome and glass reflect an actual place. Falls back to
+      the RoomEnvironment if the .hdr can't load or parse. */
+function parseRGBE(buf){
+  var bytes=new Uint8Array(buf), pos=0;
+  function readLine(){ var line=''; while(pos<bytes.length){ var ch=bytes[pos++]; if(ch===10) break; line+=String.fromCharCode(ch); } return line; }
+  if(readLine().indexOf('#?')!==0) return null;
+  var format='', l;
+  while((l=readLine())!==''){ if(l.indexOf('FORMAT=')===0) format=l.slice(7); }
+  if(format!=='32-bit_rle_rgbe') return null;
+  var res=readLine().split(' ');
+  var H=parseInt(res[1],10), W=parseInt(res[3],10);
+  if(!(W>0&&H>0)) return null;
+  var data=new Float32Array(W*H*4);
+  var scan=new Uint8Array(W*4);
+  for(var y=0;y<H;y++){
+    if(bytes[pos]!==2||bytes[pos+1]!==2) return null; // RLE scanlines only
+    var wlen=((bytes[pos+2]&127)<<8)|bytes[pos+3]; pos+=4;
+    if(wlen!==W) return null;
+    for(var chn=0;chn<4;chn++){
+      var x=0;
+      while(x<W){
+        if(pos>=bytes.length) return null; // corrupt scanline: bail, never spin
+        var cnt=bytes[pos++];
+        if(cnt===0) return null;
+        if(cnt>128){ var v=bytes[pos++]; for(var k=0;k<cnt-128;k++) scan[x++*4+chn]=v; }
+        else { for(var k2=0;k2<cnt;k2++) scan[x++*4+chn]=bytes[pos++]; }
+      }
+    }
+    for(var px=0;px<W;px++){
+      var si=px*4, di=((H-1-y)*W+px)*4;
+      var e=scan[si+3];
+      if(e===0){ data[di]=data[di+1]=data[di+2]=0; }
+      else { var f=Math.pow(2,e-136); data[di]=scan[si]*f; data[di+1]=scan[si+1]*f; data[di+2]=scan[si+2]*f; }
+      data[di+3]=1;
+    }
+  }
+  var tex=new THREE.DataTexture(data,W,H,THREE.RGBAFormat,THREE.FloatType);
+  tex.mapping=THREE.EquirectangularReflectionMapping;
+  tex.needsUpdate=true;
+  return tex;
+}
+/* Software renderers skip the PMREM environment pass entirely: it is
+   the single biggest synchronous GPU chunk at boot, and in SwiftShader
+   it can pin the main thread for the whole load. Software paths run
+   on lights alone; every real GPU keeps the full environment. */
+if(softwareGL){ scene.environment=null; }
+else{
+  scene.environment=pmrem.fromScene(new THREE.RoomEnvironment(),0.04).texture;
+  scene.environmentIntensity=0.22;
+}
+if(!softwareGL) fetch('assets/garage_1k.hdr').then(function(r){ if(!r.ok) throw new Error('hdr'); return r.arrayBuffer(); })
+  .then(function(buf){
+    var tex=parseRGBE(buf); if(!tex) return;
+    var rt=pmrem.fromEquirectangular(tex);
+    scene.environment=rt.texture;
+    scene.environmentIntensity=0.28;
+    tex.dispose();
+  }).catch(function(){ /* RoomEnvironment stays */ });
+
+scene.add(new THREE.HemisphereLight(0x9db4d6,0x2a2019,0.55));
+var amb=new THREE.AmbientLight(0xfff1dd,0.15); scene.add(amb);
+/* v14, second pass — the key spot is CUT HARD (820 -> 50), and it
+   has to be: it hangs ~4.8 m from the aisle where the girls walk,
+   and at any intensity that visibly pools light on the floor it
+   delivers 8-10x more irradiance than skin can hold — the girls
+   clip to white no matter what the exposure is, while the cars
+   (dark, metallic, clearcoat) shrug it off. Verified against the
+   audit captures: at 820 the walker's skin still sampled at
+   (254,253,251). The bay points below are now the practical keys;
+   the spot remains as the shadow-caster and a soft top fill, and
+   the cars keep their shine from the HDRI reflections, which do
+   not depend on this light at all. */
+var keySpot=new THREE.SpotLight(0xffe3b3,50,32,0.95,0.55,1.6);
+keySpot.position.set(0,5.6,2.5); keySpot.castShadow=true;
+/* Shadow pass tuned after the Civic's "weird shadows" report: the old
+   1024px map spread over the whole 26 m garage put ~4 cm texels on the
+   cars, so shadow edges crawled and acne-patched as the camera moved.
+   2048px halves the texel size, a deeper normalBias pushes the sample
+   off the surface (kills the acne patches on curved panels), a gentler
+   depth bias keeps real contact shadows, and the shadow camera is
+   clamped to the room so no texels are wasted outside it. */
+keySpot.shadow.mapSize.set(2048,2048); keySpot.shadow.bias=-0.00015; keySpot.shadow.normalBias=0.055;
+keySpot.shadow.camera.near=1.5; keySpot.shadow.camera.far=22;
+keySpot.target.position.set(0,0,-2); scene.add(keySpot); scene.add(keySpot.target);
+[-5,5].forEach(function(x){
+  // 85 -> 55 in v14 pass 3: these hang ~4.5 m over the bays, 2-3 m
+  // from where Alina and the guest at the Civic stand — at 85 they
+  // were the last source still pushing skin over the top. The cars
+  // keep their shine from the HDRI, not from these.
+  var p=new THREE.PointLight(0xffd9a0,55,20,1.7); p.position.set(x,4.5,-2); scene.add(p);
+});
+
+/* ================= POST — pmndrs postprocessing =================
+   HDR pipeline: mipmap-blur bloom on the emissives, ACES tone mapping,
+   a soft vignette, then SMAA anti-aliasing as the final pass.
+   No SSAO (too heavy on phones). Falls back to a plain render if the
+   library is missing or fails to build. */
+/* The composer is built lazily by the quality manager at the bottom:
+   the game always boots on the plain renderer (cheap first frame on
+   every device) and upgrades to this HDR pipeline only after measured
+   frame rates prove the hardware can carry it. */
+var composer=null;
+function buildComposer(){
+  if(composer||softwareGL||!window.POSTPROCESSING) return;
+  try{
+    var PP=window.POSTPROCESSING;
+    var c=new PP.EffectComposer(renderer,{frameBufferType:THREE.HalfFloatType,multisampling:0});
+    c.addPass(new PP.RenderPass(scene,camera));
+    c.addPass(new PP.EffectPass(camera,
+      // threshold raised 0.85 -> 0.92: skin highlights under the old
+      // threshold bloomed into white glow; the neon signs and tubes
+      // sit far above 0.92 and still bloom
+      new PP.BloomEffect({mipmapBlur:true,intensity:0.45,luminanceThreshold:0.92,luminanceSmoothing:0.25,radius:0.72}),
+      new PP.ToneMappingEffect({mode:PP.ToneMappingMode.ACES_FILMIC}),
+      new PP.VignetteEffect({offset:0.3,darkness:0.5})
+    ));
+    c.addPass(new PP.EffectPass(camera,new PP.SMAAEffect()));
+    c.setSize(window.innerWidth,window.innerHeight);
+    composer=c;
+  }catch(e){ composer=null; }
+}
+
+/* ================= CANVAS TEXTURES ================= */
+function makeTex(w,h,draw){
+  var c=document.createElement('canvas'); c.width=w; c.height=h;
+  draw(c.getContext('2d'),w,h);
+  var t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; return t;
+}
+var floorTex=makeTex(2048,1600,function(g,w,h){
+  g.fillStyle='#33363c'; g.fillRect(0,0,w,h);
+  for(var i=0;i<30000;i++){ g.fillStyle='rgba('+(Math.random()>.5?255:0)+','+(Math.random()>.5?255:0)+','+(Math.random()>.5?255:0)+','+(Math.random()*0.055)+')';
+    g.fillRect(Math.random()*w,Math.random()*h,3,3); }
+  for(var cp=0;cp<7;cp++){ // hairline cracks
+    g.strokeStyle='rgba(10,10,12,0.35)'; g.lineWidth=2; g.beginPath();
+    var cx0=Math.random()*w, cy0=Math.random()*h; g.moveTo(cx0,cy0);
+    for(var cs=0;cs<6;cs++){ cx0+=(Math.random()-0.5)*220; cy0+=(Math.random()-0.5)*220; g.lineTo(cx0,cy0); }
+    g.stroke();
+  }
+  for(var s=0;s<22;s++){ var x=Math.random()*w,y=Math.random()*h,r=60+Math.random()*180;
+    var gr=g.createRadialGradient(x,y,4,x,y,r); gr.addColorStop(0,'rgba(12,12,14,0.20)'); gr.addColorStop(1,'rgba(12,12,14,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); }
+  // expansion joints
+  g.strokeStyle='rgba(0,0,0,0.35)'; g.lineWidth=2;
+  for(var j=1;j<4;j++){ g.beginPath(); g.moveTo(0,h*j/4); g.lineTo(w,h*j/4); g.stroke(); }
+  for(var k=1;k<5;k++){ g.beginPath(); g.moveTo(w*k/5,0); g.lineTo(w*k/5,h); g.stroke(); }
+  // bay boxes: garage 26m wide (x -13..13) x 20m deep (z -10..10); cars at z=-2, bay z -4.9..0.9
+  function mx(x){ return (x+13)/26*w; } function mz(z){ return (z+10)/20*h; }
+  g.strokeStyle='rgba(255,176,58,0.85)'; g.lineWidth=5;
+  [-10,-5,0,5,10].forEach(function(cx){
+    g.strokeRect(mx(cx-1.55),mz(-4.9),(mx(cx+1.55)-mx(cx-1.55)),(mz(0.9)-mz(-4.9)));
+  });
+  g.strokeStyle='rgba(255,255,255,0.35)'; g.lineWidth=4; g.setLineDash([26,20]);
+  g.beginPath(); g.moveTo(0,mz(3.4)); g.lineTo(w,mz(3.4)); g.stroke(); g.setLineDash([]);
+  g.fillStyle='rgba(255,255,255,0.5)'; g.font='700 44px Barlow Condensed, sans-serif'; g.textAlign='center';
+  [-10,-5,0,5,10].forEach(function(cx,i){ g.fillText('BAY '+(i+1),mx(cx),mz(2.2)); });
+});
+floorTex.wrapS=floorTex.wrapT=THREE.ClampToEdgeWrapping;
+floorTex.anisotropy=8;
+
+/* polished-concrete roughness: dark patches = glossy, light = matte */
+var floorRoughTex=makeTex(1024,800,function(g,w,h){
+  g.fillStyle='#6e6e6e'; g.fillRect(0,0,w,h);
+  for(var i=0;i<12000;i++){ var v=90+Math.random()*60|0;
+    g.fillStyle='rgba('+v+','+v+','+v+',0.25)'; g.fillRect(Math.random()*w,Math.random()*h,3,3); }
+  for(var s=0;s<20;s++){ var x=Math.random()*w,y=Math.random()*h,r=50+Math.random()*150;
+    var gr=g.createRadialGradient(x,y,4,x,y,r); gr.addColorStop(0,'rgba(28,28,28,0.85)'); gr.addColorStop(1,'rgba(28,28,28,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(x,y,r,0,7); g.fill(); }
+});
+floorRoughTex.wrapS=floorRoughTex.wrapT=THREE.ClampToEdgeWrapping;
+
+var wallTex=makeTex(1024,512,function(g,w,h){
+  g.fillStyle='#282a30'; g.fillRect(0,0,w,h);
+  for(var i=0;i<16000;i++){ var v=Math.random()*255|0;
+    g.fillStyle='rgba('+v+','+v+','+v+',0.045)'; g.fillRect(Math.random()*w,Math.random()*h,2,2); }
+  g.strokeStyle='rgba(0,0,0,0.4)'; g.lineWidth=3;
+  for(var px=0;px<=4;px++){ g.beginPath(); g.moveTo(w*px/4,0); g.lineTo(w*px/4,h); g.stroke(); }
+  g.beginPath(); g.moveTo(0,h*0.52); g.lineTo(w,h*0.52); g.stroke();
+  for(var st=0;st<26;st++){ var sx=Math.random()*w; // grime streaks
+    var grd=g.createLinearGradient(0,0,0,h); grd.addColorStop(0,'rgba(8,8,10,0.20)'); grd.addColorStop(1,'rgba(8,8,10,0)');
+    g.fillStyle=grd; g.fillRect(sx,0,3+Math.random()*9,h*(0.3+Math.random()*0.6)); }
+  g.fillStyle='rgba(0,0,0,0.28)'; g.fillRect(0,h-46,w,46);
+});
+wallTex.wrapS=THREE.RepeatWrapping; wallTex.repeat.set(3,1); wallTex.anisotropy=8;
+
+var treadTex=makeTex(256,256,function(g,w,h){
+  g.fillStyle='#0d0d0f'; g.fillRect(0,0,w,h);
+  g.strokeStyle='rgba(0,0,0,0.85)'; g.lineWidth=9;
+  for(var x=-h;x<w+h;x+=34){ g.beginPath(); g.moveTo(x,0); g.lineTo(x+h*0.45,h); g.stroke(); }
+  g.strokeStyle='rgba(255,255,255,0.05)'; g.lineWidth=2;
+  for(var x2=-h;x2<w+h;x2+=34){ g.beginPath(); g.moveTo(x2+7,0); g.lineTo(x2+7+h*0.45,h); g.stroke(); }
+  g.fillStyle='rgba(0,0,0,0.7)'; g.fillRect(0,h/2-5,w,10);
+});
+treadTex.wrapS=treadTex.wrapT=THREE.RepeatWrapping; treadTex.repeat.set(6,1);
+
+var sidewallTex=makeTex(512,512,function(g,w,h){
+  g.fillStyle='#101012'; g.fillRect(0,0,w,h);
+  var cx=w/2, cy=h/2;
+  g.strokeStyle='rgba(255,255,255,0.10)'; g.lineWidth=3;
+  [238,206,150].forEach(function(r){ g.beginPath(); g.arc(cx,cy,r,0,7); g.stroke(); });
+  g.fillStyle='rgba(230,230,230,0.55)'; g.font='700 25px Barlow Condensed, sans-serif'; g.textAlign='center';
+  var ring='DYING TO LIVE · RADIAL GT · 225/45 R17 · ';
+  for(var i=0;i<ring.length;i++){
+    var a=i/ring.length*Math.PI*2;
+    g.save(); g.translate(cx+Math.cos(a)*222,cy+Math.sin(a)*222); g.rotate(a+Math.PI/2);
+    g.fillText(ring[i],0,0); g.restore();
+  }
+  g.fillStyle='rgba(255,176,58,0.6)'; g.font='700 21px Barlow Condensed, sans-serif';
+  g.fillText('ROTATION ▸',cx,cy+196);
+});
+
+var headTex=makeTex(256,128,function(g,w,h){
+  g.fillStyle='#14171b'; g.fillRect(0,0,w,h);
+  function lamp(x,r){
+    var gr=g.createRadialGradient(x,64,2,x,64,r);
+    gr.addColorStop(0,'#ffffff'); gr.addColorStop(0.35,'#cfe2f2'); gr.addColorStop(0.8,'#5a6a78'); gr.addColorStop(1,'#14171b');
+    g.fillStyle=gr; g.beginPath(); g.arc(x,64,r,0,7); g.fill();
+    g.strokeStyle='rgba(220,235,250,0.85)'; g.lineWidth=3; g.beginPath(); g.arc(x,64,r-2,0,7); g.stroke();
+    g.fillStyle='rgba(10,12,14,0.85)'; g.beginPath(); g.arc(x,64,r*0.34,0,7); g.fill();
+  }
+  lamp(72,42); lamp(168,34);
+  g.fillStyle='rgba(255,240,200,0.9)'; g.fillRect(14,10,w-28,7);
+  g.fillStyle='rgba(255,255,255,0.16)'; g.fillRect(0,96,w,3);
+});
+var tailTex=makeTex(512,64,function(g,w,h){
+  g.fillStyle='#2a0508'; g.fillRect(0,0,w,h);
+  for(var i=0;i<4;i++){ var x=26+i*124;
+    var gr=g.createRadialGradient(x+46,32,3,x+46,32,40);
+    gr.addColorStop(0,'#ff6a5e'); gr.addColorStop(0.55,'#c0141c'); gr.addColorStop(1,'#4a050a');
+    g.fillStyle=gr; g.beginPath(); g.arc(x+46,32,27,0,7); g.fill();
+    g.strokeStyle='rgba(255,160,150,0.5)'; g.lineWidth=2; g.beginPath(); g.arc(x+46,32,27,0,7); g.stroke(); }
+  g.fillStyle='rgba(255,255,255,0.20)'; g.fillRect(0,4,w,4);
+});
+function plateTexFn(text){
+  return makeTex(256,80,function(g,w,h){
+    g.fillStyle='#ece9e0'; g.fillRect(0,0,w,h);
+    g.fillStyle='#2456a6'; g.fillRect(0,0,w,16);
+    g.fillStyle='#fff'; g.font='700 11px Barlow Condensed, sans-serif'; g.textAlign='center';
+    g.fillText('T E X A S',w/2,12);
+    g.fillStyle='#191b20'; g.font='700 40px Barlow Condensed, sans-serif';
+    g.fillText(text,w/2,58);
+    g.strokeStyle='#9a978c'; g.lineWidth=3; g.strokeRect(2,2,w-4,h-4);
+  });
+}
+function badgeTexFn(text){
+  return makeTex(512,96,function(g,w,h){
+    g.clearRect(0,0,w,h);
+    g.font='700 56px Barlow Condensed, sans-serif'; g.textAlign='center';
+    g.shadowColor='rgba(0,0,0,0.6)'; g.shadowBlur=4;
+    g.fillStyle='#e8eaee'; g.fillText(text.split('').join('  '),w/2,64);
+  });
+}
+var blobTex=makeTex(256,256,function(g,w,h){
+  var gr=g.createRadialGradient(128,128,10,128,128,126);
+  gr.addColorStop(0,'rgba(0,0,0,0.62)'); gr.addColorStop(0.7,'rgba(0,0,0,0.34)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle=gr; g.fillRect(0,0,w,h);
+});
+var shaftTex=makeTex(64,256,function(g,w,h){
+  var gr=g.createLinearGradient(0,0,0,h);
+  gr.addColorStop(0,'rgba(255,240,210,0.55)'); gr.addColorStop(0.6,'rgba(255,240,210,0.13)'); gr.addColorStop(1,'rgba(255,240,210,0)');
+  g.fillStyle=gr; g.fillRect(0,0,w,h);
+});
+var photoLoader=new THREE.TextureLoader();
+function photoTex(path){
+  var t=photoLoader.load(path);
+  t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=8; return t;
+}
+
+function seatTex(driver){
+  return makeTex(256,192,function(g,w,h){
+    g.fillStyle='#17181c'; g.fillRect(0,0,w,h);
+    g.fillStyle='#101116'; g.fillRect(0,h-38,w,38);
+    function seat(x,lean){
+      g.fillStyle='#26272e';
+      g.beginPath(); g.roundRect(x,118,74,20,7); g.fill();            // cushion
+      g.save(); g.translate(x+66,120); g.rotate(lean);                // backrest
+      g.beginPath(); g.roundRect(-11,-88,23,92,9); g.fill(); g.restore();
+      g.fillStyle='#2e2f37'; g.fillRect(x+52,16,17,20);               // headrest
+      g.strokeStyle='rgba(255,176,58,0.5)'; g.lineWidth=2;
+      g.beginPath(); g.moveTo(x+8,128); g.lineTo(x+64,128); g.stroke();
+    }
+    seat(18,-0.22); seat(140,-0.22);
+    if(driver){ g.strokeStyle='#3a3b44'; g.lineWidth=7;
+      g.beginPath(); g.arc(52,64,21,0,7); g.stroke();
+      g.strokeStyle='#2c2d34'; g.lineWidth=4;
+      g.beginPath(); g.moveTo(31,64); g.lineTo(73,64); g.stroke(); }
+    g.fillStyle='rgba(255,255,255,0.06)'; g.fillRect(0,0,w,10);
+  });
+}
+function posterTex(title,sub,color){
+  return makeTex(256,340,function(g,w,h){
+    g.fillStyle='#101114'; g.fillRect(0,0,w,h);
+    g.strokeStyle=color; g.lineWidth=4; g.strokeRect(10,10,w-20,h-20);
+    g.fillStyle=color; g.beginPath();
+    g.moveTo(28,208); g.lineTo(52,208); g.lineTo(62,182); g.lineTo(96,176); g.lineTo(112,156);
+    g.lineTo(168,156); g.lineTo(186,178); g.lineTo(216,184); g.lineTo(226,208); g.lineTo(226,218);
+    g.lineTo(28,218); g.closePath(); g.fill();
+    g.fillStyle='#0b0c0e'; g.beginPath(); g.arc(66,220,15,0,7); g.arc(190,220,15,0,7); g.fill();
+    g.fillStyle='#f2f0ea'; g.font='700 40px Barlow Condensed, sans-serif'; g.textAlign='center';
+    g.fillText(title,w/2,84);
+    g.fillStyle='#a7a49b'; g.font='500 21px Barlow Condensed, sans-serif';
+    g.fillText(sub,w/2,116);
+    g.fillStyle=color; g.font='700 19px Barlow Condensed, sans-serif';
+    g.fillText('EST. SPEED SHOP',w/2,292);
+  });
+}
+var neonTex=makeTex(1024,192,function(g,w,h){
+  g.fillStyle='#0d0e11'; g.fillRect(0,0,w,h);
+  g.textAlign='center'; g.shadowColor='#ff5a2a'; g.shadowBlur=34;
+  g.fillStyle='#ffb03a'; g.font='700 104px Barlow Condensed, sans-serif';
+  g.fillText('DYING TO LIVE',w/2,104);
+  g.shadowBlur=18; g.fillStyle='#ff6a3a'; g.font='600 40px Barlow Condensed, sans-serif';
+  g.fillText('— G A R A G E —',w/2,168);
+});
+var pegTex=makeTex(512,256,function(g,w,h){
+  g.fillStyle='#4a3421'; g.fillRect(0,0,w,h);
+  g.fillStyle='rgba(0,0,0,0.25)';
+  for(var x=16;x<w;x+=24)for(var y=16;y<h;y+=24){ g.beginPath(); g.arc(x,y,3,0,7); g.fill(); }
+  g.fillStyle='#c8ccd2';
+  function wrench(x,y,s){ g.save(); g.translate(x,y); g.rotate(.5);
+    g.fillRect(-4*s,-30*s,8*s,52*s); g.beginPath(); g.arc(0,-34*s,10*s,0,7); g.fill();
+    g.fillStyle='#4a3421'; g.beginPath(); g.arc(4*s,-38*s,7*s,0,7); g.fill(); g.restore(); g.fillStyle='#c8ccd2'; }
+  wrench(70,80,1); wrench(140,90,.85); wrench(210,76,1.1);
+  g.fillRect(300,50,14,70); g.fillRect(292,42,30,16);
+  g.beginPath(); g.arc(400,80,26,0,7); g.fill(); g.fillStyle='#4a3421'; g.beginPath(); g.arc(400,80,10,0,7); g.fill();
+  g.fillStyle='#c8ccd2'; g.fillRect(452,44,34,10); g.fillRect(462,44,10,44);
+});
+
+/* ---- detail textures shared by every car: carbon weave, grille mesh,
+   metallic paint flake. These are what let the procedural cars read at
+   the Civic GLB's level — flat colour alone never will. ---- */
+var carbonTex=makeTex(128,128,function(g,w,h){
+  g.fillStyle='#101114'; g.fillRect(0,0,w,h);
+  for(var y=0;y<8;y++)for(var x=0;x<8;x++){
+    var odd=(x+y)%2===0;
+    var gr=g.createLinearGradient(x*16,y*16,odd?x*16+16:x*16,odd?y*16:y*16+16);
+    gr.addColorStop(0,'#2b2e33'); gr.addColorStop(0.5,'#08090a'); gr.addColorStop(1,'#23262b');
+    g.fillStyle=gr; g.fillRect(x*16+1,y*16+1,14,14);
+  }
+});
+carbonTex.wrapS=carbonTex.wrapT=THREE.RepeatWrapping; carbonTex.repeat.set(3,1);
+var meshTex=makeTex(128,128,function(g,w,h){
+  g.fillStyle='#050607'; g.fillRect(0,0,w,h);
+  g.fillStyle='#3d4148';
+  for(var y=8;y<h;y+=16)for(var x=8;x<w;x+=16){ g.beginPath(); g.arc(x+((y/16)%2?4:0),y,3.2,0,7); g.fill(); }
+});
+meshTex.wrapS=meshTex.wrapT=THREE.RepeatWrapping; meshTex.repeat.set(6,1);
+var flakeTex=makeTex(256,256,function(g,w,h){
+  g.fillStyle='#7a7a7a'; g.fillRect(0,0,w,h);
+  for(var i=0;i<5200;i++){ var v=96+Math.random()*110|0;
+    g.fillStyle='rgb('+v+','+v+','+v+')'; g.fillRect(Math.random()*w,Math.random()*h,1.6,1.6); }
+});
+flakeTex.wrapS=flakeTex.wrapT=THREE.RepeatWrapping; flakeTex.repeat.set(4,2);
+
+/* ================= MATERIALS ================= */
+/* Paint now matches the Civic's Body_MAT recipe — deep clearcoat over a
+   flake roughness map, high env response — instead of flat glossy colour. */
+function paintMat(color){
+  // software renderers get a plain standard material: clearcoat + flake
+  // in software is seconds-per-frame territory and stalls everything
+  if(softwareGL) return new THREE.MeshStandardMaterial({color:color,metalness:0.35,roughness:0.38,envMapIntensity:0.9});
+  return new THREE.MeshPhysicalMaterial({color:color,metalness:0.24,roughness:0.34,
+  roughnessMap:flakeTex,clearcoat:0.55,clearcoatRoughness:0.05,envMapIntensity:1.25,specularIntensity:0.8}); }
+var glassMat=softwareGL
+  ? new THREE.MeshStandardMaterial({color:0x1d262e,metalness:0.1,roughness:0.12,transparent:true,opacity:0.55,envMapIntensity:1.0,side:THREE.DoubleSide})
+  : new THREE.MeshPhysicalMaterial({color:0x1d262e,metalness:0,roughness:0.015,
+  transparent:true,opacity:0.52,envMapIntensity:1.35,clearcoat:0.6,clearcoatRoughness:0.03,side:THREE.DoubleSide});
+var blackTrim=new THREE.MeshStandardMaterial({color:0x131417,roughness:0.7,metalness:0.2});
+var carbonMat=new THREE.MeshStandardMaterial({map:carbonTex,roughness:0.42,metalness:0.55,envMapIntensity:0.85});
+var grilleMat=new THREE.MeshStandardMaterial({map:meshTex,roughness:0.55,metalness:0.75,envMapIntensity:0.75});
+var lensClearMat=new THREE.MeshPhysicalMaterial({color:0xcfe0ea,metalness:0,roughness:0.04,transparent:true,opacity:0.34,envMapIntensity:1.25,clearcoat:0.5,clearcoatRoughness:0.04});
+var projectorMat=new THREE.MeshStandardMaterial({color:0xe8eef2,roughness:0.08,metalness:1,envMapIntensity:1.25});
+var innerDarkMat=new THREE.MeshStandardMaterial({color:0x060708,roughness:0.92,metalness:0.1});
+var tireMat=new THREE.MeshStandardMaterial({color:0x0c0c0d,roughness:0.95});
+var treadMat=new THREE.MeshStandardMaterial({map:treadTex,roughness:0.96});
+var sidewallMat=new THREE.MeshStandardMaterial({map:sidewallTex,roughness:0.92});
+var discMat=new THREE.MeshStandardMaterial({color:0xb4bac2,roughness:0.24,metalness:1,envMapIntensity:1.0});
+var chromeMat=new THREE.MeshStandardMaterial({color:0xd7dbe0,roughness:0.13,metalness:1,envMapIntensity:1.1});
+var darkMetal=new THREE.MeshStandardMaterial({color:0x2b2e33,roughness:0.5,metalness:0.7});
+
+/* ================= GARAGE SHELL ================= */
+var GAR={W:26,D:20,H:5.2};
+var colliders=[]; // {minX,maxX,minZ,maxZ}
+function addCollider(cx,cz,hw,hd){ colliders.push({minX:cx-hw,maxX:cx+hw,minZ:cz-hd,maxZ:cz+hd}); }
+
+var floor=new THREE.Mesh(new THREE.PlaneGeometry(GAR.W,GAR.D),
+  new THREE.MeshStandardMaterial({map:floorTex,roughnessMap:floorRoughTex,roughness:1.0,metalness:0.12,envMapIntensity:0.75}));
+floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+
+var wallMat=new THREE.MeshStandardMaterial({map:wallTex,roughness:0.94,envMapIntensity:0.35});
+var wallMatLow=new THREE.MeshStandardMaterial({color:0x191b1f,roughness:0.95});
+function wall(wd,x,z,ry){
+  var grp=new THREE.Group();
+  var up=new THREE.Mesh(new THREE.PlaneGeometry(wd,GAR.H-1.1),wallMat); up.position.y=1.1+(GAR.H-1.1)/2; grp.add(up);
+  var lo=new THREE.Mesh(new THREE.PlaneGeometry(wd,1.1),wallMatLow); lo.position.y=0.55; grp.add(lo);
+  var stripe=new THREE.Mesh(new THREE.BoxGeometry(wd,0.09,0.03),
+    new THREE.MeshStandardMaterial({color:0xffb03a,roughness:0.6}));
+  stripe.position.set(0,1.12,0.012); grp.add(stripe);
+  grp.position.set(x,0,z); grp.rotation.y=ry; scene.add(grp); return grp;
+}
+wall(GAR.W,0,-GAR.D/2,0);            // back
+wall(GAR.W,0, GAR.D/2,Math.PI);      // front (garage doors)
+wall(GAR.D,-GAR.W/2,0, Math.PI/2);   // left
+wall(GAR.D, GAR.W/2,0,-Math.PI/2);   // right
+var ceil=new THREE.Mesh(new THREE.PlaneGeometry(GAR.W,GAR.D),
+  new THREE.MeshStandardMaterial({color:0x141518,roughness:1}));
+ceil.rotation.x=Math.PI/2; ceil.position.y=GAR.H; scene.add(ceil);
+// ceiling beams + light fixtures over each bay
+for(var bx=-12;bx<=12;bx+=4){
+  var beam=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.3,GAR.D),darkMetal);
+  beam.position.set(bx,GAR.H-0.15,0); scene.add(beam);
+}
+[-10,-5,0,5,10].forEach(function(x){
+  var fix=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.09,0.5),darkMetal);
+  fix.position.set(x,GAR.H-0.32,-2); scene.add(fix);
+  var tube=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.04,0.36),
+    new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffe9c4,emissiveIntensity:2.4}));
+  tube.position.set(x,GAR.H-0.38,-2); scene.add(tube);
+});
+/* Particles removed (v16): no dust/particle systems anywhere in
+   the scene — one less per-frame cost on every renderer, and the
+   software audit path no longer rasterizes two additive Points
+   clouds over the whole room. */
+// sectional garage doors on front wall
+for(var di=0;di<5;di++){
+  var dx=-10+di*5;
+  var door=new THREE.Mesh(new THREE.BoxGeometry(4.3,3.9,0.1),
+    new THREE.MeshStandardMaterial({color:0x30333a,roughness:0.6,metalness:0.5}));
+  door.position.set(dx,1.95,GAR.D/2-0.07); scene.add(door);
+  for(var r=1;r<5;r++){
+    var groove=new THREE.Mesh(new THREE.BoxGeometry(4.3,0.035,0.02),blackTrim);
+    groove.position.set(dx,r*0.78,GAR.D/2-0.13); scene.add(groove);
+  }
+  for(var wn=0;wn<4;wn++){
+    var win=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.42,0.02),
+      new THREE.MeshStandardMaterial({color:0x39434e,roughness:0.15,metalness:0.6}));
+    win.position.set(dx-1.5+wn*1.0,3.25,GAR.D/2-0.13); scene.add(win);
+  }
+}
+// neon sign on back wall
+var neon=new THREE.Mesh(new THREE.PlaneGeometry(6.4,1.2),
+  new THREE.MeshStandardMaterial({map:neonTex,emissive:0xffffff,emissiveMap:neonTex,emissiveIntensity:1.15,color:0x222222}));
+neon.position.set(0,3.6,-GAR.D/2+0.06); scene.add(neon);
+var neonLight=new THREE.PointLight(0xff7a3a,26,11,1.8); neonLight.position.set(0,3.4,-8.6); scene.add(neonLight);
+// posters — full photo prints in black frames + two canvas prints
+function photoPoster(path,w,h){
+  var grp=new THREE.Group();
+  var frame=new THREE.Mesh(new THREE.BoxGeometry(w+0.14,h+0.14,0.045),
+    new THREE.MeshStandardMaterial({color:0x0c0c0e,roughness:0.45,metalness:0.4}));
+  grp.add(frame);
+  var img=new THREE.Mesh(new THREE.PlaneGeometry(w,h),
+    new THREE.MeshStandardMaterial({map:photoTex(path),roughness:0.55,envMapIntensity:0.5}));
+  img.position.z=0.026; grp.add(img);
+  scene.add(grp); return grp;
+}
+var ppR34=photoPoster('assets/poster-r34.webp',2.9,1.94);
+ppR34.position.set(-8.3,2.62,-GAR.D/2+0.06);
+var ppHero=photoPoster('assets/garage-hero.webp',4.4,2.94);
+ppHero.position.set(GAR.W/2-0.06,2.55,4.6); ppHero.rotation.y=-Math.PI/2;
+var ppRX7=photoPoster('assets/poster-rx7.webp',2.9,1.94);
+ppRX7.position.set(-GAR.W/2+0.06,2.55,-4.2); ppRX7.rotation.y=Math.PI/2;
+/* ---- real art files as textures: framed photo portraits of the
+   three cars hanging over their own bays, a Tokyo night mural down
+   the left wall, the Dying to Live chrome cross as a wall emblem and
+   a floor medallion in the aisle ---- */
+var ppS15=photoPoster('assets/poster-s15.webp',2.9,1.63);
+ppS15.position.set(-4.6,2.8,-GAR.D/2+0.06);
+var ppCivic=photoPoster('assets/poster-civic.webp',2.2,1.54);
+ppCivic.position.set(0,1.98,-GAR.D/2+0.06);
+var ppGal=photoPoster('assets/poster-gallardo.webp',2.6,1.95);
+ppGal.position.set(4.6,2.85,-GAR.D/2+0.06);
+var ppMural=photoPoster('assets/mural-tokyo.webp',5.6,3.54);
+ppMural.position.set(-GAR.W/2+0.06,2.75,1.6); ppMural.rotation.y=Math.PI/2;
+/* ---- the DTL cross as a NEON SIGN on the right wall: the chrome
+   emblem's own luminance becomes the tube mask — bright chrome turns
+   into glowing pink-white neon tube, the black backing stays dark.
+   Built on a canvas once the emblem image lands: several halo passes
+   with a big soft shadow, then a hot core pass, on an additive plane
+   over a dark panel, with its own pink light spilling into the room
+   and a bloom pass on top. Flickers gently in the render loop. ---- */
+var neonCrossMat=null, neonCrossGlowMat=null, neonCrossLight=null;
+(function(){
+  var grp=new THREE.Group();
+  var back=new THREE.Mesh(new THREE.BoxGeometry(2.35,2.35,0.06),
+    new THREE.MeshStandardMaterial({color:0x070708,roughness:0.55,metalness:0.35}));
+  grp.add(back);
+  var img=new Image();
+  img.onload=function(){
+    try{
+      var S=512;
+      // mask: alpha = emblem luminance (chrome bright, background black)
+      var mc=document.createElement('canvas'); mc.width=mc.height=S;
+      var mg=mc.getContext('2d'); mg.drawImage(img,0,0,S,S);
+      var md=mg.getImageData(0,0,S,S), px=md.data;
+      for(var i=0;i<px.length;i+=4){
+        var lum=(px[i]*0.35+px[i+1]*0.45+px[i+2]*0.2)/255;
+        px[i]=255; px[i+1]=255; px[i+2]=255; px[i+3]=Math.pow(lum,1.35)*255;
+      }
+      mg.putImageData(md,0,0);
+      // tube-colour pass: neon pink-red, hottest chrome going white
+      var tc=document.createElement('canvas'); tc.width=tc.height=S;
+      var tg=tc.getContext('2d');
+      tg.fillStyle='#ff2e63'; tg.fillRect(0,0,S,S);
+      tg.globalCompositeOperation='destination-in'; tg.drawImage(mc,0,0);
+      tg.globalCompositeOperation='source-over';
+      var hc=document.createElement('canvas'); hc.width=hc.height=S;
+      var hg=hc.getContext('2d'); hg.drawImage(img,0,0,S,S);
+      var hd=hg.getImageData(0,0,S,S), hp=hd.data;
+      for(var j=0;j<hp.length;j+=4){
+        var lum2=(hp[j]*0.35+hp[j+1]*0.45+hp[j+2]*0.2)/255;
+        hp[j]=255; hp[j+1]=214; hp[j+2]=232; hp[j+3]=Math.max(0,(lum2-0.62)/0.38)*255;
+      }
+      hg.putImageData(hd,0,0);
+      tg.drawImage(hc,0,0);
+      // final sign texture: halo draws + core draw
+      var fc=document.createElement('canvas'); fc.width=fc.height=S;
+      var fg=fc.getContext('2d');
+      fg.shadowColor='#ff2e63'; fg.shadowBlur=30;
+      for(var k=0;k<5;k++) fg.drawImage(tc,0,0);
+      fg.shadowBlur=10; fg.drawImage(tc,0,0); fg.drawImage(tc,0,0);
+      var tex=new THREE.CanvasTexture(fc); tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=4;
+      neonCrossMat=new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
+      neonCrossMat.color.setRGB(1.5,1.5,1.5); // push the tubes past the bloom threshold
+      var sign=new THREE.Mesh(new THREE.PlaneGeometry(2.2,2.2),neonCrossMat);
+      sign.position.z=0.045; grp.add(sign);
+      // wide soft halo washing the wall behind the sign
+      var gc=document.createElement('canvas'); gc.width=gc.height=256;
+      var gg=gc.getContext('2d');
+      var grad=gg.createRadialGradient(128,128,10,128,128,128);
+      grad.addColorStop(0,'rgba(255,46,99,0.55)'); grad.addColorStop(0.55,'rgba(255,46,99,0.16)'); grad.addColorStop(1,'rgba(255,46,99,0)');
+      gg.fillStyle=grad; gg.fillRect(0,0,256,256);
+      var gtex=new THREE.CanvasTexture(gc);
+      neonCrossGlowMat=new THREE.MeshBasicMaterial({map:gtex,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,opacity:0.85});
+      var glow=new THREE.Mesh(new THREE.PlaneGeometry(4.6,4.6),neonCrossGlowMat);
+      glow.position.z=0.02; grp.add(glow);
+      neonCrossLight=new THREE.PointLight(0xff2e63,20,10,1.8);
+      neonCrossLight.position.set(0,0,1.1); grp.add(neonCrossLight);
+    }catch(e){ /* the framed emblem is gone either way; the wall just stays dark */ }
+  };
+  img.src='assets/emblem-cross.webp';
+  grp.position.set(GAR.W/2-0.08,2.7,-5.6); grp.rotation.y=-Math.PI/2;
+  scene.add(grp);
+})();
+var floorMedal=new THREE.Mesh(new THREE.PlaneGeometry(3.4,3.4),
+  new THREE.MeshStandardMaterial({map:photoTex('assets/emblem-cross.webp'),roughness:0.5,metalness:0.35,
+    envMapIntensity:0.9,polygonOffset:true,polygonOffsetFactor:-2}));
+floorMedal.rotation.x=-Math.PI/2; floorMedal.position.set(0,0.015,5.6); floorMedal.receiveShadow=true; scene.add(floorMedal);
+
+/* ---- props: REAL GLB shop gear (Sketchfab, CC BY) replaces the old
+   block-built props — a proper workbench with pegboard and tools, a
+   drawer cabinet, a 2-post lift in Bay 1, photogrammetry tire
+   stacks, engine hoist, jack stands, creeper, tool trolleys,
+   barrels, toolboxes, a shelf and an air compressor. All sixteen
+   props were measured, scaled to real-world size, grounded and
+   baked into ONE merged file at build time (one fetch, one decode);
+   the colliders below are those same build-time measurements. If
+   the file fails to load, the corners simply stay empty. ---- */
+function box(w,h,d,mat,x,y,z,parent,shadow){
+  var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(x,y,z); if(shadow!==false){ m.castShadow=true; m.receiveShadow=true; }
+  (parent||scene).add(m); return m;
+}
+var redCab=new THREE.MeshStandardMaterial({color:0x9e1b1e,roughness:0.4,metalness:0.4});
+var DECOR_COLLIDERS=[ // [centreX, centreZ, halfW, halfD] per prop
+  [7.6,-9.3,1.65,0.32],[-11,-9.45,0.76,0.44],[4.2,-9.55,1.46,0.28],[5.5,-9.2,0.22,0.3],
+  [-8.7,-9.3,0.27,0.2],[-11.62,-2,0.2,0.3],[-8.38,-2,0.2,0.3],[-7.7,0.9,1.25,1.07],
+  [-6.4,-4.4,0.15,0.13],[-3.6,-4.4,0.15,0.13],[2.4,0.7,0.62,0.43],[12.45,-1,0.18,0.96],
+  [-12.15,4.3,0.43,0.43],[12.2,-6.6,0.43,0.43],[12.25,-8.85,0.28,0.28],[11.45,-9.25,0.28,0.28],
+  [-12.25,-8.9,0.76,0.63]
+];
+(function(){
+  try{
+    var loader=new THREE.GLTFLoader();
+    if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+    var start=function(){ loader.load('assets/decor.glb',function(gltf){
+      gltf.scene.traverse(function(o){ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true;
+        if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ if(m.envMapIntensity!==undefined&&m.envMapIntensity<0.55) m.envMapIntensity=0.55; }); } } });
+      scene.add(gltf.scene);
+      DECOR_COLLIDERS.forEach(function(c){ addCollider(c[0],c[1],c[2],c[3]); });
+      renderer.shadowMap.needsUpdate=true;
+    },undefined,function(){ /* corners stay empty */ }); };
+    if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(start,start);
+    else start();
+  }catch(e){ /* corners stay empty */ }
+})();
+// cones in the aisle
+[[3.4,5.6],[-6.8,6.4],[8.9,2.8]].forEach(function(p){
+  var cone=new THREE.Mesh(new THREE.ConeGeometry(0.16,0.5,18),
+    new THREE.MeshStandardMaterial({color:0xe85d1f,roughness:0.6}));
+  cone.position.set(p[0],0.25,p[1]); cone.castShadow=true; scene.add(cone);
+  box(0.3,0.03,0.3,blackTrim,p[0],0.015,p[1]);
+  addCollider(p[0],p[1],0.2,0.2);
+});
+/* The old lounge corner (two stools, towels, a cooler) is gone: the
+   front corner by the doors is now the Japanese chill area — benches,
+   tatami, torii, lanterns and neon — built further down with the
+   guests who sit there. */
+
+/* ================= CAR BUILDER ================= */
+function extrudeProfile(shape,depth,mat){
+  var geo=new THREE.ExtrudeGeometry(shape,{depth:depth,bevelEnabled:true,bevelThickness:0.072,bevelSize:0.062,bevelSegments:6,steps:1,curveSegments:22});
+  geo.translate(0,0,-depth/2); geo.rotateY(-Math.PI/2);
+  var m=new THREE.Mesh(geo,mat); m.castShadow=true; m.receiveShadow=true; return m;
+}
+function buildCar(spec){
+  var g=new THREE.Group();
+  var L=spec.L,W=spec.W,wb=spec.wb,wr=spec.wr,belt=spec.belt,roof=spec.roof;
+  var paint=paintMat(spec.color);
+  // soft contact shadow grounding the car on the polished floor
+  var blob=new THREE.Mesh(new THREE.PlaneGeometry(W+0.85,L+0.85),
+    new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false}));
+  blob.rotation.x=-Math.PI/2; blob.position.y=0.012; blob.renderOrder=1; g.add(blob);
+
+  // lower body from side profile
+  var s=new THREE.Shape();
+  var fx=wb/2, rx=-wb/2, archR=wr+(spec.archGap!==undefined?spec.archGap:0.085);
+  s.moveTo(-L/2+0.05,0.34);
+  s.quadraticCurveTo(-L/2-0.01,spec.tail-0.1,-L/2+0.14,spec.tail+0.01);
+  s.quadraticCurveTo(-L/2+0.42,belt+0.05,-L/2+0.72,belt+0.02);
+  s.lineTo(L/2-1.18,belt);
+  s.quadraticCurveTo(L/2-0.58,belt+0.015,L/2-0.3,spec.nose+0.05);
+  s.quadraticCurveTo(L/2-0.03,spec.nose-0.01,L/2,spec.nose-0.15);
+  s.lineTo(L/2,0.20);
+  s.lineTo(fx+archR,0.20);
+  s.absarc(fx,0.20,archR,0,Math.PI,false);
+  s.lineTo(rx+archR,0.20);
+  s.absarc(rx,0.20,archR,0,Math.PI,false);
+  s.lineTo(-L/2+0.05,0.20);
+  s.closePath();
+  g.add(extrudeProfile(s,W-0.14,paint));
+
+  // cabin (glasshouse)
+  var c=new THREE.Shape();
+  var cF=spec.cabinF, cR=spec.cabinR;
+  c.moveTo(cR,belt-0.03);
+  c.lineTo(cR+0.4,roof-0.04);
+  c.quadraticCurveTo(cR+0.52,roof+0.02,cR+0.78,roof);
+  c.lineTo(cF-0.66,roof);
+  c.quadraticCurveTo(cF-0.36,roof,cF-0.16,roof-0.07);
+  c.lineTo(cF,belt-0.03);
+  c.closePath();
+  g.add(extrudeProfile(c,W-0.48,blackTrim));
+  g.add(extrudeProfile(c,W-0.38,glassMat));
+  // roof panel
+  var roofLen=(cF-0.66)-(cR+0.78);
+  var roofPanel=box(W-0.48,0.035,roofLen,paint,0,roof+0.012,(cR+0.78)+roofLen/2,g);
+  // mirrors: stalk + painted housing + real glass face, not a plain block
+  [1,-1].forEach(function(sd){
+    var stalk=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.018,0.11,8),blackTrim);
+    stalk.rotation.z=sd*1.1; stalk.position.set(sd*(W/2-0.01),0.97,cF-0.2); g.add(stalk);
+    box(0.15,0.075,0.095,paint,sd*(W/2+0.055),1.02,cF-0.2,g);
+    box(0.012,0.06,0.078,projectorMat,sd*(W/2+0.132),1.02,cF-0.2,g,false);
+  });
+  // wipers resting on the cowl + shark-fin aerial on the roof
+  [0.28,-0.3].forEach(function(wx2){
+    var wp=box(0.015,0.012,0.44,blackTrim,wx2,belt+0.045,cF-0.1,g,false); wp.rotation.y=wx2>0?0.5:-0.42; wp.rotation.x=0.32;
+  });
+  var fin=box(0.02,0.07,0.16,paint,0,roof+0.05,cR+0.92,g,false); fin.rotation.x=-0.18;
+  // grille, plate, exhaust, skirts
+  box(W-0.95,0.08,0.03,blackTrim,0,0.44,L/2+0.01,g,false);
+  var plateText={s15:'S15-DRFT',civic:'TX-98CVC',lambo:'V10-LP560'}[spec.id]||'DTL-001';
+  var plateMat=new THREE.MeshStandardMaterial({map:plateTexFn(plateText),roughness:0.45,envMapIntensity:0.7});
+  box(0.46,0.14,0.02,plateMat,spec.plateX||0.3,0.42,-L/2-0.005,g,false);
+  box(0.46,0.14,0.02,plateMat,0,0.4,L/2+0.005,g,false);
+  spec.exhausts.forEach(function(ex){
+    var pipe=new THREE.Mesh(new THREE.CylinderGeometry(0.047,0.042,0.16,18),chromeMat);
+    pipe.rotation.x=Math.PI/2; pipe.position.set(ex,0.24,-L/2-0.045); pipe.castShadow=true; g.add(pipe);
+    var bore=new THREE.Mesh(new THREE.CylinderGeometry(0.034,0.034,0.165,14),innerDarkMat);
+    bore.rotation.x=Math.PI/2; bore.position.set(ex,0.24,-L/2-0.048); g.add(bore);
+  });
+  box(0.05,0.09,wb-0.4,blackTrim, (W/2-0.03),0.17,0,g,false);
+  box(0.05,0.09,wb-0.4,blackTrim,-(W/2-0.03),0.17,0,g,false);
+  if(spec.frontLip) box(W-0.12,0.08,0.2,blackTrim,0,0.15,L/2-0.03,g);
+  // spoiler
+  if(spec.spoiler==='wing'||spec.spoiler==='wingTall'){
+    var sh=spec.spoiler==='wingTall'?0.24:0.17;
+    box(0.05,sh,0.07,darkMetal, 0.5,spec.tail+sh/2,-L/2+0.3,g);
+    box(0.05,sh,0.07,darkMetal,-0.5,spec.tail+sh/2,-L/2+0.3,g);
+    var blade=box(W-0.45,0.035,0.3,paint,0,spec.tail+sh+0.02,-L/2+0.3,g); blade.rotation.x=0.1;
+  } else if(spec.spoiler==='lip'){
+    box(W-0.72,0.03,0.2,paint,0,spec.tail+0.03,-L/2+0.16,g);
+  } else if(spec.spoiler==='duck'){
+    var duck=box(W-0.6,0.05,0.26,paint,0,spec.tail+0.02,-L/2+0.14,g); duck.rotation.x=-0.28;
+  }
+
+  // wheels
+  var rimMat=new THREE.MeshStandardMaterial({color:spec.rimColor,roughness:0.22,metalness:0.95,envMapIntensity:1.0});
+  var caliperMat=new THREE.MeshStandardMaterial({color:spec.valveColor,roughness:0.4,metalness:0.5});
+  function wheel(x,z,side){
+    var wg=new THREE.Group();
+    var tire=new THREE.Mesh(new THREE.CylinderGeometry(wr,wr,0.235,48),[treadMat,sidewallMat,sidewallMat]);
+    tire.rotation.z=Math.PI/2; tire.castShadow=true; wg.add(tire);
+    // dark inner-arch disc so you never see through the wheel well
+    var inner=new THREE.Mesh(new THREE.CylinderGeometry(wr*0.97,wr*0.97,0.05,28),innerDarkMat);
+    inner.rotation.z=Math.PI/2; inner.position.x=-side*0.07; wg.add(inner);
+    // drilled-look brake disc: bright ring + hub + big painted caliper
+    var disc=new THREE.Mesh(new THREE.CylinderGeometry(wr*0.58,wr*0.58,0.032,32),discMat);
+    disc.rotation.z=Math.PI/2; disc.position.x=side*0.015; wg.add(disc);
+    var dring=new THREE.Mesh(new THREE.TorusGeometry(wr*0.44,0.012,8,32),chromeMat);
+    dring.rotation.y=Math.PI/2; dring.position.x=side*0.034; wg.add(dring);
+    var cal=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.15,0.09),caliperMat);
+    cal.position.set(side*0.05,wr*0.32,wr*0.34); cal.rotation.x=-0.5; wg.add(cal);
+    // deep-dish rim: dark barrel, polished outer lip, tapered spokes
+    var rim=new THREE.Mesh(new THREE.CylinderGeometry(wr*0.62,wr*0.62,0.19,32),
+      new THREE.MeshStandardMaterial({color:0x17181b,roughness:0.38,metalness:0.8,envMapIntensity:1.4}));
+    rim.rotation.z=Math.PI/2; wg.add(rim);
+    var lip=new THREE.Mesh(new THREE.TorusGeometry(wr*0.615,0.02,12,36),rimMat);
+    lip.rotation.y=Math.PI/2; lip.position.x=side*0.095; wg.add(lip);
+    for(var i=0;i<spec.spokes;i++){
+      var sp=new THREE.Mesh(new THREE.BoxGeometry(0.052,wr*1.08,0.082),rimMat);
+      sp.rotation.x=i*Math.PI/spec.spokes; sp.position.x=side*0.06; wg.add(sp);
+    }
+    var hub=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.055,18),rimMat);
+    hub.rotation.z=Math.PI/2; hub.position.x=side*0.095; wg.add(hub);
+    var capC=new THREE.Mesh(new THREE.CylinderGeometry(0.032,0.032,0.06,14),caliperMat);
+    capC.rotation.z=Math.PI/2; capC.position.x=side*0.098; wg.add(capC);
+    for(var n=0;n<5;n++){
+      var lug=new THREE.Mesh(new THREE.CylinderGeometry(0.013,0.013,0.028,8),chromeMat);
+      lug.rotation.z=Math.PI/2;
+      lug.position.set(side*0.105,Math.cos(n/5*Math.PI*2)*0.075,Math.sin(n/5*Math.PI*2)*0.075);
+      wg.add(lug);
+    }
+    var valve=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.03,6),chromeMat);
+    valve.position.set(side*0.09,wr*0.52,-wr*0.3); wg.add(valve);
+    if(spec.camber) wg.rotation.z=side*spec.camber;
+    wg.position.set(x,wr,z); g.add(wg); return wg;
+  }
+  var wx=W/2-0.13-(spec.tuck||0);
+  wheel( wx, wb/2,1); wheel(-wx, wb/2,-1); wheel( wx,-wb/2,1); wheel(-wx,-wb/2,-1);
+
+  /* ---- sculpted detail that lifts the slab sides to the Civic's level:
+     painted arch lips around every wheel opening, a shoulder crease
+     running the flank, a front splitter with fog lamps, and a finned
+     rear diffuser — real geometry catching real reflections ---- */
+  [1,-1].forEach(function(sd){
+    [wb/2,-wb/2].forEach(function(wz){
+      // flared arch: fat painted lip + a shadow gap behind it, like a
+      // rolled fender on the real car — the single biggest slab-killer
+      var arch=new THREE.Mesh(new THREE.TorusGeometry(archR+0.02,0.042,12,30,Math.PI),paint);
+      arch.rotation.y=Math.PI/2; arch.position.set(sd*(W/2+0.008),0.20,wz);
+      arch.castShadow=true; g.add(arch);
+      var gap=new THREE.Mesh(new THREE.TorusGeometry(archR+0.005,0.014,8,26,Math.PI),innerDarkMat);
+      gap.rotation.y=Math.PI/2; gap.position.set(sd*(W/2-0.012),0.20,wz); g.add(gap);
+    });
+    // shoulder crease + lower door sweep, both hugging the flank
+    box(0.014,0.02,wb+0.55,paint,sd*(W/2-0.008),belt-0.13,0,g,false);
+    box(0.012,0.014,wb-0.2,blackTrim,sd*(W/2-0.009),0.36,0,g,false);
+    // side indicator repeater ahead of the front door
+    box(0.016,0.035,0.07,new THREE.MeshStandardMaterial({color:0xd78a1e,roughness:0.3,emissive:0xcc7a10,emissiveIntensity:0.5,envMapIntensity:1.4}),sd*(W/2-0.01),0.72,cF-0.55,g,false);
+    // carbon rocker blade under the door
+    box(0.035,0.055,wb-0.55,carbonMat,sd*(W/2+0.005),0.135,0,g,false);
+  });
+  // ---- front fascia: mesh intake, intercooler on turbo cars, DRL strip,
+  // canards and a carbon splitter — a face, not a flat slab end ----
+  box(W-1.02,0.21,0.025,grilleMat,0,0.295,L/2+0.018,g,false);
+  if(spec.id==='r34'||spec.id==='supra'||spec.id==='rx7'){
+    box(W-1.35,0.13,0.02,discMat,0,0.29,L/2+0.008,g,false); // intercooler core behind the mesh
+    box(W-1.02,0.21,0.028,grilleMat,0,0.295,L/2+0.02,g,false);
+  }
+  box(W-0.5,0.028,0.015,new THREE.MeshStandardMaterial({color:0xeaf2ff,roughness:0.2,emissive:0xd6e6ff,emissiveIntensity:0.85,envMapIntensity:1.8}),0,spec.nose+0.055,L/2+0.016,g,false);
+  [1,-1].forEach(function(sd){
+    var can=box(0.02,0.09,0.22,carbonMat,sd*(W/2-0.015),0.34,L/2-0.08,g,false); can.rotation.y=sd*0.35;
+    var fog=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,0.025,16),
+      new THREE.MeshStandardMaterial({color:0xdfeaf2,roughness:0.12,metalness:0.3,emissive:0xcfe0ee,emissiveIntensity:0.18,envMapIntensity:1.8}));
+    fog.rotation.x=Math.PI/2; fog.position.set(sd*(W/2-0.42),0.3,L/2+0.02); g.add(fog);
+    var fogRing=new THREE.Mesh(new THREE.TorusGeometry(0.05,0.008,8,18),chromeMat);
+    fogRing.position.set(sd*(W/2-0.42),0.3,L/2+0.032); g.add(fogRing);
+  });
+  // carbon front splitter
+  box(W-0.24,0.04,0.3,carbonMat,0,0.11,L/2-0.01,g);
+  // rear diffuser with vertical fins under the tail — carbon now
+  box(W-0.5,0.12,0.24,carbonMat,0,0.155,-L/2+0.02,g);
+  [-0.45,-0.15,0.15,0.45].forEach(function(fx2){
+    box(0.025,0.1,0.22,darkMetal,fx2*(W/2),0.145,-L/2+0.02,g,false);
+  });
+  // model signatures: NSX side intake, R34/Supra fender vent, RX-7 hood vent
+  if(spec.id==='nsx'){
+    [1,-1].forEach(function(sd){
+      box(0.03,0.22,0.52,innerDarkMat,sd*(W/2-0.005),0.62,cR+0.62,g,false);
+      box(0.015,0.03,0.52,paint,sd*(W/2+0.01),0.74,cR+0.62,g,false);
+    });
+  } else if(spec.id==='r34'||spec.id==='supra'){
+    [1,-1].forEach(function(sd){ box(0.018,0.06,0.24,innerDarkMat,sd*(W/2-0.006),0.68,wb/2+0.52,g,false); });
+  }
+
+  /* ---- doors: sealed flush panels — seam lines, pillars, handles only ---- */
+  var doorLen=1.04, doorFront=cF-0.28, doorCenterZ=doorFront-doorLen/2;
+  var seamMat=new THREE.MeshStandardMaterial({color:0x0a0b0d,roughness:0.85});
+  [1,-1].forEach(function(side){
+    var sx=side*(W/2-0.03);
+    function seam(z){ box(0.012,0.58,0.014,seamMat,sx,0.58,z,g,false); }
+    function handle(z){
+      var h=new THREE.Mesh(new THREE.CapsuleGeometry(0.016,0.13,3,8),darkMetal);
+      h.rotation.x=Math.PI/2; h.position.set(side*(W/2-0.018),0.8,z); g.add(h);
+    }
+    function pillar(z){ box(0.03,roof-belt-0.04,0.055,blackTrim,side*(W/2-0.2),(belt+roof)/2,z,g,false); }
+    if(spec.fourDoor){
+      seam(doorFront); seam(doorFront-0.92); seam(doorFront-1.78);
+      handle(doorFront-0.76); handle(doorFront-1.62);
+      pillar(doorFront-0.92);
+    } else {
+      seam(doorFront); seam(doorFront-doorLen);
+      handle(doorFront-doorLen+0.18);
+      pillar(doorFront-doorLen+0.03);
+    }
+    // chrome window surround strip along the belt line
+    box(0.012,0.018,cF-cR-0.24,chromeMat,side*(W/2-0.19),belt+0.015,(cF+cR)/2,g,false);
+  });
+
+  /* ---- interior (seen through the glass) ---- */
+  var seatMat=new THREE.MeshStandardMaterial({color:0x1e1f26,roughness:0.92});
+  var dashMat=new THREE.MeshStandardMaterial({color:0x17181d,roughness:0.85});
+  box(W-0.52,0.05,2.0,dashMat,0,0.44,doorCenterZ+0.02,g,false);
+  box(W-0.56,0.17,0.3,dashMat,0,0.97,doorFront-0.18,g,false);
+  box(0.2,0.05,0.16,new THREE.MeshStandardMaterial({color:0x0c0d10,roughness:0.4,metalness:0.4}),0,1.0,doorFront-0.18,g,false);
+  var insertMat=new THREE.MeshStandardMaterial({color:spec.valveColor,roughness:0.75});
+  [0.37,-0.37].forEach(function(sx){
+    // bucket seat: cushion, back, side bolsters, coloured centre insert
+    box(0.5,0.1,0.52,seatMat,sx,0.53,doorCenterZ+0.02,g,false);
+    var bk=box(0.5,0.64,0.1,seatMat,sx,0.85,doorCenterZ-0.26,g,false); bk.rotation.x=-0.3;
+    var ins=box(0.26,0.5,0.03,insertMat,sx,0.86,doorCenterZ-0.2,g,false); ins.rotation.x=-0.3;
+    [0.22,-0.22].forEach(function(bo){
+      var bol=box(0.09,0.5,0.09,seatMat,sx+bo,0.82,doorCenterZ-0.24,g,false); bol.rotation.x=-0.3;
+    });
+    var hr=box(0.24,0.15,0.08,seatMat,sx,1.22,doorCenterZ-0.36,g,false); hr.rotation.x=-0.3;
+    box(0.52,0.03,0.03,insertMat,sx,0.6,doorCenterZ+0.26,g,false);
+  });
+  box(0.24,0.13,0.75,dashMat,0,0.55,doorCenterZ+0.05,g,false);
+  // glowing dash screen + shifter, visible through the glass
+  var scr=box(0.03,0.09,0.17,new THREE.MeshStandardMaterial({color:0x0a1420,roughness:0.25,emissive:0x2a6ab0,emissiveIntensity:0.9}),0.18,0.99,doorFront-0.2,g,false); scr.rotation.z=-0.25;
+  var knob2=new THREE.Mesh(new THREE.SphereGeometry(0.028,12,10),chromeMat);
+  knob2.position.set(0,0.68,doorCenterZ+0.18); g.add(knob2);
+  box(0.015,0.07,0.015,darkMetal,0,0.62,doorCenterZ+0.18,g,false);
+  var steer=new THREE.Mesh(new THREE.TorusGeometry(0.105,0.016,10,22),blackTrim);
+  steer.rotation.y=Math.PI/2; steer.rotation.x=0.35;
+  steer.position.set(W/2-0.3,0.97,doorFront-0.3); g.add(steer);
+  box(0.03,0.05,0.05,insertMat,W/2-0.3,0.97,doorFront-0.3,g,false);
+  box(W-0.6,0.1,0.42,seatMat,0,0.56,cR+0.5,g,false);
+  var rbk=box(W-0.6,0.48,0.09,seatMat,0,0.86,cR+0.28,g,false); rbk.rotation.x=-0.14;
+
+  /* ---- hood: tilted to follow the nose slope and sunk into the body,
+     so it sits dead flush when shut — the old flat panel bridged from
+     the cowl to the nose tip and read as propped open at the front.
+     Seam strips ride the pivot so they stay flush open or shut.
+     Everything under it stays hidden until it lifts ---- */
+  var hoodRearZ=L/2-1.18, hoodLen=1.04;
+  var hoodTilt=Math.atan2(Math.max(0.05,belt-spec.nose),0.9);
+  var hoodPivot=new THREE.Group(); hoodPivot.position.set(0,belt+0.028,hoodRearZ); g.add(hoodPivot);
+  hoodPivot.rotation.x=hoodTilt;
+  box(W-0.22,0.024,hoodLen,paint,0,-0.004,hoodLen/2,hoodPivot);
+  box(0.02,0.008,hoodLen,seamMat, (W/2-0.115),-0.006,hoodLen/2,hoodPivot,false);
+  box(0.02,0.008,hoodLen,seamMat,-(W/2-0.115),-0.006,hoodLen/2,hoodPivot,false);
+  box(W-0.24,0.008,0.02,seamMat,0,-0.006,0.012,hoodPivot,false);
+  // flush hood detail riding the panel: a shallow power bulge + two vent
+  // slats (RX-7 gets a centre scoop instead) — sculpted, never propped
+  if(spec.id==='rx7'){
+    box(0.34,0.018,0.3,innerDarkMat,0,0.012,hoodLen*0.52,hoodPivot,false);
+    box(0.38,0.01,0.34,paint,0,0.004,hoodLen*0.52,hoodPivot,false);
+  } else {
+    box(0.44,0.016,hoodLen*0.62,paint,0,0.008,hoodLen*0.52,hoodPivot,false);
+    [-0.3,0.3].forEach(function(vx){ box(0.16,0.01,0.34,innerDarkMat,vx,0.011,hoodLen*0.6,hoodPivot,false); });
+  }
+  var engineGroup=new THREE.Group(); engineGroup.visible=false; g.add(engineGroup);
+  box(W-0.52,0.03,hoodLen-0.08,new THREE.MeshStandardMaterial({color:0x0c0d10,roughness:1}),0,belt-0.02,hoodRearZ+hoodLen/2,engineGroup,false);
+  box(0.56,0.05,0.62,darkMetal,0,belt+0.005,hoodRearZ+hoodLen/2,engineGroup,false);
+  box(0.42,0.022,0.46,new THREE.MeshStandardMaterial({color:spec.valveColor,roughness:0.35,metalness:0.6}),0,belt+0.04,hoodRearZ+hoodLen/2,engineGroup,false);
+  var hose=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.4,10),blackTrim);
+  hose.rotation.z=Math.PI/2; hose.position.set(0,belt+0.03,hoodRearZ+0.3); engineGroup.add(hose);
+  var strutBar=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,W-0.66,10),chromeMat);
+  strutBar.rotation.z=Math.PI/2; strutBar.position.set(0,belt+0.045,hoodRearZ+0.22); engineGroup.add(strutBar);
+  box(0.26,0.15,0.19,blackTrim,-(W/2-0.36),belt+0.03,hoodRearZ+0.3,engineGroup,false);
+  box(0.05,0.05,0.05,new THREE.MeshStandardMaterial({color:0xc22,roughness:0.5}),-(W/2-0.36),belt+0.13,hoodRearZ+0.3,engineGroup,false);
+  box(0.32,0.06,0.3,darkMetal,(W/2-0.42),belt+0.03,hoodRearZ+0.72,engineGroup,false);
+  box(W-0.62,0.24,0.045,darkMetal,0,belt-0.04,hoodRearZ+hoodLen-0.09,engineGroup,false);
+  // dressed bay: chrome intake pipe, coloured hoses, turbo on boosted cars
+  var intake=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,0.52,14),chromeMat);
+  intake.rotation.z=Math.PI/2; intake.rotation.y=0.25; intake.position.set(0.08,belt+0.075,hoodRearZ+0.68); engineGroup.add(intake);
+  [-0.12,0.12].forEach(function(hx){
+    var hh=new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,0.4,10),
+      new THREE.MeshStandardMaterial({color:spec.valveColor,roughness:0.55}));
+    hh.rotation.x=Math.PI/2; hh.position.set(hx,belt+0.055,hoodRearZ+0.5); engineGroup.add(hh);
+  });
+  if(spec.id!=='nsx'){
+    var turbo=new THREE.Mesh(new THREE.TorusGeometry(0.075,0.032,10,18),discMat);
+    turbo.rotation.y=Math.PI/2; turbo.position.set(-(W/2-0.52),belt+0.05,hoodRearZ+0.66); engineGroup.add(turbo);
+    box(0.14,0.03,0.14,new THREE.MeshStandardMaterial({color:0x8a5a20,roughness:0.4,metalness:0.8}),-(W/2-0.52),belt-0.01,hoodRearZ+0.66,engineGroup,false);
+  }
+  box(0.18,0.09,0.14,new THREE.MeshStandardMaterial({color:0xd8d4c4,roughness:0.35,transparent:true,opacity:0.85}),(W/2-0.34),belt+0.05,hoodRearZ+0.28,engineGroup,false);
+
+  /* ---- trunk: sealed flush deck, seam line only (does not open) ---- */
+  var trunkFrontZ=-L/2+0.66;
+  box(W-0.5,0.012,0.014,seamMat,0,belt+0.028,trunkFrontZ,g,false);
+  box(0.014,0.012,0.6,seamMat, (W/2-0.26),belt+0.01,trunkFrontZ-0.3,g,false);
+  box(0.014,0.012,0.6,seamMat,-(W/2-0.26),belt+0.01,trunkFrontZ-0.3,g,false);
+
+  /* ---- lights ---- */
+  var headMat=new THREE.MeshStandardMaterial({map:headTex,roughness:0.12,metalness:0.3,emissive:0xffedb8,emissiveMap:headTex,emissiveIntensity:0.06,envMapIntensity:1.9});
+  var tailMat=new THREE.MeshStandardMaterial({map:tailTex,roughness:0.18,emissive:0xff2a22,emissiveMap:tailTex,emissiveIntensity:0.35,envMapIntensity:1.5});
+  var popups=null;
+  if(spec.popup){
+    popups=[];
+    [1,-1].forEach(function(sd){
+      var pv=new THREE.Group(); pv.position.set(sd*(W/2-0.38),spec.nose+0.03,L/2-0.42); g.add(pv);
+      var lamp=box(0.42,0.11,0.36,paint,0,0,0.1,pv);
+      box(0.38,0.085,0.02,innerDarkMat,0,0.005,0.275,pv,false);
+      [-0.09,0.09].forEach(function(px){
+        var proj=new THREE.Mesh(new THREE.CylinderGeometry(0.052,0.058,0.03,16),projectorMat);
+        proj.rotation.x=Math.PI/2; proj.position.set(px,0.005,0.285); pv.add(proj);
+        var eye2=new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.028,0.032,12),headMat);
+        eye2.rotation.x=Math.PI/2; eye2.position.set(px,0.005,0.287); pv.add(eye2);
+      });
+      var lens=box(0.38,0.085,0.015,lensClearMat,0,0.005,0.295,pv,false);
+      var lensOld=box(0.36,0.07,0.01,headMat,0,0.01,0.28,pv,false); lensOld.visible=false;
+      popups.push(pv);
+    });
+  } else {
+    // projector headlights: dark housing, twin chrome bowls, clear lens
+    [1,-1].forEach(function(sd){
+      var hx=sd*(W/2-0.36);
+      box(0.46,0.115,0.035,innerDarkMat,hx,spec.nose-0.03,L/2+0.01,g,false);
+      [-0.11,0.1].forEach(function(px){
+        var proj=new THREE.Mesh(new THREE.CylinderGeometry(px<0?0.062:0.048,px<0?0.068:0.054,0.03,18),projectorMat);
+        proj.rotation.x=Math.PI/2; proj.position.set(hx+px,spec.nose-0.03,L/2+0.026); g.add(proj);
+        var eye=new THREE.Mesh(new THREE.CylinderGeometry(0.026,0.026,0.032,12),headMat);
+        eye.rotation.x=Math.PI/2; eye.position.set(hx+px,spec.nose-0.03,L/2+0.028); g.add(eye);
+      });
+      box(0.46,0.115,0.012,lensClearMat,hx,spec.nose-0.03,L/2+0.032,g,false);
+    });
+  }
+  // tails: R34 + Supra get their signature quad rounds, the rest a
+  // segmented LED bar under a clear lens — all on the same tailMat so
+  // the lights toggle still drives every lamp together
+  if(spec.id==='r34'||spec.id==='supra'){
+    box(W-0.62,0.13,0.025,innerDarkMat,0,spec.tail-0.13,-L/2-0.01,g,false);
+    [1,-1].forEach(function(sd){
+      [-0.13,0.13].forEach(function(off,i){
+        var tl=new THREE.Mesh(new THREE.CylinderGeometry(i?0.042:0.055,i?0.042:0.055,0.028,20),tailMat);
+        tl.rotation.x=Math.PI/2; tl.position.set(sd*(W/4)+off,spec.tail-0.13,-L/2-0.026); g.add(tl);
+        var ring=new THREE.Mesh(new THREE.TorusGeometry(i?0.042:0.055,0.007,8,20),chromeMat);
+        ring.position.set(sd*(W/4)+off,spec.tail-0.13,-L/2-0.03); g.add(ring);
+      });
+    });
+  } else {
+    box(W-0.7,0.09,0.03,tailMat,0,spec.tail-0.14,-L/2-0.012,g,false);
+    [-0.33,0,0.33].forEach(function(seg){ box(0.014,0.09,0.034,innerDarkMat,seg,spec.tail-0.14,-L/2-0.013,g,false); });
+    box(W-0.68,0.095,0.01,lensClearMat,0,spec.tail-0.14,-L/2-0.028,g,false);
+  }
+  // rear badge, front intake, side markers, fuel cap, antenna, mirror glass
+  var badge=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.115),
+    new THREE.MeshBasicMaterial({map:badgeTexFn(spec.short.toUpperCase()),transparent:true}));
+  badge.position.set(-(spec.plateX||0.3)+0.1,spec.tail+0.06,-L/2-0.045); badge.rotation.y=Math.PI; g.add(badge);
+  box(W-1.15,0.16,0.03,new THREE.MeshStandardMaterial({color:0x0a0b0d,roughness:0.9}),0,0.3,L/2+0.012,g,false);
+  var markerMatF=new THREE.MeshStandardMaterial({color:0xd78a1e,roughness:0.4,emissive:0xcc7a10,emissiveIntensity:0.4});
+  var markerMatR=new THREE.MeshStandardMaterial({color:0x8c1418,roughness:0.4,emissive:0xaa1418,emissiveIntensity:0.4});
+  [1,-1].forEach(function(sd){
+    box(0.03,0.045,0.13,markerMatF,sd*(W/2-0.02),0.6,L/2-0.62,g,false);
+    box(0.03,0.045,0.13,markerMatR,sd*(W/2-0.02),0.6,-L/2+0.55,g,false);
+    box(0.13,0.055,0.018,new THREE.MeshStandardMaterial({color:0x9fc4d8,roughness:0.05,metalness:0.9,envMapIntensity:2}),sd*(W/2+0.05),1.0,cF-0.26,g,false);
+  });
+  var cap=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,0.014,18),paint);
+  cap.rotation.z=Math.PI/2; cap.position.set(W/2-0.028,0.8,-L/2+0.85); g.add(cap);
+  var ant=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.009,0.3,6),blackTrim);
+  ant.position.set(0.32,roof+0.15,cR+0.35); g.add(ant);
+  // light cones + floor pools (visible beam when on)
+  var beams=[];
+  [1,-1].forEach(function(sd){
+    var cone=new THREE.Mesh(new THREE.ConeGeometry(0.85,3.0,20,1,true),
+      new THREE.MeshBasicMaterial({color:0xffe9b0,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));
+    cone.rotation.x=Math.PI/2+0.1; cone.position.set(sd*(W/2-0.36),0.52,L/2+1.55); cone.renderOrder=5; g.add(cone);
+    beams.push(cone);
+  });
+  var pool=new THREE.Mesh(new THREE.CircleGeometry(1.5,22),
+    new THREE.MeshBasicMaterial({color:0xffdf9e,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending}));
+  pool.rotation.x=-Math.PI/2; pool.position.set(0,0.02,L/2+2.6); pool.renderOrder=4; g.add(pool);
+
+  g.position.set(spec.x,0,-2);
+  scene.add(g);
+  addCollider(spec.x,-2,W/2+0.08,L/2+0.08);
+  return {spec:spec,group:g,hoodPivot:hoodPivot,hoodTilt:hoodTilt,engineGroup:engineGroup,
+    headMat:headMat,tailMat:tailMat,popups:popups,beams:beams,pool:pool,
+    doorCenterZ:doorCenterZ,doorFront:doorFront,engineOn:false,lightsOn:false,_audio:null};
+}
+
+var CAR_SPECS=[
+ { id:'s15', bay:2, x:-5, name:'Nissan Silvia S15', short:'S15', tag:'THE DRIFT CAR',
+   spec:'SR20DET 2.0L turbo four · RWD · 5-speed',
+   note:'New in Bay 2 — the IS300 is gone. A widebody S15 drift build by Socksthecat (CC BY 4.0): red paint over a black carbon hood, GT wing, deep-dish wheels with tire lettering. One honest catch — the body is a single shell, so the hood stays sealed; lights and engine still work.',
+   color:0xa31616, valveColor:0x2456a6, duffelColor:0x22242a, rimColor:0xc8ccd2, spokes:5,
+   L:4.45,W:1.9,wb:2.64,wr:0.33,belt:0.86,roof:1.28,tail:0.84,nose:0.6,cabinF:0.7,cabinR:-1.2,
+   fourDoor:false, doorFront:0.7, hasHood:false,
+   spoiler:'wing', exhausts:[0.45], idleHz:60, crankHz:31 },
+ { id:'civic', bay:3, x:0, name:'1998 Honda Civic Sedan', short:'Civic', tag:'YOUR CAR · STANCED',
+   spec:'1.6L SOHC · FWD · 5-speed · real 3D model',
+   note:'Yours — and now the 4-door you actually drive: a real EK-generation Civic sedan model by blender aboba (CC BY 4.0), white on gunmetal steelies and dropped over its wheels. Doors and trunk sealed flush; the hood is the only panel that opens.',
+   color:0xf0f1f3, valveColor:0x3a3f45, duffelColor:0x9e1b1e, rimColor:0x3a3f45, spokes:6,
+   L:4.45,W:1.78,wb:2.62,wr:0.31,belt:0.88,roof:1.42,tail:0.92,nose:0.66,cabinF:0.78,cabinR:-1.3,
+   fourDoor:true, archGap:0.045, camber:0.055, tuck:0.03, doorFront:0.9,
+   spoiler:'lip', frontLip:true, exhausts:[0.5], idleHz:58, crankHz:30 },
+ { id:'lambo', bay:4, x:5, name:'2010 Lamborghini Gallardo LP 560-4', short:'Gallardo', tag:'THE EXOTIC',
+   spec:'5.2L V10 · AWD · 6-speed e-gear',
+   note:'A real Gallardo model file (Artem P, CC BY 4.0) in red clearcoat. The engine lives out back — pop the rear cover and have a look.',
+   color:0xb01a12, valveColor:0x1c1d20, duffelColor:0x3a3f45, rimColor:0x1c1d20, spokes:5,
+   L:4.35,W:1.9,wb:2.56,wr:0.33,belt:0.78,roof:1.12,tail:0.86,nose:0.52,cabinF:0.55,cabinR:-1.05,
+   doorFront:0.6,
+   spoiler:'none', exhausts:[-0.4,0.4], plateX:-0.3, idleHz:68, crankHz:36 }
+];
+/* ---- Bay 3: your Civic sedan — a real GLB file from the same
+   Sketchfab pipeline as the old EK9, meshopt-compressed at build
+   time. The loader is fully measurement-driven: it aligns the
+   model's long axis to the bay, scales it to the car's real length,
+   centres and grounds it from its own bounding box, finds the hood
+   group, makes sure it faces the front of the bay, and hinges it on
+   its rear edge. (Bay 2's S15 and Bay 4's Gallardo go through
+   buildGLBCar below.) Per-file prep:
+   · Civic sedan (blender aboba, CC BY 4.0): 479k-tri EK sedan, flat
+     materials — its paint material is swapped for the garage's white
+     clearcoat at load, its steel wheels shot gunmetal, and the body
+     dropped 4 cm over the wheels for the stance. v12: the paint
+     geometry was re-welded offline and its normals recomputed
+     smooth — it had shipped flat-shaded, which is what made the
+     white surface look glitchy from some angles. */
+function buildRealCar(spec){
+  var g=new THREE.Group();
+  var blob=new THREE.Mesh(new THREE.PlaneGeometry(spec.W+0.85,spec.L+0.85),
+    new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false}));
+  blob.rotation.x=-Math.PI/2; blob.position.y=0.012; blob.renderOrder=1; g.add(blob);
+  var hoodPivot=new THREE.Group(); g.add(hoodPivot); // replaced by the real hinge on load
+  var engineGroup=new THREE.Group(); engineGroup.visible=false; g.add(engineGroup);
+  var beams=[];
+  [1,-1].forEach(function(sd){
+    var cone=new THREE.Mesh(new THREE.ConeGeometry(0.85,3.0,20,1,true),
+      new THREE.MeshBasicMaterial({color:0xffe9b0,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));
+    cone.rotation.x=Math.PI/2+0.1; cone.position.set(sd*(spec.W/2-0.36),0.52,spec.L/2+1.55); cone.renderOrder=5; g.add(cone);
+    beams.push(cone);
+  });
+  var pool=new THREE.Mesh(new THREE.CircleGeometry(1.5,22),
+    new THREE.MeshBasicMaterial({color:0xffdf9e,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending}));
+  pool.rotation.x=-Math.PI/2; pool.position.set(0,0.02,spec.L/2+2.6); pool.renderOrder=4; g.add(pool);
+  var car={spec:spec,group:g,hoodPivot:hoodPivot,hoodTilt:0,hoodDir:-0.66,engineGroup:engineGroup,allMats:[],
+    headMat:null,tailMat:null,popups:null,beams:beams,pool:pool,glowMats:[],
+    doorCenterZ:0,doorFront:spec.doorFront||0.9,engineOn:false,lightsOn:false,_audio:null};
+  g.position.set(spec.x,0,-2);
+  scene.add(g);
+  addCollider(spec.x,-2,spec.W/2+0.08,spec.L/2+0.08);
+  function fallback(){
+    var fb=buildCar(spec);
+    car.hoodPivot=fb.hoodPivot; car.hoodTilt=fb.hoodTilt||0; car.hoodDir=-0.66; car.engineGroup=fb.engineGroup;
+    car.headMat=fb.headMat; car.tailMat=fb.tailMat; car.popups=fb.popups;
+    car.beams=fb.beams; car.pool=fb.pool; car.glowMats=null;
+  }
+  try{
+    var loader=new THREE.GLTFLoader();
+    if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+    var startLoad=function(){ loader.load(spec.glb,function(gltf){
+      var model=gltf.scene;
+      var holder=new THREE.Group(); holder.add(model); g.add(holder);
+      g.updateMatrixWorld(true);
+      var bb=new THREE.Box3().setFromObject(model), sz=bb.getSize(new THREE.Vector3());
+      // long axis must run along Z (the bay direction)
+      if(sz.x>sz.z){ model.rotation.y+=Math.PI/2; g.updateMatrixWorld(true);
+        bb=new THREE.Box3().setFromObject(model); sz=bb.getSize(new THREE.Vector3()); }
+      // find the hood group; if it sits in the rear half, the model
+      // faces -Z — flip it so the front of the car faces the aisle
+      var hoodNode=null;
+      if(spec.hoodMatch) model.traverse(function(o){ if(!hoodNode&&o.name&&o.name.indexOf(spec.hoodMatch)>=0) hoodNode=o; });
+      if(hoodNode){
+        var hb0=new THREE.Box3().setFromObject(hoodNode), hc0=hb0.getCenter(new THREE.Vector3());
+        var cc0=bb.getCenter(new THREE.Vector3());
+        if(hc0.z<cc0.z){ model.rotation.y+=Math.PI; g.updateMatrixWorld(true);
+          bb=new THREE.Box3().setFromObject(model); sz=bb.getSize(new THREE.Vector3()); }
+      }
+      // fit: real length, centred on the bay, grounded on its own bbox
+      var s=spec.fitLen/Math.max(sz.z,0.001);
+      holder.scale.setScalar(s);
+      g.updateMatrixWorld(true);
+      bb=new THREE.Box3().setFromObject(model);
+      var ctr=bb.getCenter(new THREE.Vector3());
+      holder.position.x+=spec.x-ctr.x; holder.position.y+=-bb.min.y; holder.position.z+=-2-ctr.z;
+      g.updateMatrixWorld(true);
+      // stance (Civic): drop every non-wheel root 4 cm over the wheels.
+      // Wheel roots are recognised by their measured shape — low, out
+      // at the sides, wheel-sized — never by trusting file node names.
+      if(spec.id==='civic'){
+        var wheelRoots=0, otherRoots=[];
+        model.children.forEach(function(ch){
+          var cb=new THREE.Box3().setFromObject(ch), cs=cb.getSize(new THREE.Vector3()), cc=cb.getCenter(new THREE.Vector3());
+          if(cs.y<0.78&&cc.y<0.5&&Math.abs(cc.x-spec.x)>0.35&&cs.x<0.85&&cs.z<0.85) wheelRoots++;
+          else otherRoots.push(ch);
+        });
+        if(wheelRoots>=8) otherRoots.forEach(function(ch){ ch.position.y-=0.04/s; });
+        g.updateMatrixWorld(true);
+      }
+      // material polish — the Civic sedan is the only buildRealCar
+      // file left (Bay 2's S15 goes through buildGLBCar). Its paint
+      // material is swapped for the garage's white clearcoat. The
+      // file's paint geometry was re-welded offline with smooth
+      // normals recomputed — it had shipped flat-shaded, every
+      // triangle catching light on its own, which is what made the
+      // white surface look glitchy as you walked around it. This
+      // clearcoat also drops the flake roughness map (the paint
+      // meshes carry no UVs for it to sample) and softens the coat
+      // so the white panels hold a steady sheen instead of shimmer.
+      var whitePaint=paintMat(0xf2f3f5); whitePaint.userData._ours=true;
+      whitePaint.roughnessMap=null; whitePaint.roughness=0.3; whitePaint.clearcoatRoughness=0.06; whitePaint.envMapIntensity=1.1;
+        var tails=[];
+        model.traverse(function(o){
+          if(o.isMesh){
+            o.castShadow=true; o.receiveShadow=true;
+            if(o.material&&o.material.name==='material_17') o.material=whitePaint; // the sedan's body paint
+          }
+          if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ m.shadowSide=THREE.BackSide; }); }
+          if(o.material){
+            (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
+              if(car.allMats.indexOf(m)<0){
+                car.allMats.push(m);
+                if(m.userData._trans===undefined) m.userData._trans=m.transmission||0;
+                if(quality!=='full'&&m.transmission) m.transmission=0;
+              }
+              if(m.userData._ours) return;
+              var nm=m.name||'';
+              if(nm==='material_17'){ m.envMapIntensity=1.2; }
+              else if(/civ_glass/.test(nm)){ m.envMapIntensity=1.3; if(m.roughness!==undefined) m.roughness=Math.min(m.roughness,0.06); }
+              else if(nm==='midsize_lowbeam'){ m.emissive=new THREE.Color(0xd6e6ff); m.emissiveIntensity=0.06; car.headMat=m; }
+              else if(nm==='civ_brake'||nm==='civ_taillightframe'||nm==='civ_taillightframe2'){
+                m.emissive=new THREE.Color(0xff2a22); m.emissiveIntensity=0.35; tails.push(m); }
+              else if(nm==='steelwheel_01a.001'){ m.color.setHex(0x3a3f45); m.metalness=0.85; m.roughness=0.35; m.envMapIntensity=1.0; }
+              else if(nm==='ibishu_hubcap_02a.003'){ m.color.setHex(0x4a4f55); m.metalness=0.7; m.roughness=0.4; m.envMapIntensity=0.9; }
+              else if(/tire/.test(nm)){ m.envMapIntensity=0.6; }
+              else if(m.envMapIntensity<0.85) m.envMapIntensity=0.85;
+            });
+          }
+        });
+        if(tails.length) car.tailMat=tails.length===1?tails[0]:tails;
+        if(car.allMats.indexOf(whitePaint)<0) car.allMats.push(whitePaint);
+      // hinge the Civic's hood group on its rear (cowl) edge
+      if(hoodNode&&hoodNode.parent){
+        g.updateMatrixWorld(true);
+        var hb=new THREE.Box3().setFromObject(hoodNode);
+        var hinge=new THREE.Vector3((hb.min.x+hb.max.x)/2,hb.max.y-0.02,hb.min.z+0.01);
+        var pivot=new THREE.Group();
+        hoodNode.parent.add(pivot);
+        pivot.position.copy(hoodNode.parent.worldToLocal(hinge.clone()));
+        pivot.attach(hoodNode);
+        car.hoodPivot=pivot;
+      }
+      // headlight glow quads that fade in with the lights toggle
+      var glowY=spec.glowY||0.6, glowX=spec.glowX||0.58;
+      [-1,1].forEach(function(sd){
+        var gm=new THREE.MeshBasicMaterial({color:0xd6e6ff,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});
+        var quad=new THREE.Mesh(new THREE.PlaneGeometry(0.36,0.14),gm);
+        quad.position.set(sd*glowX,glowY,spec.L/2-0.02); quad.renderOrder=6; g.add(quad);
+        car.glowMats.push(gm);
+      });
+      renderer.shadowMap.needsUpdate=true;
+    },undefined,fallback); };
+    // the meshopt decoder compiles its wasm async — loading before it is
+    // ready throws inside the parser and silently swaps in the fallback car
+    if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(startLoad,startLoad);
+    else startLoad();
+  }catch(e){ fallback(); }
+  return car;
+}
+
+/* ---- Bay 4: the Gallardo — Artem P's 2010 Gallardo GLB (CC BY 4.0,
+   Objaverse), meshopt-compressed + WebP textures. Auto-fitted to its
+   real length, grounded on its own bounding box, and polished with
+   the garage's material recipe. Its rear engine cover (node b_hood)
+   is a real separate panel and hinges open. ---- */
+function buildGLBCar(spec){
+  var g=new THREE.Group();
+  var blob=new THREE.Mesh(new THREE.PlaneGeometry(spec.W+0.85,spec.L+0.85),
+    new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false}));
+  blob.rotation.x=-Math.PI/2; blob.position.y=0.012; blob.renderOrder=1; g.add(blob);
+  var hoodPivot=new THREE.Group(); g.add(hoodPivot);
+  var engineGroup=new THREE.Group(); engineGroup.visible=false; g.add(engineGroup);
+  var beams=[];
+  [1,-1].forEach(function(sd){
+    var cone=new THREE.Mesh(new THREE.ConeGeometry(0.85,3.0,20,1,true),
+      new THREE.MeshBasicMaterial({color:0xffe9b0,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));
+    cone.rotation.x=Math.PI/2+0.1; cone.position.set(sd*(spec.W/2-0.36),0.52,spec.L/2+1.55); cone.renderOrder=5; g.add(cone);
+    beams.push(cone);
+  });
+  var pool=new THREE.Mesh(new THREE.CircleGeometry(1.5,22),
+    new THREE.MeshBasicMaterial({color:0xffdf9e,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending}));
+  pool.rotation.x=-Math.PI/2; pool.position.set(0,0.02,spec.L/2+2.6); pool.renderOrder=4; g.add(pool);
+  var car={spec:spec,group:g,hoodPivot:hoodPivot,hoodTilt:0,hoodDir:spec.id==='lambo'?0.62:-0.66,
+    engineGroup:engineGroup,allMats:[],
+    headMat:null,tailMat:null,popups:null,beams:beams,pool:pool,glowMats:[],
+    doorCenterZ:0,doorFront:spec.doorFront||0.7,engineOn:false,lightsOn:false,_audio:null};
+  g.position.set(spec.x,0,-2);
+  scene.add(g);
+  addCollider(spec.x,-2,spec.W/2+0.08,spec.L/2+0.08);
+  function fallback(){
+    var fb=buildCar(spec);
+    car.hoodPivot=fb.hoodPivot; car.hoodTilt=fb.hoodTilt||0; car.hoodDir=-0.66; car.engineGroup=fb.engineGroup;
+    car.headMat=fb.headMat; car.tailMat=fb.tailMat; car.popups=fb.popups;
+    car.beams=fb.beams; car.pool=fb.pool; car.glowMats=null;
+  }
+  try{
+    var loader=new THREE.GLTFLoader();
+    if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+    var startLoad=function(){ loader.load(spec.glb,function(gltf){
+      var model=gltf.scene;
+      if(spec.flip) model.rotation.y=Math.PI; // per-file facing fix, if a model ever faces -Z
+      g.add(model);
+      // auto-fit: scale to the car's real length, centre it, ground it
+      g.updateMatrixWorld(true);
+      var bb=new THREE.Box3().setFromObject(model);
+      var sz=bb.getSize(new THREE.Vector3());
+      // the long axis must run along Z (the bay direction)
+      if(sz.x>sz.z){ model.rotation.y+=Math.PI/2; g.updateMatrixWorld(true);
+        bb=new THREE.Box3().setFromObject(model); sz=bb.getSize(new THREE.Vector3()); }
+      if(sz.z>0.1) model.scale.multiplyScalar(spec.fitLen/sz.z);
+      g.updateMatrixWorld(true);
+      bb=new THREE.Box3().setFromObject(model);
+      /* centre by DELTA, never by subtracting the world-space centre
+         from the local position: the group already sits at (spec.x,-2),
+         so an absolute subtraction double-counts the bay offset and
+         lands the car on the world origin — inside the Civic's bay.
+         (This was the "Lambo inside the Civic" bug.) */
+      var ctrB=bb.getCenter(new THREE.Vector3());
+      model.position.x+=spec.x-ctrB.x;
+      model.position.z+=-2-ctrB.z;
+      model.position.y-=bb.min.y;
+      g.updateMatrixWorld(true);
+      var hoodNode=null;
+      model.traverse(function(o){
+        if(o.isMesh) o.castShadow=true;
+        if(spec.hoodNode&&o.name===spec.hoodNode) hoodNode=o;
+        if(o.material){
+          (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
+            if(car.allMats.indexOf(m)<0){
+              car.allMats.push(m);
+              if(m.userData._trans===undefined) m.userData._trans=m.transmission||0;
+              if(quality!=='full'&&m.transmission) m.transmission=0;
+            }
+            if(m.userData._ours) return;
+            if(spec.id==='lambo'){
+              if(m.name==='paint'){ m.envMapIntensity=1.3; if(m.roughness!==undefined) m.roughness=Math.min(m.roughness,0.3); }
+              else if(m.name==='emission_1'){ m.emissive=new THREE.Color(0xd6e6ff); m.emissiveIntensity=0.05; car.headMat=m; }
+              else if(m.name==='light_glow_back'||m.name==='glass_red'){
+                m.emissive=new THREE.Color(0xff2a22); m.emissiveIntensity=0.3;
+                if(!car.tailMat) car.tailMat=m;
+                else { if(!Array.isArray(car.tailMat)) car.tailMat=[car.tailMat]; car.tailMat.push(m); }
+              }
+              else if(m.name==='glass'||m.name==='glass_engine'||m.name==='glass_trans'){ m.envMapIntensity=1.4; }
+              else if(/tire/i.test(m.name||'')){ m.envMapIntensity=0.7; }
+              else if(m.envMapIntensity<0.9){ m.envMapIntensity=0.9; }
+            } else if(spec.id==='s15'){
+              // the S15's own named materials: red BODY1 paint gets a
+              // glossier finish, headlight/taillight glass is wired
+              // to the lights toggle, windows get the full env sheen
+              if(m.name==='BODY1'){ m.envMapIntensity=1.3; if(m.roughness!==undefined) m.roughness=Math.min(m.roughness,0.3); if(m.metalness!==undefined) m.metalness=0.25; }
+              else if(m.name==='hlgl'){ m.emissive=new THREE.Color(0xd6e6ff); m.emissiveIntensity=0.06; car.headMat=m; }
+              else if(m.name==='tlgl'||m.name==='revgl'){
+                m.emissive=new THREE.Color(0xff2a22); m.emissiveIntensity=0.35;
+                if(!car.tailMat) car.tailMat=m;
+                else { if(!Array.isArray(car.tailMat)) car.tailMat=[car.tailMat]; car.tailMat.push(m); }
+              }
+              else if(m.name==='window'||m.name==='glass_bl'){ m.envMapIntensity=1.3; }
+              else if(/tyre|tread/i.test(m.name||'')){ m.envMapIntensity=0.6; }
+              else if(m.envMapIntensity<0.85){ m.envMapIntensity=0.85; }
+            } else {
+              if(m.envMapIntensity<0.85) m.envMapIntensity=0.85;
+            }
+          });
+        }
+      });
+      if(hoodNode&&hoodNode.parent){
+        g.updateMatrixWorld(true);
+        var hb=new THREE.Box3().setFromObject(hoodNode);
+        var hinge=new THREE.Vector3((hb.min.x+hb.max.x)/2,hb.max.y-0.02,hb.max.z-0.01);
+        var pivot=new THREE.Group();
+        hoodNode.parent.add(pivot);
+        pivot.position.copy(hoodNode.parent.worldToLocal(hinge.clone()));
+        pivot.attach(hoodNode);
+        car.hoodPivot=pivot;
+      }
+      // headlight glow quads that fade in with the lights toggle
+      var glowY=spec.glowY||(spec.id==='lambo'?0.58:0.62), glowX=spec.glowX||(spec.id==='lambo'?0.68:0.58);
+      [-1,1].forEach(function(sd){
+        var gm=new THREE.MeshBasicMaterial({color:0xd6e6ff,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});
+        var quad=new THREE.Mesh(new THREE.PlaneGeometry(0.36,0.14),gm);
+        quad.position.set(sd*glowX,glowY,spec.L/2-0.02); quad.renderOrder=6; g.add(quad);
+        car.glowMats.push(gm);
+      });
+      renderer.shadowMap.needsUpdate=true;
+    },undefined,fallback); };
+    if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(startLoad,startLoad);
+    else startLoad();
+  }catch(e){ fallback(); }
+  return car;
+}
+
+var cars=CAR_SPECS.map(function(spec){
+  if(spec.id==='lambo'){
+    spec.glb='assets/lambo.glb'; spec.fitLen=spec.L; spec.hoodNode='b_hood';
+    return buildGLBCar(spec);
+  }
+  if(spec.id==='s15'){
+    spec.glb='assets/s15.glb'; spec.fitLen=spec.L; spec.glowX=0.6; spec.glowY=0.6;
+    return buildGLBCar(spec);
+  }
+  spec.glb='assets/civic.glb';
+  spec.fitLen=spec.L;
+  spec.hoodMatch='civ_hood'; spec.glowX=0.56; spec.glowY=0.6;
+  return buildRealCar(spec);
+});
+
+/* ================= PEOPLE =================
+   The old procedural capsule figures that sat on the lounge stools
+   (the blocky "Roblox-looking" pair) are DELETED — code, stools and
+   all. The garage's people are now all real animated GLB files:
+   Anna the walker and the pole dancer below, plus the Japanese
+   guests in the chill-area section further down. */
+/* ---- the ladies, take four: REAL skeletal animation, no shader
+   tricks. Two verified CC BY files with real embedded clips, both
+   meshopt + WebP optimised at build time:
+   · THE WALKER — "Anna Ipati (animated)" by Jungle Jim: a realistic
+     DAZ/CC4 woman with textured skin in full colour and long wavy
+     hair (real hair-card meshes, not a painted cap). Her one clip
+     was verified in-file before shipping: thighs swing ~34°, calves
+     flex ~77°, arms counter-swing — a genuine walk, not a bounce.
+     Her bra and underwear meshes were removed in prep, so she
+     walks the aisle nude as asked. The 3,262 facial morph targets
+     and the finger/face micro-channels were stripped (invisible at
+     garage distance, most of the file's weight); the body
+     animation is untouched. Root drift is pinned at load exactly
+     like the previous walker, and the group carries her around
+     the aisle ellipse.
+   · THE DANCER — "Dancing Twerk (1)" by BadutSaurus: an adult
+     woman in a pink sports bra and bikini bottoms with a real
+     30-second Mixamo dance loop (verified in-file: 90 channels,
+     66-joint rig), staged at the chrome pole on the neon-rimmed
+     stage by the right wall. v13 CORRECTION (Collin's call,
+     superseding the earlier double-her instruction): she stays
+     her normal 1.70 m — the same height as the walker, the v12
+     height match. Only the POLE changed: taller (5.0 m, as tall
+     as the room allows under the 5.2 m ceiling) and skinnier.
+     Honest limit, same as
+     before: no clip anywhere shows a dancer actually working a
+     pole — she dances at it, body close, which is the best the
+     free model ecosystem has.
+   Anna is the aisle walker; cloned Annas stand in the chill
+   area and by the cars in the section below. ---- */
+var walker=null, dancer=null, dancer2=null;
+var jpMixers=[], jpHalf=false;
+function fitFigure(model,targetH){
+  // measure, scale to a real height, ground her, centre her on the
+  // group origin — all from her own bounding box, like the cars
+  var holder=new THREE.Group(); holder.add(model);
+  holder.updateMatrixWorld(true);
+  var bb=new THREE.Box3().setFromObject(model), sz=bb.getSize(new THREE.Vector3());
+  var s=targetH/Math.max(sz.y,0.01);
+  holder.scale.setScalar(s);
+  holder.updateMatrixWorld(true);
+  bb=new THREE.Box3().setFromObject(model);
+  var ctr=bb.getCenter(new THREE.Vector3());
+  holder.position.set(-ctr.x,-bb.min.y,-ctr.z);
+  return holder;
+}
+/* v14 colour guard for every figure material: keep the environment
+   response low, and floor the skin materials' roughness — DAZ/CC
+   skin ships near-glossy, so under a hard light its specular alone
+   reads as a white sheen over the face and shoulders even when the
+   diffuse colour is fine. Skin is matched by material name
+   (Std_Skin_* on the Jungle Jim figures); single-material figures
+   just get the env cap. */
+function toneFigureMaterial(m){
+  m.envMapIntensity=0.38;
+  if(/skin/i.test(m.name||'')&&m.roughness!==undefined&&m.roughness<0.55) m.roughness=0.55;
+}
+function figureGroup(){
+  var grp=new THREE.Group();
+  var shadow=new THREE.Mesh(new THREE.PlaneGeometry(0.85,0.85),
+    new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false}));
+  shadow.rotation.x=-Math.PI/2; shadow.position.y=0.013; shadow.renderOrder=1; grp.add(shadow);
+  scene.add(grp);
+  return grp;
+}
+function playClip(gltf,model,pinRoot){
+  if(!gltf.animations||!gltf.animations.length) return null;
+  var clip=gltf.animations[0];
+  // facial morph-weight tracks are dropped for every figure: they
+  // are invisible at garage distance but a DAZ/CC clip carries
+  // hundreds of them, and evaluating them all every step is pure
+  // CPU — on a software renderer that cost is the difference
+  // between a page that settles and one that never does
+  var hasWeights=clip.tracks.some(function(tr){ return tr.name.slice(-8)==='.weights'; });
+  if(pinRoot||hasWeights){
+    clip=clip.clone();
+    if(hasWeights) clip.tracks=clip.tracks.filter(function(tr){ return tr.name.slice(-8)!=='.weights'; });
+    if(pinRoot) clip.tracks.forEach(function(tr){
+      if(tr.name.slice(-9)==='.position'&&/BoneRoot|Hip|Pelvis/.test(tr.name)){
+        var v=tr.values, x0=v[0], z0=v[2];
+        for(var i=0;i<v.length;i+=3){ v[i]=x0; v[i+2]=z0; }
+      }
+    });
+  }
+  var mixer=new THREE.AnimationMixer(model);
+  var act=mixer.clipAction(clip);
+  act.setLoop(THREE.LoopRepeat); act.play();
+  return mixer;
+}
+function loadWalker(){
+  try{
+    var loader=new THREE.GLTFLoader();
+    if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+    var startLoad=function(){ loader.load('assets/walker.glb',function(gltf){
+      var model=gltf.scene;
+      model.traverse(function(o){
+        // her real shadow is the blob under her feet: the shadow map
+        // is baked for the static room, so a moving figure in it
+        // would drag a frozen shadow behind her
+        if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
+        if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
+      });
+      var mixer=playClip(gltf,model,true);
+      var grp=figureGroup();
+      grp.add(fitFigure(model,1.70));
+      walker={grp:grp,mixer:mixer,ang:0.9,dir:1,speed:0.085};
+    },undefined,function(){ /* no fallback figure — the capsule people are deleted */ }); };
+    if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(startLoad,startLoad);
+    else startLoad();
+  }catch(e){ /* walker simply absent */ }
+}
+function loadDancer(){
+  try{
+    var loader=new THREE.GLTFLoader();
+    if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+    var startLoad=function(){
+      // the stage: a low round platform with a neon-pink rim, set
+      // against the right wall, clear of the walker's aisle loop.
+      // v13 correction: the dancer is back at her normal size, so
+      // the stage disc is back to its v12 footprint too — only the
+      // pole grew: 5.0 m tall (ceiling is 5.2 m) and slimmed to
+      // just over half its file thickness below.
+      var stage=new THREE.Group(); stage.position.set(10.4,0,1.6); scene.add(stage);
+      var disc=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.42,0.16,40),
+        new THREE.MeshStandardMaterial({color:0x17181c,roughness:0.35,metalness:0.5,envMapIntensity:1.1}));
+      disc.position.y=0.08; disc.receiveShadow=true; stage.add(disc);
+      var rim=new THREE.Mesh(new THREE.TorusGeometry(1.31,0.03,10,56),
+        new THREE.MeshStandardMaterial({color:0x1a050c,emissive:0xff2e63,emissiveIntensity:2.2,roughness:0.4}));
+      rim.rotation.x=Math.PI/2; rim.position.y=0.16; stage.add(rim);
+      // pink stage lamp, kept modest (9) and high (4.7 m): with the
+      // dancer back at 1.70 m her head is ~2.8 m below it, so the
+      // colour-fix maths from the doubled pass still holds — a
+      // soft pink wash, no white blow-out on her skin or top
+      var lamp=new THREE.PointLight(0xff5c8a,9,10,1.8); lamp.position.set(0,4.7,0); stage.add(lamp);
+      addCollider(10.4,1.6,1.45,1.45);
+      loader.load('assets/pole.glb',function(pg){
+        var pole=pg.scene;
+        pole.traverse(function(o){ if(o.isMesh){ o.castShadow=false;
+          if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
+            m.metalness=1.0; m.roughness=0.12; m.envMapIntensity=2.2; }); } } });
+        var holder=fitFigure(pole,5.0); // TALLER — full height to just under the ceiling
+        holder.scale.x*=0.55; holder.scale.z*=0.55; // SKINNIER — slimmed in plan, height untouched
+        stage.add(holder);
+      },undefined,function(){});
+      loader.load('assets/dancer.glb',function(gltf){
+        var model=gltf.scene;
+        model.traverse(function(o){
+          if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
+          if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
+        });
+        var mixer=playClip(gltf,model,false);
+        var holder=fitFigure(model,1.70); // NORMAL size — same height as the walker (v12 match, kept per Collin's correction)
+        holder.position.z+=0.45; // close against the pole, dancing at it
+        holder.position.y+=0.16;  // on the stage disc
+        var grp=new THREE.Group();
+        grp.add(holder);
+        grp.position.set(10.4,0,1.6);
+        grp.rotation.y=-Math.PI/2+0.35; // angled toward the room
+        scene.add(grp);
+        dancer={grp:grp,mixer:mixer};
+      },undefined,function(){ /* no fallback figure — the capsule people are deleted */ });
+    };
+    if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(startLoad,startLoad);
+    else startLoad();
+  }catch(e){ /* dancer simply absent */ }
+}
+loadWalker();
+loadDancer();
+/* ---- the SECOND pole dancer (v16): a different adult woman on a
+   second identical chrome pole on the OPPOSITE (left) wall —
+   "Woman In Red" by reizibarrientos (CC BY): an adult woman in a
+   red dress with her own real embedded Mixamo dance clip, played
+   natively on her own rig. She replaces the v15 experiment that
+   retargeted the twerk clip onto Anna's CC4 rig: the legs and
+   spine transferred cleanly but the arms measurably didn't
+   (elbow flexion compressed ~25% — she read as stretched and
+   deformed on Collin's phone), so the retarget is GONE, code and
+   all. No nude adult file with a real dance clip exists on disk
+   (the nude bases are static; Eve has only a walk) — a clean
+   native dance in a red dress beats a deformed nude. Same honest
+   limit as dancer one: she dances AT the pole, not on it.
+   Adults only, per Collin. ---- */
+function loadDancer2(){
+  try{
+    var loader=new THREE.GLTFLoader();
+    if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+    var startLoad=function(){
+      // mirror of the first stage, on the left wall — same disc,
+      // same neon rim, same pink lamp, same tall skinny pole
+      var stage=new THREE.Group(); stage.position.set(-10.55,0,1.6); scene.add(stage);
+      var disc=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.42,0.16,40),
+        new THREE.MeshStandardMaterial({color:0x17181c,roughness:0.35,metalness:0.5,envMapIntensity:1.1}));
+      disc.position.y=0.08; disc.receiveShadow=true; stage.add(disc);
+      var rim=new THREE.Mesh(new THREE.TorusGeometry(1.31,0.03,10,56),
+        new THREE.MeshStandardMaterial({color:0x1a050c,emissive:0xff2e63,emissiveIntensity:2.2,roughness:0.4}));
+      rim.rotation.x=Math.PI/2; rim.position.y=0.16; stage.add(rim);
+      var lamp=new THREE.PointLight(0xff5c8a,9,10,1.8); lamp.position.set(0,4.7,0); stage.add(lamp);
+      addCollider(-10.55,1.6,1.45,1.45);
+      loader.load('assets/pole.glb',function(pg){
+        var pole=pg.scene;
+        pole.traverse(function(o){ if(o.isMesh){ o.castShadow=false;
+          if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
+            m.metalness=1.0; m.roughness=0.12; m.envMapIntensity=2.2; }); } } });
+        var holder=fitFigure(pole,5.0);
+        holder.scale.x*=0.55; holder.scale.z*=0.55;
+        stage.add(holder);
+      },undefined,function(){});
+      loader.load('assets/dancer2.glb',function(gltf){
+        var model=gltf.scene;
+        model.traverse(function(o){
+          if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
+          if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
+        });
+        var mixer=playClip(gltf,model,false);
+        var holder=fitFigure(model,1.70); // same height as the walker, as always
+        holder.position.z+=0.45; holder.position.y+=0.16;
+        var grp=new THREE.Group(); grp.add(holder);
+        grp.position.set(-10.55,0,1.6);
+        grp.rotation.y=Math.PI/2-0.35; // mirrored: angled toward the room
+        scene.add(grp);
+        dancer2={grp:grp,mixer:mixer};
+      },undefined,function(){ /* second dancer simply absent */ });
+    };
+    if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(startLoad,startLoad);
+    else startLoad();
+  }catch(e){ /* second dancer simply absent */ }
+}
+loadDancer2();
+function updatePeople(dt,t){
+  if(walker){
+    // the same slow ellipse down the front aisle as before — but the
+    // stride, knee bends and arm swing are her real mocap clip now;
+    // the group just carries her, facing the way she travels
+    walker.ang+=walker.dir*walker.speed*dt;
+    var px=Math.cos(walker.ang)*7.4, pz=5.9+Math.sin(walker.ang)*1.45;
+    var vx=-Math.sin(walker.ang)*walker.dir, vz=Math.cos(walker.ang)*walker.dir;
+    walker.grp.position.set(px,0,pz);
+    walker.grp.rotation.y=Math.atan2(vx,vz);
+    if(walker.mixer) walker.mixer.update(dt);
+  }
+  if(dancer){
+    if(dancer.mixer) dancer.mixer.update(dt);
+  }
+  if(dancer2){
+    if(dancer2.mixer) dancer2.mixer.update(dt);
+  }
+  // seated Annas: procedural idle over the static pose — breathing,
+  // slow anxious head turns, and one sitter's foot tap
+  for(var sai=0;sai<seatedAnnas.length;sai++){ var sa=seatedAnnas[sai];
+    if(sa.waist&&sa.baseWaist) sa.waist.quaternion.copy(sa.baseWaist)
+      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*1.15+sa.phase)*0.02));
+    if(sa.head&&sa.baseHead) sa.head.quaternion.copy(sa.baseHead)
+      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Y,Math.sin(t*0.27+sa.phase)*0.17))
+      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*0.83+sa.phase*2)*0.03));
+    if(sa.tap&&sa.calf&&sa.baseCalf) sa.calf.quaternion.copy(sa.baseCalf)
+      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*6.2+sa.phase)*0.05));
+  }
+  // standing Annas: the same quiet idle as the sitters, upright —
+  // a slow breath at the waist and unhurried head turns, phased
+  // per guest so the four of them never move in sync
+  for(var sti=0;sti<standingAnnas.length;sti++){ var st=standingAnnas[sti];
+    if(st.waist&&st.baseWaist) st.waist.quaternion.copy(st.baseWaist)
+      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*1.15+st.phase)*0.018));
+    if(st.head&&st.baseHead) st.head.quaternion.copy(st.baseHead)
+      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Y,Math.sin(t*0.23+st.phase*1.7)*0.22))
+      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*0.71+st.phase*2)*0.03));
+  }
+  // Alina's clip just advances. On a software renderer the guest
+  // mixers advance at half rate (double dt every other step): the
+  // loop reads identically, and the CPU saving keeps weak
+  // devices responsive.
+  jpHalf=!jpHalf;
+  if(!softwareGL||jpHalf){ var jdt=softwareGL?dt*2:dt;
+    for(var jpi=0;jpi<jpMixers.length;jpi++) jpMixers[jpi].update(jdt); }
+}
+
+/* ================= THE JAPANESE CHILL AREA + GUESTS =================
+   v13. The front corner by the garage doors — where the deleted
+   capsule girl used to sit on a stool — is now a Japanese chill
+   area. The guests are Alina Ip (Jungle Jim) and ANNA herself:
+   the four identical guests who used to stand here are GONE
+   (files deleted), and in their places stand four clones of the
+   nude walker woman — see loadStandingAnna below. (florah's
+   brown-dress guest was REMOVED in v16: her clip holds her feet
+   0.92 m off the floor for its entire loop — she floated,
+   Collin spotted it, she's out, file and all.)
+   All files verified in-file
+   before shipping (skins, joint counts, clip names/durations) and
+   meshopt + WebP optimised at build time.
+   · The bench sitters are ANNA (v16, Collin's call) — posed
+     seated bone-by-bone at load, per-bench heights measured;
+     see loadSeatedAnna below. The lookalike sitting guests they
+     replaced sank into the benches (their clip's hip height
+     matched neither bench's seat).
+   · Four standing ANNA clones: two by the benches with the
+     sitters, one at the Civic's nose looking it over, one on
+     the car row facing the cars — all on the bench sitters'
+     breathing / head-turn idle, no walk cycle. Alina (22.6 s
+     full-body clip) at the S15.
+   Decor (all real CC BY files, measured and grounded from their
+   own bounding boxes at load): chertpaderi garden bench +
+   ditovirnantio station bench, seirogan tatami mats under them,
+   Bazylonator torii as the area's entrance, abelGB paper lanterns
+   overhead, tokyo45otaku's red Ueno Coca-Cola vending machine,
+   Vermos bonsai on a low stand, sa6 sign board, and four signs
+   from ydvisual's neon set hung individually (izakaya over the
+   garden bench, beer over the station bench, parking over the
+   torii, sushi on the right wall by the stage). ---- */
+var shadowTimer=0;
+function jpLoader(){
+  var loader=new THREE.GLTFLoader();
+  if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+  return loader;
+}
+function jpStart(fn){
+  if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(fn,fn);
+  else fn();
+}
+/* static prop: measure the file's own bbox, scale to a real size,
+   ground it (or centre it, for hanging pieces), place it */
+function loadProp(file,opts){
+  try{
+    var loader=jpLoader();
+    jpStart(function(){ loader.load(file,function(gltf){
+      var model=gltf.scene;
+      model.traverse(function(o){ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+      if(opts.tune) opts.tune(model);
+      var holder=new THREE.Group(); holder.add(model);
+      holder.updateMatrixWorld(true);
+      var bb=new THREE.Box3().setFromObject(model), sz=bb.getSize(new THREE.Vector3());
+      var s=1;
+      if(opts.h) s=opts.h/Math.max(sz.y,0.01);
+      else if(opts.w) s=opts.w/Math.max(sz.x,0.01);
+      holder.scale.setScalar(s);
+      holder.updateMatrixWorld(true);
+      bb=new THREE.Box3().setFromObject(model);
+      var ctr=bb.getCenter(new THREE.Vector3());
+      if(opts.center) holder.position.set(-ctr.x,-ctr.y,-ctr.z);
+      else holder.position.set(-ctr.x,-bb.min.y,-ctr.z);
+      var grp=new THREE.Group(); grp.add(holder);
+      grp.position.set(opts.x,opts.groundY||0,opts.z);
+      grp.rotation.y=opts.ry||0;
+      scene.add(grp);
+      if(opts.collider) addCollider(opts.x,opts.z,opts.collider[0],opts.collider[1]);
+      shadowTimer=performance.now(); // debounced in the frame loop
+    },undefined,function(){}); });
+  }catch(e){ /* prop simply absent */ }
+}
+/* animated guest: real clip, blob shadow, optional outfit tint */
+function loadGuest(file,opts){
+  try{
+    var loader=jpLoader();
+    jpStart(function(){ loader.load(file,function(gltf){
+      var model=gltf.scene;
+      model.traverse(function(o){
+        if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
+        if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
+          toneFigureMaterial(m);
+          if(opts.tint){ m=m.clone(); m.color.setHex(opts.tint); o.material=m; }
+        }); }
+      });
+      var mixer=playClip(gltf,model,!!opts.pin);
+      var grp=figureGroup();
+      grp.add(fitFigure(model,opts.h));
+      grp.position.set(opts.x,0,opts.z);
+      grp.rotation.y=opts.ry||0;
+      if(opts.collider) addCollider(opts.x,opts.z,opts.collider[0],opts.collider[1]);
+      if(mixer) jpMixers.push(mixer);
+    },undefined,function(){}); });
+  }catch(e){ /* guest simply absent */ }
+}
+function buildChillArea(){
+  // tatami platforms under the two benches
+  loadProp('assets/jp-tatami.glb',{w:3.8,x:-5.2,z:8.62});
+  loadProp('assets/jp-tatami.glb',{w:3.8,x:5.2,z:8.62});
+  // benches — the garden bench's backrest is on its local -z side
+  // (measured from the file), so both benches turn their backs to
+  // the front wall and face the cars
+  loadProp('assets/jp-bench.glb',{w:1.9,x:-5.2,z:8.78,ry:Math.PI,collider:[1.05,0.42]});
+  loadProp('assets/jp-bench2.glb',{w:2.0,x:5.2,z:8.78,ry:Math.PI,collider:[1.1,0.42]});
+  // torii gate as the chill area's entrance, behind the spawn point
+  loadProp('assets/jp-torii.glb',{h:3.05,x:0,z:9.05,ry:Math.PI});
+  addCollider(-1.45,9.05,0.2,0.35); addCollider(1.45,9.05,0.2,0.35);
+  // red Ueno Coca-Cola vending machine against the front wall
+  // (its glass front faces local +z — measured from the file — so
+  // it turns around to face the room)
+  loadProp('assets/jp-vending.glb',{h:1.85,x:-10.7,z:9.3,ry:Math.PI,collider:[0.55,0.6]});
+  // standing sign board by the right bench
+  loadProp('assets/jp-sign.glb',{h:1.7,x:9.6,z:8.7,ry:Math.PI+0.3,collider:[0.6,0.25]});
+  // bonsai on a low dark-wood stand between torii and garden bench
+  var stand=box(0.56,0.5,0.56,new THREE.MeshStandardMaterial({color:0x2e2019,roughness:0.8}),-2.6,0.25,8.85);
+  stand.castShadow=true;
+  addCollider(-2.6,8.85,0.34,0.34);
+  loadProp('assets/jp-bonsai.glb',{h:0.62,x:-2.6,z:8.85,groundY:0.5,ry:1.2});
+  // paper lanterns over the benches and the torii, warm light pooled
+  // over the whole corner
+  function lantern(x,z,cy){
+    loadProp('assets/jp-lantern.glb',{h:0.55,x:x,z:z,center:true,groundY:cy,tune:function(model){
+      model.traverse(function(o){ if(o.isMesh&&o.material){
+        (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
+          if(m.map){ m.emissive=new THREE.Color(0xff9a3c); m.emissiveMap=m.map; m.emissiveIntensity=0.85; }
+        }); } });
+    }});
+    var str=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,GAR.H-(cy+0.3),6),blackTrim);
+    str.position.set(x,(GAR.H+cy+0.3)/2,z); scene.add(str);
+  }
+  lantern(-5.2,8.3,2.5); lantern(5.2,8.3,2.5); lantern(0,8.95,2.85);
+  var chillLight=new THREE.PointLight(0xffa050,7,9,1.8); // 11 -> 7, same blow-out fix at bench range
+  chillLight.position.set(0,2.6,8.4); scene.add(chillLight);
+  // four neon signs from ydvisual's set, extracted by node name and
+  // hung one by one — real Japanese text, emissive in the file
+  try{
+    var loader=jpLoader();
+    jpStart(function(){ loader.load('assets/jp-neon.glb',function(gltf){
+      var picks=[
+        {node:'sign.009',h:1.9,x:-5.2,y:2.75,z:9.93,ry:Math.PI},   // izakaya, over the garden bench
+        {node:'sign.010',h:1.6,x:5.2,y:2.7,z:9.93,ry:Math.PI},     // beer, over the station bench
+        {node:'sign.014',h:1.9,x:0,y:2.85,z:9.93,ry:Math.PI},      // parking, over the torii
+        {node:'sign.003',h:1.5,x:12.93,y:2.5,z:-1.5,ry:-Math.PI/2} // sushi, right wall by the stage
+      ];
+      picks.forEach(function(p){
+        var node=gltf.scene.getObjectByName(p.node);
+        if(!node) return;
+        node.traverse(function(o){ if(o.isMesh&&o.material){
+          (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ m.emissiveIntensity=1.8; }); } });
+        var holder=new THREE.Group(); holder.add(node);
+        holder.updateMatrixWorld(true);
+        var bb=new THREE.Box3().setFromObject(node), sz=bb.getSize(new THREE.Vector3());
+        holder.scale.setScalar(p.h/Math.max(sz.y,0.01));
+        holder.updateMatrixWorld(true);
+        bb=new THREE.Box3().setFromObject(node);
+        var ctr=bb.getCenter(new THREE.Vector3());
+        holder.position.set(-ctr.x,-ctr.y,-ctr.z);
+        var grp=new THREE.Group(); grp.add(holder);
+        grp.position.set(p.x,p.y,p.z); grp.rotation.y=p.ry;
+        scene.add(grp);
+      });
+    },undefined,function(){}); });
+  }catch(e){ /* signs simply absent */ }
+}
+/* ---- the bench sitters (v16): Anna herself, seated ----
+   Collin's call: the bench sitters are the nude walker woman,
+   waiting / chilling on the benches. Anna's file carries no sit
+   clip, so she is posed bone-by-bone at load. Every angle was
+   SOLVED numerically against her real skeleton before shipping:
+   thigh +95° / calf −95° puts her knees forward and level with
+   her hips and her feet flat under them (the taller station
+   bench gets +72°/−72°, a high-stool sit so her feet still
+   reach the floor); upperarm +35° with a ∓30° inward roll lands
+   her hands on her thighs (measured: hand height = pelvis +
+   0.05 m, over the thigh). Placement is measured too: her
+   seated pelvis sits 0.929 m up in holder space, butt depth
+   0.10 m, and each holder drops by exactly (pelvis − butt −
+   seat + 1 cm press) for its bench's measured seat height —
+   garden bench 0.43 m, station bench 0.59 m — so she sits ON
+   the seat, not in it. Idle life is layered on in updatePeople:
+   breathing, slow anxious head turns, a foot tap on sitter 2. */
+var seatedAnnas=[];
+var SEAT_AXIS_X=new THREE.Vector3(1,0,0), SEAT_AXIS_Y=new THREE.Vector3(0,1,0), SEAT_AXIS_Z=new THREE.Vector3(0,0,1);
+var seatTmpQ=new THREE.Quaternion();
+function poseSeatedAnna(model,variant){
+  var B={};
+  model.traverse(function(o){ if(o.isBone) B[o.name]=o; });
+  function rot(name,ax,deg){ var b=B[name]; if(!b) return;
+    b.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(ax,deg*Math.PI/180)); }
+  var thigh=variant===2?72:95, calf=variant===2?-72:-95, foot=variant===2?5:15;
+  rot('CC_Base_Waist_033',SEAT_AXIS_X,6);
+  rot('CC_Base_L_Thigh_04',SEAT_AXIS_X,thigh); rot('CC_Base_R_Thigh_018',SEAT_AXIS_X,thigh);
+  rot('CC_Base_L_Calf_05',SEAT_AXIS_X,calf); rot('CC_Base_R_Calf_019',SEAT_AXIS_X,calf);
+  rot('CC_Base_L_Foot_06',SEAT_AXIS_X,foot); rot('CC_Base_R_Foot_021',SEAT_AXIS_X,foot);
+  rot('CC_Base_L_Upperarm_050',SEAT_AXIS_X,35); rot('CC_Base_L_Upperarm_050',SEAT_AXIS_Z,-30);
+  rot('CC_Base_R_Upperarm_078',SEAT_AXIS_X,35); rot('CC_Base_R_Upperarm_078',SEAT_AXIS_Z,30);
+  return B;
+}
+function loadSeatedAnna(opts){
+  try{
+    var loader=jpLoader();
+    jpStart(function(){ loader.load('assets/walker.glb',function(gltf){
+      var model=gltf.scene;
+      model.traverse(function(o){
+        if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
+        if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
+      });
+      var holder=fitFigure(model,1.70);
+      var B=poseSeatedAnna(model,opts.variant);
+      holder.position.y+=opts.lift; // measured per bench — see above
+      var grp=figureGroup();
+      grp.add(holder);
+      grp.position.set(opts.x,0,opts.z);
+      grp.rotation.y=opts.ry;
+      seatedAnnas.push({ waist:B['CC_Base_Waist_033'], head:B['CC_Base_Head_038'], calf:B['CC_Base_L_Calf_05'],
+        phase:opts.phase||0, tap:!!opts.tap,
+        baseWaist:B['CC_Base_Waist_033']?B['CC_Base_Waist_033'].quaternion.clone():null,
+        baseHead:B['CC_Base_Head_038']?B['CC_Base_Head_038'].quaternion.clone():null,
+        baseCalf:B['CC_Base_L_Calf_05']?B['CC_Base_L_Calf_05'].quaternion.clone():null });
+    },undefined,function(){}); });
+  }catch(e){ /* sitter simply absent */ }
+}
+/* ---- the standing guests: Anna again, cloned ----
+   Collin's call: the four identical guests are out and the nude
+   walker woman stands in their places — two by the benches, one
+   at the Civic's nose, one on the car row. Each is a CLONE of
+   the one Anna load (THREE.SkeletonUtils.clone remaps every
+   clone's skeleton onto its own bones, so each idles on her
+   own rig): walker.glb is fetched ONCE for all four — the
+   first caller starts the shared load below and the rest
+   queue on it; there are no per-guest downloads. No clip is
+   played: her rest pose stands on its own at the walker's
+   exact 1.70 m and with her exact materials, and the bench
+   sitters' procedural idle (breathing + slow head turns) is
+   layered on in updatePeople, phased per guest. */
+var standingAnnas=[];
+var annaShared=null, annaSharedQueue=null;
+function withSharedAnna(cb){
+  if(annaShared){ cb(annaShared); return; }
+  if(annaSharedQueue){ annaSharedQueue.push(cb); return; }
+  annaSharedQueue=[cb];
+  try{
+    var loader=jpLoader();
+    jpStart(function(){ loader.load('assets/walker.glb',function(gltf){
+      annaShared=gltf.scene;
+      var q=annaSharedQueue; annaSharedQueue=null;
+      if(q) q.forEach(function(f){ f(annaShared); });
+    },undefined,function(){ annaSharedQueue=null; }); });
+  }catch(e){ annaSharedQueue=null; }
+}
+function loadStandingAnna(opts){
+  try{
+    withSharedAnna(function(template){
+      var model=THREE.SkeletonUtils.clone(template);
+      model.traverse(function(o){
+        if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
+        if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
+      });
+      var grp=figureGroup();
+      grp.add(fitFigure(model,1.70));
+      grp.position.set(opts.x,0,opts.z);
+      grp.rotation.y=opts.ry||0;
+      if(opts.collider) addCollider(opts.x,opts.z,opts.collider[0],opts.collider[1]);
+      var B={};
+      model.traverse(function(o){ if(o.isBone) B[o.name]=o; });
+      standingAnnas.push({ waist:B['CC_Base_Waist_033'], head:B['CC_Base_Head_038'], phase:opts.phase||0,
+        baseWaist:B['CC_Base_Waist_033']?B['CC_Base_Waist_033'].quaternion.clone():null,
+        baseHead:B['CC_Base_Head_038']?B['CC_Base_Head_038'].quaternion.clone():null });
+    });
+  }catch(e){ /* standing guest simply absent */ }
+}
+/* the guests — adult women, real clips, placed as planned above.
+   Headings use the figure convention: rotation 0 faces +z, so
+   ry = atan2(dx, dz) toward whatever she's looking at. */
+function loadAllGuests(){
+loadSeatedAnna({variant:1,x:-5.2,z:8.84,ry:Math.PI-0.10,lift:-0.399,phase:0});
+loadSeatedAnna({variant:2,x:5.35,z:8.84,ry:Math.PI+0.14,lift:-0.249,phase:2.1,tap:true});
+loadStandingAnna({x:-3.95,z:8.05,ry:-1.04,phase:0.6,collider:[0.3,0.3]});
+loadStandingAnna({x:6.45,z:8.05,ry:-0.76,phase:2.4,collider:[0.3,0.3]});
+loadStandingAnna({x:2.3,z:0.15,ry:-1.92,phase:4.1,collider:[0.3,0.3]});
+loadStandingAnna({x:0,z:2.0,ry:Math.PI,phase:5.3,collider:[0.3,0.3]});
+loadGuest('assets/alina.glb',{h:1.68,x:-8.6,z:0.6,ry:1.76,pin:true,collider:[0.32,0.32]});
+}
+/* The v13 layer loads with everything else, behind the start
+   menu: the menu's preload gate holds START until the load
+   settles, so the chill area and its guests are already in place
+   when the game begins. (The software-renderer protections —
+   morph-track stripping, mixer throttling, debounced shadows —
+   still apply where they did before.) */
+/* ================= SHOP POLISH (v15) =================
+   Atmosphere pass over the whole room, built only from what's
+   already here: real ceiling light fixtures over the bays, LED
+   accent strips running the walls, two coloured accent lights at
+   the back, three more of ydvisual's neon signs on the back wall,
+   and (until v16) dust motes in the light. Emissive does most of the
+   work (bloom picks it up); only two real lights are added, both
+   at the back of the shop, far from the girls, so the colour fix
+   is untouched. */
+function buildPolish(){
+  // ceiling fixtures over each bay: dark housing + warm tube
+  var housing=new THREE.MeshStandardMaterial({color:0x141518,roughness:0.6,metalness:0.4});
+  var tubeMat=new THREE.MeshStandardMaterial({color:0x201a10,emissive:0xffd9a0,emissiveIntensity:1.5,roughness:0.4});
+  [-10,-5,0,5,10].forEach(function(x){
+    box(2.6,0.07,0.34,housing,x,5.14,-2,scene,false);
+    box(2.4,0.045,0.2,tubeMat,x,5.09,-2,scene,false);
+  });
+  // LED strips: cyan down the left wall, pink down the right, warm
+  // along the back — thin emissive lines just under the ceiling
+  var cyanMat=new THREE.MeshStandardMaterial({color:0x061014,emissive:0x36c5ff,emissiveIntensity:2.4,roughness:0.4});
+  var pinkMat=new THREE.MeshStandardMaterial({color:0x140610,emissive:0xff3d7e,emissiveIntensity:2.4,roughness:0.4});
+  var warmMat=new THREE.MeshStandardMaterial({color:0x141006,emissive:0xffa050,emissiveIntensity:2.0,roughness:0.4});
+  box(0.05,0.05,19,cyanMat,-12.92,4.55,0,scene,false);
+  box(0.05,0.05,19,pinkMat,12.92,4.55,0,scene,false);
+  box(25,0.05,0.05,warmMat,0,4.55,-9.92,scene,false);
+  // coloured accent wash at the back of the shop
+  var a1=new THREE.PointLight(0x36c5ff,9,13,1.8); a1.position.set(-9.5,3.6,-6.5); scene.add(a1);
+  var a2=new THREE.PointLight(0xff3d7e,9,13,1.8); a2.position.set(9.5,3.6,-6.5); scene.add(a2);
+  // three more neon signs on the back wall, same ydvisual set
+  try{
+    var loader=jpLoader();
+    jpStart(function(){ loader.load('assets/jp-neon.glb',function(gltf){
+      var picks=[
+        {node:'sign.001',h:1.6,x:-8.5,y:2.8},
+        {node:'sign.006',h:1.6,x:0,y:2.9},
+        {node:'sign.012',h:1.6,x:8.5,y:2.8}
+      ];
+      picks.forEach(function(p){
+        var node=gltf.scene.getObjectByName(p.node);
+        if(!node) return;
+        node.traverse(function(o){ if(o.isMesh&&o.material){
+          (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ m.emissiveIntensity=1.8; }); } });
+        var holder=new THREE.Group(); holder.add(node);
+        holder.updateMatrixWorld(true);
+        var bb=new THREE.Box3().setFromObject(node), sz=bb.getSize(new THREE.Vector3());
+        holder.scale.setScalar(p.h/Math.max(sz.y,0.01));
+        holder.updateMatrixWorld(true);
+        bb=new THREE.Box3().setFromObject(node);
+        var ctr=bb.getCenter(new THREE.Vector3());
+        holder.position.set(-ctr.x,-ctr.y,-ctr.z);
+        var grp=new THREE.Group(); grp.add(holder);
+        grp.position.set(p.x,p.y,-9.93); grp.rotation.y=0; // back wall, facing into the room
+        scene.add(grp);
+      });
+    },undefined,function(){}); });
+  }catch(e){ /* signs simply absent */ }
+  // (v16: the polish pass's dust Points cloud is gone with the
+  // rest of the particle systems — fixtures, LED strips, accent
+  // lights and neon signs above all stay.)
+}
+buildChillArea(); loadAllGuests(); buildPolish();
+
+/* ================= INTERACTABLES ================= */
+var interactables=[];
+var foundCount=0, TOTAL=8;
+var foundEl=document.getElementById('foundNum');
+var chipEl=document.getElementById('foundChip');
+var toastEl=document.getElementById('toast'), toastTimer=null;
+function toast(msg,ms){
+  toastEl.textContent=msg; toastEl.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(function(){ toastEl.classList.remove('show'); },ms||2400);
+}
+function markFound(it){
+  if(it.found)return; it.found=true; foundCount++;
+  foundEl.textContent=foundCount+'/'+TOTAL;
+  chipEl.classList.remove('pulse'); void chipEl.offsetWidth; chipEl.classList.add('pulse');
+  if(foundCount===TOTAL) toast('FULL HOUSE — all 8 interactions found. The garage is yours.',4200);
+}
+function addInter(car,kind,labelFn,point,apply){
+  var it={car:car,kind:kind,labelFn:labelFn,point:point,apply:apply,on:false,anim:0,target:0,found:false};
+  interactables.push(it); return it;
+}
+cars.forEach(function(car){
+  var s=car.spec, cx=s.x, cz=-2;
+  // hood — the only panel that opens; doors and trunk are sealed for a flush, accurate body
+  if(s.hasHood!==false) addInter(car,'hood',function(it){ return (it.on?'Close':'Pop')+' the hood — '+s.short; },
+    new THREE.Vector3(cx,1.0,cz+s.L/2+0.55),
+    function(v){ car.hoodPivot.rotation.x=(car.hoodTilt||0)+(car.hoodDir||-0.66)*v; car.engineGroup.visible=v>0.2; });
+  // headlights
+  addInter(car,'lights',function(it){ return 'Turn headlights '+(it.on?'off':'on')+' — '+s.short; },
+    new THREE.Vector3(cx-(s.W/2+0.15),0.85,cz+s.L/2+0.5),
+    function(v){
+      if(car.headMat) car.headMat.emissiveIntensity=0.06+v*2.4;
+      if(car.tailMat){ if(Array.isArray(car.tailMat)) car.tailMat.forEach(function(m){ m.emissiveIntensity=0.35+v*1.5; }); else car.tailMat.emissiveIntensity=0.35+v*1.5; }
+      if(car.glowMats) car.glowMats.forEach(function(m){ m.opacity=v*0.85; });
+      car.beams.forEach(function(b){ b.material.opacity=v*0.10; });
+      car.pool.material.opacity=v*0.16;
+      if(car.popups) car.popups.forEach(function(p){ p.rotation.x=-0.52*v; });
+    });
+  // engine — point at the driver's A-pillar
+  addInter(car,'engine',function(it){ return (it.on?'Kill':'Start')+' the engine — '+s.short; },
+    new THREE.Vector3(cx+s.W/2+0.55,1.0,cz+car.doorFront+0.55),
+    function(v){ /* engine state handled in toggle */ });
+});
+function toggleInter(it){
+  it.on=!it.on; it.target=it.on?1:0;
+  if(it.kind==='engine'){
+    it.car.engineOn=it.on;
+    if(it.on){ it.car._audio=startEngineAudio(it.car.spec); }
+    else { stopEngineAudio(it.car); clunk(.25,300); }
+  } else if(it.kind==='lights'){ clickSnd(); }
+  else { clunk(.4,520); }
+  if(it.on) markFound(it);
+  refreshPlate();
+}
+
+/* ================= PLAYER ================= */
+var player={x:0.4,z:7.6,yaw:0.12,pitch:-0.04};
+var keys={}, started=false;
+var isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+if(isTouch) document.body.classList.add('touch');
+var reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+var promptEl=document.getElementById('prompt'), promptTxt=document.getElementById('promptTxt');
+var btnInteractTxt=document.getElementById('btnInteractTxt');
+var plateEl=document.getElementById('carPlate');
+var plateBay=document.getElementById('plateBay'), plateName=document.getElementById('plateName'),
+    plateSpec=document.getElementById('plateSpec'), plateNote=document.getElementById('plateNote'),
+    plateStates=document.getElementById('plateStates');
+var currentInter=null, currentCar=null;
+
+function carStatesHTML(car){
+  var out='';
+  [['hood','HOOD'],['lights','LIGHTS'],['engine','ENGINE']].forEach(function(pair){
+    var it=interactables.find(function(i){return i.car===car&&i.kind===pair[0];});
+    if(!it) return; // the S15's shell has no hood panel — no dead state shown
+    out+='<span class="'+(it.on?'on':'')+'">'+pair[1]+'</span>';
+  });
+  return out+'<span>DOORS + TRUNK SEALED</span>';
+}
+function refreshPlate(){
+  if(!currentCar){ plateEl.classList.remove('show'); return; }
+  var s=currentCar.spec;
+  plateBay.textContent='BAY '+s.bay+' — '+s.tag;
+  plateName.textContent=s.name;
+  plateSpec.textContent=s.spec;
+  plateNote.textContent=s.note;
+  plateStates.innerHTML=carStatesHTML(currentCar);
+  plateEl.classList.add('show');
+}
+function nearest(){
+  var best=null,bd=2.35, bc=null,bcd=3.6;
+  interactables.forEach(function(it){
+    var dx=player.x-it.point.x, dz=player.z-it.point.z, d=Math.sqrt(dx*dx+dz*dz);
+    if(d<bd){ bd=d; best=it; }
+  });
+  cars.forEach(function(car){
+    var dx=player.x-car.spec.x, dz=player.z-(-2), d=Math.sqrt(dx*dx+dz*dz);
+    if(d<bcd){ bcd=d; bc=car; }
+  });
+  return {inter:best,car:bc};
+}
+function doInteract(){ if(currentInter){ audio(); toggleInter(currentInter); } }
+
+/* ---- input: keyboard ---- */
+window.addEventListener('keydown',function(e){
+  if(e.code==='KeyE'&&started){ doInteract(); }
+  keys[e.code]=true;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].indexOf(e.code)>=0) e.preventDefault();
+});
+window.addEventListener('keyup',function(e){ keys[e.code]=false; });
+
+/* ---- input: look (pointer lock + drag) — rebuilt for two-thumb play ----
+   Why walking + looking kept snapping the view, and why it can't now:
+   1) Every finger owns its state. The look finger, the joystick finger
+      and every button finger are tracked by their own pointerId in
+      separate variables. No shared "last position", ever — a joystick
+      move physically cannot enter the look maths, and lifting the
+      joystick finger cannot clear, move or re-base the look finger.
+   2) Look deltas never rotate the camera directly. A pointermove only
+      adds its (clamped) delta to a queue, measured strictly from the
+      look finger's own previous position. step() drains that queue
+      once per frame with a hard per-frame cap and throws away any
+      excess — so one batched, coalesced or mis-reported move can turn
+      the view a few degrees at most, never whip it around, and the
+      bad delta is gone instead of becoming your new heading.
+   3) A single event reporting a jump over 90px is treated as the
+      browser re-basing that touch (it happens mid multi-touch on
+      mobile Safari/Chrome): the stored position updates, the
+      rotation is discarded.
+   4) The rendered camera eases toward the target heading each frame,
+      and walking direction follows the rendered heading — so even a
+      small surviving nudge can't throw your walk direction off. */
+var lookId=null,lookLastX=0,lookLastY=0,lookQueueX=0,lookQueueY=0,locked=false;
+var camYaw=player.yaw,camPitch=player.pitch;
+function queueLook(dx,dy,scale){
+  // discard re-base teleports outright; clamp everything else hard
+  if(dx>90||dx<-90||dy>90||dy<-90) return;
+  if(dx>34)dx=34; else if(dx<-34)dx=-34;
+  if(dy>34)dy=34; else if(dy<-34)dy=-34;
+  if(Math.abs(dx)<0.4&&Math.abs(dy)<0.4) return; // deadzone: no drift
+  lookQueueX+=dx*scale; lookQueueY+=dy*scale;
+}
+canvas.addEventListener('pointerdown',function(e){
+  if(e.target!==canvas) return;
+  if(lookId!==null) return;              // look finger already down
+  if(joy.id!==null&&e.pointerId===joy.id) return;
+  if(e.pointerType==='mouse'&&e.button!==0) return;
+  lookId=e.pointerId; lookLastX=e.clientX; lookLastY=e.clientY;
+  lookQueueX=0; lookQueueY=0;
+  try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+  if(e.pointerType!=='mouse') e.preventDefault();
+  audio();
+});
+window.addEventListener('pointermove',function(e){
+  if(!started) return;
+  // the joystick / button fingers are never look input, whatever id reuse says
+  if(joy.id!==null&&e.pointerId===joy.id) return;
+  if(locked){
+    if(e.pointerType&&e.pointerType!=='mouse') return;
+    var mx=e.movementX||0, my=e.movementY||0;
+    if(mx>60)mx=60; else if(mx<-60)mx=-60;
+    if(my>60)my=60; else if(my<-60)my=-60;
+    lookQueueX+=mx*0.55; lookQueueY+=my*0.55;
+    return;
+  }
+  if(lookId===null||e.pointerId!==lookId) return;
+  var dx=e.clientX-lookLastX, dy=e.clientY-lookLastY;
+  lookLastX=e.clientX; lookLastY=e.clientY;   // always re-base, even on a discarded jump
+  queueLook(dx,dy,1);
+  if(e.pointerType!=='mouse') e.preventDefault();
+},{passive:false});
+function lookEnd(e){
+  if(e.pointerId===lookId){ lookId=null; lookQueueX=0; lookQueueY=0; }
+}
+window.addEventListener('pointerup',lookEnd);
+window.addEventListener('pointercancel',lookEnd);
+window.addEventListener('blur',function(){
+  lookId=null; lookQueueX=0; lookQueueY=0;
+  joy.active=false; joy.id=null; joy.x=0; joy.y=0; knob.style.transform='';
+  turnL=false; turnR=false; runBtn=false;
+});
+document.addEventListener('pointerlockchange',function(){
+  locked=document.pointerLockElement===canvas;
+  if(locked){ camYaw=player.yaw; camPitch=player.pitch; }
+});
+canvas.addEventListener('click',function(){
+  if(started&&!isTouch&&!locked){ var p=canvas.requestPointerLock&&canvas.requestPointerLock(); if(p&&p.catch)p.catch(function(){}); }
+});
+
+/* ---- input: touch joystick + buttons — each owns its pointerId and
+   captures its own pointer, and every handler stops propagation so a
+   walk/button finger can never leak into the look handler above ---- */
+var joy={x:0,y:0,active:false,id:null};
+var stick=document.getElementById('stick'), knob=document.getElementById('stickKnob');
+var stickCX=0,stickCY=0;
+function stickCentre(){ var r=stick.getBoundingClientRect(); stickCX=r.left+r.width/2; stickCY=r.top+r.height/2; }
+function stickMove(e){
+  var dx=e.clientX-stickCX, dy=e.clientY-stickCY, len=Math.sqrt(dx*dx+dy*dy), max=40;
+  if(len>max){ dx*=max/len; dy*=max/len; }
+  // small deadzone so a resting thumb doesn't creep the player
+  joy.x=Math.abs(dx/max)<0.12?0:dx/max; joy.y=Math.abs(dy/max)<0.12?0:dy/max;
+  knob.style.transform='translate('+dx+'px,'+dy+'px)';
+}
+stick.addEventListener('pointerdown',function(e){
+  e.preventDefault(); e.stopPropagation();
+  if(joy.active) return;
+  joy.active=true; joy.id=e.pointerId; stickCentre();
+  try{ stick.setPointerCapture(e.pointerId); }catch(err){}
+  stickMove(e); audio();
+});
+stick.addEventListener('pointermove',function(e){
+  if(!joy.active||e.pointerId!==joy.id) return;
+  e.preventDefault(); e.stopPropagation(); stickMove(e);
+});
+function stickEnd(e){
+  if(e.pointerId!==joy.id) return;
+  joy.active=false; joy.id=null; joy.x=0; joy.y=0; knob.style.transform='';
+}
+stick.addEventListener('pointerup',stickEnd); stick.addEventListener('pointercancel',stickEnd);
+
+var turnL=false,turnR=false,runBtn=false;
+function hold(id,set){
+  var el=document.getElementById(id), hid=null;
+  el.addEventListener('pointerdown',function(e){
+    e.preventDefault(); e.stopPropagation();
+    if(hid!==null) return;
+    hid=e.pointerId; set(true);
+    try{ el.setPointerCapture(e.pointerId); }catch(err){}
+    audio();
+  });
+  function end(e){ if(e.pointerId===hid){ hid=null; set(false); } }
+  el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end);
+}
+hold('btnTurnL',function(v){turnL=v;}); hold('btnTurnR',function(v){turnR=v;}); hold('btnRun',function(v){runBtn=v;});
+document.getElementById('btnInteract').addEventListener('pointerdown',function(e){ e.preventDefault(); e.stopPropagation(); doInteract(); });
+
+/* ---- start ---- */
+document.getElementById('enterBtn').addEventListener('click',function(){
+  audio(); started=true; document.body.classList.add('playing');
+  toast('Your Civic is in Bay 3 — start there.',2600);
+});
+
+/* ================= MOVEMENT + COLLISION ================= */
+function collide(){
+  player.x=Math.max(-12.55,Math.min(12.55,player.x));
+  player.z=Math.max(-9.45,Math.min(9.55,player.z));
+  var r=0.34;
+  for(var i=0;i<colliders.length;i++){
+    var b=colliders[i];
+    if(player.x>b.minX-r&&player.x<b.maxX+r&&player.z>b.minZ-r&&player.z<b.maxZ+r){
+      var pl=player.x-(b.minX-r), pr=(b.maxX+r)-player.x, pb=player.z-(b.minZ-r), pf=(b.maxZ+r)-player.z;
+      var m=Math.min(pl,pr,pb,pf);
+      if(m===pl)player.x=b.minX-r; else if(m===pr)player.x=b.maxX+r;
+      else if(m===pb)player.z=b.minZ-r; else player.z=b.maxZ+r;
+    }
+  }
+}
+function step(dt,t){
+  // drain the look queue: hard cap per frame, excess is dropped — this
+  // is the guarantee that no single glitchy move can whip the view
+  if(lookQueueX||lookQueueY){
+    var qx=Math.max(-52,Math.min(52,lookQueueX)), qy=Math.max(-52,Math.min(52,lookQueueY));
+    lookQueueX=0; lookQueueY=0;
+    var sens=locked?0.0036:0.0042;
+    player.yaw-=qx*sens; player.pitch-=qy*sens;
+    player.pitch=Math.max(-1.15,Math.min(1.15,player.pitch));
+  }
+  if(turnL)player.yaw+=1.7*dt;
+  if(turnR)player.yaw-=1.7*dt;
+  // ease the rendered heading toward the target: on touch this absorbs
+  // any surviving nudge over ~3 frames; mouse-lock and desktop stay 1:1
+  if(locked||!isTouch||!started){ camYaw=player.yaw; camPitch=player.pitch; }
+  else{
+    var kk=1-Math.exp(-dt*26);
+    var dyaw=((player.yaw-camYaw+Math.PI*3)%(Math.PI*2))-Math.PI;
+    camYaw+=dyaw*kk; camPitch+=(player.pitch-camPitch)*kk;
+  }
+  var f=0,s=0;
+  if(started){
+    if(keys['KeyW']||keys['ArrowUp'])f+=1;
+    if(keys['KeyS']||keys['ArrowDown'])f-=1;
+    if(keys['KeyA']||keys['ArrowLeft'])s-=1;
+    if(keys['KeyD']||keys['ArrowRight'])s+=1;
+    f+=-joy.y; s+=joy.x;
+  }
+  var len=Math.sqrt(f*f+s*s); if(len>1){ f/=len; s/=len; }
+  var run=(keys['ShiftLeft']||keys['ShiftRight']||runBtn)?1.65:1;
+  var sp=3.1*run;
+  // walk relative to what you actually see (the smoothed heading), so
+  // look and movement can never disagree mid-gesture
+  var sin=Math.sin(camYaw), cos=Math.cos(camYaw);
+  player.x+=(-sin*f+cos*s)*sp*dt;
+  player.z+=(-cos*f-sin*s)*sp*dt;
+  collide();
+  // idle sway before entering
+  var yaw=camYaw, pitch=camPitch;
+  if(!started){ yaw+=Math.sin(t*0.16)*0.22; pitch+=-0.02+Math.sin(t*0.11)*0.02; }
+  var bob=0;
+  if(started&&(f||s)&&!reduceMotion) bob=Math.sin(t*9*run)*0.022;
+  camera.position.set(player.x,1.62+bob,player.z);
+  camera.rotation.order='YXZ';
+  camera.rotation.y=yaw; camera.rotation.x=pitch; camera.rotation.z=0;
+  // interactable animations
+  var anyAnim=false;
+  for(var i=0;i<interactables.length;i++){
+    var it=interactables[i];
+    if(Math.abs(it.anim-it.target)>0.0005){
+      it.anim+=(it.target-it.anim)*Math.min(1,dt*7);
+      it.apply(it.anim); anyAnim=true;
+    }
+  }
+  if(anyAnim) renderer.shadowMap.needsUpdate=true;
+  // engine vibration
+  cars.forEach(function(car,idx){
+    car.group.position.y=(car.engineOn&&!reduceMotion)?Math.sin(t*46+idx*2)*0.0035:0;
+  });
+  updatePeople(dt,t);
+  // atmosphere: a whisper of neon flicker (particles removed in v16)
+  neonLight.intensity=26+Math.sin(t*29)*0.8+Math.sin(t*7.7)*1.1;
+  neon.material.emissiveIntensity=1.15+Math.sin(t*29)*0.03+Math.sin(t*7.7)*0.04;
+  // the DTL neon cross breathes on its own phase, with the odd dip
+  if(neonCrossMat){
+    var nf=0.92+Math.sin(t*23.7)*0.03+Math.sin(t*5.3)*0.05-(Math.sin(t*0.9)>0.996?0.35:0);
+    neonCrossMat.color.setScalar(1.5*nf);
+    if(neonCrossLight) neonCrossLight.intensity=20*nf;
+    if(neonCrossGlowMat) neonCrossGlowMat.opacity=0.85*nf;
+  }
+  // prompts / plate (throttle: every frame is fine, DOM writes only on change)
+  var n=nearest();
+  if(n.inter!==currentInter){
+    currentInter=n.inter;
+    if(currentInter){
+      promptTxt.textContent=currentInter.labelFn(currentInter);
+      btnInteractTxt.textContent=currentInter.on?'Close':'Open';
+      promptEl.classList.add('show');
+    } else promptEl.classList.remove('show');
+  } else if(currentInter){
+    promptTxt.textContent=currentInter.labelFn(currentInter);
+  }
+  if(n.car!==currentCar){ currentCar=n.car; refreshPlate(); }
+}
+
+/* ================= LOOP ================= */
+function resize(){
+  var w=window.innerWidth,h=window.innerHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+  /* pmndrs EffectComposer has no setPixelRatio — its setSize() sizes the
+     buffers from the renderer's drawing buffer, which already includes
+     the renderer's pixel ratio. Guarded so a polish-layer hiccup can
+     never take the whole game down: drop to a plain render instead. */
+  if(composer){ try{ composer.setSize(w,h); }catch(e){ composer=null; } }
+}
+window.addEventListener('resize',resize); resize();
+
+var last=performance.now(), acc=0;
+step(1/60,0); // position the camera before the first frame is ever drawn
+/* Staged quality: the game boots 'lean' (plain renderer, no
+   transmissive glass) so the first frame is cheap on every device.
+   Sustained 25+ fps upgrades to 'full' — the pmndrs post chain plus
+   the Civic's real glass. Sustained under 12 fps drops to 'minimal'
+   (pixel ratio 1) and stays there. One-way steps, wide thresholds:
+   no flapping, and load jank is absorbed by the warmup window. */
+var leanMode=false;
+var quality='lean';
+var perfT0=performance.now(), perfFrames=0, perfWarm=true;
+function stripTransmission(){
+  cars.forEach(function(c){
+    if(c.allMats) c.allMats.forEach(function(m){ if(m.transmission) m.transmission=0; });
+  });
+}
+function restoreTransmission(){
+  cars.forEach(function(c){
+    if(c.allMats) c.allMats.forEach(function(m){ if(m.userData._trans) m.transmission=m.userData._trans; });
+  });
+}
+function perfCheck(now){
+  perfFrames++;
+  var el=now-perfT0;
+  if(el<2500) return;
+  var fps=perfFrames/(el/1000);
+  if(perfWarm){ perfWarm=false; }
+  else if(quality==='lean'&&!softwareGL&&!touchDev){
+    if(fps>=25){ restoreTransmission(); buildComposer(); quality='full'; }
+    else if(fps<12){ leanMode=true; renderer.setPixelRatio(1); resize(); quality='minimal'; }
+  }
+  else if(quality==='full'&&fps<12){
+    leanMode=true; composer=null; stripTransmission(); quality='minimal';
+  }
+  perfT0=now; perfFrames=0;
+}
+var lastRenderMs=0;
+function frame(now){
+  requestAnimationFrame(frame);
+  // software renderers: cap at ~12fps. Rendering flat-out in software
+  // pins every core and starves input, capture and teardown; a real
+  // GPU never takes this branch. Before START the cap is 4fps: the
+  // menu is up and the garage is just a backdrop — a software
+  // renderer grinding full frames behind a menu can starve the
+  // page's own load and any capture/teardown waiting on it.
+  if(softwareGL&&now-lastRenderMs<(started?80:250)){ last=now; return; }
+  lastRenderMs=now;
+  perfCheck(now);
+  // the chill-area props stream in over a second or two; refresh the
+  // (static, expensive) shadow map once they have all landed, not
+  // once per file — a shadow render is a full scene pass, and a
+  // dozen of them back to back can stall a weak device for minutes
+  if(shadowTimer&&now-shadowTimer>900){ renderer.shadowMap.needsUpdate=true; shadowTimer=0; }
+  if(document.hidden){ last=now; acc=0; return; }
+  var dt=(now-last)/1000; last=now;
+  if(dt>0.1)dt=0.1; acc+=dt;
+  try{
+    if(acc<=1/60){ step(1/60,now/1000); acc=0; }
+    while(acc>1/60){ step(1/60,now/1000); acc-=1/60;
+      // software renderers never catch up by piling on extra steps:
+      // one step per frame there, simulation just runs a touch slow
+      if(softwareGL){ acc=0; break; } }
+    if(composer){
+      try{ composer.render(); }
+      catch(pe){ composer=null; renderer.render(scene,camera); } // polish layer failed — keep playing without it
+    } else renderer.render(scene,camera);
+  }catch(err){
+    errBox.style.display='block'; errBox.textContent='Render error: '+err.message;
+  }
+}
+requestAnimationFrame(frame);
+}
+})();
+</script>
+</body>
+</html>
