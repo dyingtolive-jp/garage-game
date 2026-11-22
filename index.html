@@ -1725,14 +1725,17 @@ function figureGroup(){
   scene.add(grp);
   return grp;
 }
-function playClip(gltf,model,pinRoot){
-  if(!gltf.animations||!gltf.animations.length) return null;
-  var clip=gltf.animations[0];
-  // facial morph-weight tracks are dropped for every figure: they
-  // are invisible at garage distance but a DAZ/CC clip carries
-  // hundreds of them, and evaluating them all every step is pure
-  // CPU — on a software renderer that cost is the difference
-  // between a page that settles and one that never does
+/* clip prep shared by every figure: facial morph-weight tracks
+   are dropped (invisible at garage distance, but a DAZ/CC clip
+   carries hundreds of them and evaluating them all every step is
+   pure CPU — on a software renderer that cost is the difference
+   between a page that settles and one that never does), and with
+   pinRoot the hips' x/z travel is frozen to the first frame so a
+   dancer stays on her stage disc while the clip's height and
+   rotation keep playing. Works on a clip from ANY file — the
+   Mixamo figures below play clips loaded separately from their
+   models, always on the same rig the clip was authored for. */
+function prepClip(clip,pinRoot){
   var hasWeights=clip.tracks.some(function(tr){ return tr.name.slice(-8)==='.weights'; });
   if(pinRoot||hasWeights){
     clip=clip.clone();
@@ -1744,8 +1747,12 @@ function playClip(gltf,model,pinRoot){
       }
     });
   }
+  return clip;
+}
+function playClip(gltf,model,pinRoot){
+  if(!gltf.animations||!gltf.animations.length) return null;
   var mixer=new THREE.AnimationMixer(model);
-  var act=mixer.clipAction(clip);
+  var act=mixer.clipAction(prepClip(gltf.animations[0],pinRoot));
   act.setLoop(THREE.LoopRepeat); act.play();
   return mixer;
 }
@@ -1828,20 +1835,19 @@ function loadDancer(){
 }
 loadWalker();
 loadDancer();
-/* ---- the SECOND pole dancer (v16): a different adult woman on a
-   second identical chrome pole on the OPPOSITE (left) wall —
-   "Woman In Red" by reizibarrientos (CC BY): an adult woman in a
-   red dress with her own real embedded Mixamo dance clip, played
-   natively on her own rig. She replaces the v15 experiment that
-   retargeted the twerk clip onto Anna's CC4 rig: the legs and
-   spine transferred cleanly but the arms measurably didn't
-   (elbow flexion compressed ~25% — she read as stretched and
-   deformed on Collin's phone), so the retarget is GONE, code and
-   all. No nude adult file with a real dance clip exists on disk
-   (the nude bases are static; Eve has only a walk) — a clean
-   native dance in a red dress beats a deformed nude. Same honest
-   limit as dancer one: she dances AT the pole, not on it.
-   Adults only, per Collin. ---- */
+/* ---- the SECOND pole dancer: ANNA on the Mixamo rig, on a
+   second identical chrome pole on the OPPOSITE (left) wall.
+   History: v15 retargeted a twerk clip onto Anna's CC4 rig and
+   deformed her arms; v16 swapped in a clothed "Woman In Red"
+   with a native clip. The Mixamo route replaces both: Anna's
+   own mesh was re-rigged by Mixamo onto its standard 41-bone
+   rig (anna-mixamo.glb, no clip of its own), and she dances a
+   real Mixamo hip-hop clip (dance-clip.glb, "Body Wave", 213
+   frames) played NATIVELY on that rig — no retargeting anywhere.
+   Her hips are pinned in x/z (prepClip pinRoot) so the clip's
+   travel can't walk her off the stage disc; she stays at the
+   pole, close against it. Same honest limit as dancer one: she
+   dances AT the pole, not on it. Adults only, per Collin. ---- */
 function loadDancer2(){
   try{
     var loader=new THREE.GLTFLoader();
@@ -1867,20 +1873,30 @@ function loadDancer2(){
         holder.scale.x*=0.55; holder.scale.z*=0.55;
         stage.add(holder);
       },undefined,function(){});
-      loader.load('assets/dancer2.glb',function(gltf){
+      loader.load('assets/anna-mixamo.glb',function(gltf){
         var model=gltf.scene;
         model.traverse(function(o){
           if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
           if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
         });
-        var mixer=playClip(gltf,model,false);
-        var holder=fitFigure(model,1.70); // same height as the walker, as always
-        holder.position.z+=0.45; holder.position.y+=0.16;
-        var grp=new THREE.Group(); grp.add(holder);
-        grp.position.set(-10.55,0,1.6);
-        grp.rotation.y=Math.PI/2-0.35; // mirrored: angled toward the room
-        scene.add(grp);
-        dancer2={grp:grp,mixer:mixer};
+        // her dance lives in its own file, authored on this exact
+        // Mixamo rig — load it and play it on her, hips pinned so
+        // she stays on the disc, dancing at the pole
+        loader.load('assets/dance-clip.glb',function(cg){
+          var mixer=null;
+          if(cg.animations&&cg.animations.length){
+            mixer=new THREE.AnimationMixer(model);
+            var act=mixer.clipAction(prepClip(cg.animations[0],true));
+            act.setLoop(THREE.LoopRepeat); act.play();
+          }
+          var holder=fitFigure(model,1.70); // same height as the walker, as always
+          holder.position.z+=0.45; holder.position.y+=0.16;
+          var grp=new THREE.Group(); grp.add(holder);
+          grp.position.set(-10.55,0,1.6);
+          grp.rotation.y=Math.PI/2-0.35; // mirrored: angled toward the room
+          scene.add(grp);
+          dancer2={grp:grp,mixer:mixer};
+        },undefined,function(){ /* second dancer simply absent */ });
       },undefined,function(){ /* second dancer simply absent */ });
     };
     if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(startLoad,startLoad);
@@ -1917,9 +1933,19 @@ function updatePeople(dt,t){
     if(sa.tap&&sa.calf&&sa.baseCalf) sa.calf.quaternion.copy(sa.baseCalf)
       .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*6.2+sa.phase)*0.05));
   }
+  // Alina's clip and the standing guests' pose clips advance.
+  // On a software renderer the guest mixers advance at half rate
+  // (double dt every other step): the loop reads identically, and
+  // the CPU saving keeps weak devices responsive.
+  jpHalf=!jpHalf;
+  if(!softwareGL||jpHalf){ var jdt=softwareGL?dt*2:dt;
+    for(var jpi=0;jpi<jpMixers.length;jpi++) jpMixers[jpi].update(jdt); }
   // standing Annas: the same quiet idle as the sitters, upright —
   // a slow breath at the waist and unhurried head turns, phased
-  // per guest so the four of them never move in sync
+  // per guest so the four of them never move in sync. This runs
+  // AFTER the pose mixers above on purpose: each guest's base
+  // quaternions were captured from her POSED bones, so the idle
+  // layers on top of the Mixamo pose instead of fighting it.
   for(var sti=0;sti<standingAnnas.length;sti++){ var st=standingAnnas[sti];
     if(st.waist&&st.baseWaist) st.waist.quaternion.copy(st.baseWaist)
       .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*1.15+st.phase)*0.018));
@@ -1927,13 +1953,6 @@ function updatePeople(dt,t){
       .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Y,Math.sin(t*0.23+st.phase*1.7)*0.22))
       .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*0.71+st.phase*2)*0.03));
   }
-  // Alina's clip just advances. On a software renderer the guest
-  // mixers advance at half rate (double dt every other step): the
-  // loop reads identically, and the CPU saving keeps weak
-  // devices responsive.
-  jpHalf=!jpHalf;
-  if(!softwareGL||jpHalf){ var jdt=softwareGL?dt*2:dt;
-    for(var jpi=0;jpi<jpMixers.length;jpi++) jpMixers[jpi].update(jdt); }
 }
 
 /* ================= THE JAPANESE CHILL AREA + GUESTS =================
@@ -1956,9 +1975,10 @@ function updatePeople(dt,t){
      matched neither bench's seat).
    · Four standing ANNA clones: two by the benches with the
      sitters, one at the Civic's nose looking it over, one on
-     the car row facing the cars — all on the bench sitters'
-     breathing / head-turn idle, no walk cycle. Alina (22.6 s
-     full-body clip) at the S15.
+     the car row facing the cars — each on Anna's Mixamo rig in
+     her own held standing pose, with the bench sitters'
+     breathing / head-turn idle layered over it, no walk cycle.
+     Alina (22.6 s full-body clip) at the S15.
    Decor (all real CC BY files, measured and grounded from their
    own bounding boxes at load): chertpaderi garden bench +
    ditovirnantio station bench, seirogan tatami mats under them,
@@ -2158,19 +2178,26 @@ function loadSeatedAnna(opts){
     },undefined,function(){}); });
   }catch(e){ /* sitter simply absent */ }
 }
-/* ---- the standing guests: Anna again, cloned ----
+/* ---- the standing guests: Anna again, cloned — on the
+   Mixamo rig, each in her own standing pose ----
    Collin's call: the four identical guests are out and the nude
    walker woman stands in their places — two by the benches, one
-   at the Civic's nose, one on the car row. Each is a CLONE of
-   the one Anna load (THREE.SkeletonUtils.clone remaps every
-   clone's skeleton onto its own bones, so each idles on her
-   own rig): walker.glb is fetched ONCE for all four — the
-   first caller starts the shared load below and the rest
-   queue on it; there are no per-guest downloads. No clip is
-   played: her rest pose stands on its own at the walker's
-   exact 1.70 m and with her exact materials, and the bench
-   sitters' procedural idle (breathing + slow head turns) is
-   layered on in updatePeople, phased per guest. */
+   at the Civic's nose, one on the car row. They used to stand
+   in the walker file's bind pose (a T-pose — stiff and doll-
+   like). Now each is a CLONE of Anna's Mixamo-rigged mesh
+   (anna-mixamo.glb, fetched ONCE for all four — the first
+   caller starts the shared load below and the rest queue on
+   it; THREE.SkeletonUtils.clone remaps every clone's skeleton
+   onto its own bones, so each poses on her own rig), and each
+   plays a DIFFERENT Mixamo standing-pose clip natively on that
+   rig: a 2-frame held pose (legs crossed, arms down, arm
+   raised, one-leg stance) whose mixer sits on jpMixers like
+   the other guests'. The pose is applied once at load and the
+   waist/head quaternions are captured AFTER it lands, so the
+   bench sitters' procedural idle (breathing + slow head
+   turns, layered in updatePeople after the mixers) breathes
+   on top of the posed body — not the T-pose. No clip is ever
+   retargeted: model and poses are the same Mixamo rig. */
 var standingAnnas=[];
 var annaShared=null, annaSharedQueue=null;
 function withSharedAnna(cb){
@@ -2179,7 +2206,7 @@ function withSharedAnna(cb){
   annaSharedQueue=[cb];
   try{
     var loader=jpLoader();
-    jpStart(function(){ loader.load('assets/walker.glb',function(gltf){
+    jpStart(function(){ loader.load('assets/anna-mixamo.glb',function(gltf){
       annaShared=gltf.scene;
       var q=annaSharedQueue; annaSharedQueue=null;
       if(q) q.forEach(function(f){ f(annaShared); });
@@ -2201,9 +2228,29 @@ function loadStandingAnna(opts){
       if(opts.collider) addCollider(opts.x,opts.z,opts.collider[0],opts.collider[1]);
       var B={};
       model.traverse(function(o){ if(o.isBone) B[o.name]=o; });
-      standingAnnas.push({ waist:B['CC_Base_Waist_033'], head:B['CC_Base_Head_038'], phase:opts.phase||0,
-        baseWaist:B['CC_Base_Waist_033']?B['CC_Base_Waist_033'].quaternion.clone():null,
-        baseHead:B['CC_Base_Head_038']?B['CC_Base_Head_038'].quaternion.clone():null });
+      // her idle bones on the Mixamo rig: waist = Spine2,
+      // head = Head (the CC-rig names belong to the walker and
+      // the sitters, who keep their own file and are untouched)
+      var entry={ waist:B['mixamorig:Spine2'], head:B['mixamorig:Head'], phase:opts.phase||0,
+        baseWaist:null, baseHead:null };
+      function captureBase(){
+        entry.baseWaist=entry.waist?entry.waist.quaternion.clone():null;
+        entry.baseHead=entry.head?entry.head.quaternion.clone():null;
+        standingAnnas.push(entry);
+      }
+      if(opts.pose){
+        var loader=jpLoader();
+        jpStart(function(){ loader.load(opts.pose,function(pg){
+          if(pg.animations&&pg.animations.length){
+            var mixer=new THREE.AnimationMixer(model);
+            var act=mixer.clipAction(prepClip(pg.animations[0],false));
+            act.setLoop(THREE.LoopRepeat); act.play();
+            mixer.update(0); // land the pose NOW, before the base capture
+            jpMixers.push(mixer);
+          }
+          captureBase();
+        },undefined,function(){ captureBase(); }); });
+      } else captureBase();
     });
   }catch(e){ /* standing guest simply absent */ }
 }
@@ -2213,10 +2260,10 @@ function loadStandingAnna(opts){
 function loadAllGuests(){
 loadSeatedAnna({variant:1,x:-5.2,z:8.84,ry:Math.PI-0.10,lift:-0.399,phase:0});
 loadSeatedAnna({variant:2,x:5.35,z:8.84,ry:Math.PI+0.14,lift:-0.249,phase:2.1,tap:true});
-loadStandingAnna({x:-3.95,z:8.05,ry:-1.04,phase:0.6,collider:[0.3,0.3]});
-loadStandingAnna({x:6.45,z:8.05,ry:-0.76,phase:2.4,collider:[0.3,0.3]});
-loadStandingAnna({x:2.3,z:0.15,ry:-1.92,phase:4.1,collider:[0.3,0.3]});
-loadStandingAnna({x:0,z:2.0,ry:Math.PI,phase:5.3,collider:[0.3,0.3]});
+loadStandingAnna({x:-3.95,z:8.05,ry:-1.04,phase:0.6,collider:[0.3,0.3],pose:'assets/pose-crossed.glb'});
+loadStandingAnna({x:6.45,z:8.05,ry:-0.76,phase:2.4,collider:[0.3,0.3],pose:'assets/pose-raised.glb'});
+loadStandingAnna({x:2.3,z:0.15,ry:-1.92,phase:4.1,collider:[0.3,0.3],pose:'assets/pose-armsdown.glb'});
+loadStandingAnna({x:0,z:2.0,ry:Math.PI,phase:5.3,collider:[0.3,0.3],pose:'assets/pose-oneleg.glb'});
 loadGuest('assets/alina.glb',{h:1.68,x:-8.6,z:0.6,ry:1.76,pin:true,collider:[0.32,0.32]});
 }
 /* The v13 layer loads with everything else, behind the start
