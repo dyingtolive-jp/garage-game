@@ -152,7 +152,7 @@
     <div class="note" id="plateNote"></div>
     <div class="states" id="plateStates"></div>
   </div>
-  <div id="foundChip"><span class="objLabel">OBJECTIVE · FIND ALL 16</span><span class="objCount">FOUND <b id="foundNum">0/16</b></span></div>
+  <div id="foundChip"><span class="objLabel">OBJECTIVE · FIND ALL 12</span><span class="objCount">FOUND <b id="foundNum">0/12</b></span></div>
   <button id="muteBtn" aria-label="Mute sound">SOUND ON</button>
   <div id="prompt"><span class="key">E</span><span class="txt" id="promptTxt">Pop the hood</span></div>
   <div id="toast"></div>
@@ -170,16 +170,16 @@
 
 <div id="startCard">
   <h1>THE <span>GARAGE</span></h1>
-  <p class="tagline">Three bays, sixteen interactions hiding in plain sight — <b>pop the hoods, flip the lights, start the engines</b>, then take the back door into <b>the mansion</b> and switch on its decor too.</p>
+  <p class="tagline">Three bays, twelve interactions hiding in plain sight — <b>pop the hoods, flip the lights, start the engines</b>, then take the back door into <b>the apartment</b> and make yourself at home.</p>
   <div id="lineup">
     <div class="carRow"><span class="bayNo">BAY 2</span><span class="carName">Nissan Silvia S15</span><span class="carTag">drift build</span></div>
     <div class="carRow"><span class="bayNo">BAY 3</span><span class="carName">1998 Honda Civic</span><span class="carTag">your car</span></div>
     <div class="carRow"><span class="bayNo">BAY 4</span><span class="carName">Lamborghini Gallardo</span><span class="carTag">V10</span></div>
-    <div class="carRow"><span class="bayNo">DOOR</span><span class="carName">The Mansion</span><span class="carTag">back wall · 7 more finds</span></div>
+    <div class="carRow"><span class="bayNo">DOOR</span><span class="carName">The Apartment</span><span class="carTag">back wall · 3 more finds</span></div>
   </div>
   <button id="enterBtn" disabled>LOADING&hellip;</button>
   <p class="controls"><b>WASD</b> walk &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>E</b> interact &nbsp;·&nbsp; <b>Shift</b> run &nbsp;—&nbsp; on touch, use the stick and buttons.</p>
-  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — People: Jungle Jim · BadutSaurus · reizibarrientos — Japan set: ydvisual · Bazylonator · abelGB · tokyo45otaku · Vermos · chertpaderi · ditovirnantio · seirogan · sa6 — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — Mansion: anandayokesh · bcfbox · farhad.Guli · MikhailKadilnikov · nrecord · mfb64 · Fenes.Octavian · Nymchee · ajnikstudio · AllQuad · ahmagh2e · MaX3Dd · mtcollings · eltayerkebulan · modeneseinteriors · klava88 — all CC BY 4.0 · HDRI: Poly Haven CC0</p>
+  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — People: Jungle Jim · BadutSaurus · reizibarrientos — Japan set: ydvisual · Bazylonator · abelGB · tokyo45otaku · Vermos · chertpaderi · ditovirnantio · seirogan · sa6 — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — all CC BY 4.0 · HDRI: Poly Haven CC0</p>
 </div>
 
 <div id="errBox"></div>
@@ -195,7 +195,7 @@ var errBox=document.getElementById('errBox');
 /* ================= v22 CORE SYSTEMS =================
    Bedrock rules (see AGENTS.md): (1) Modular Development — the
    systems below are self-contained and content code (garage,
-   mansion, cars, people) reaches them only through these small
+   apartment, cars, people) reaches them only through these small
    interfaces; (2) Performance First — world streaming, LOD
    simulation rates, capped concurrent loads, capped textures,
    adaptive quality. No content system loads a GLB, sets a quality
@@ -231,14 +231,14 @@ window.addEventListener('unhandledrejection',function(e){ ErrorGuard.report(e.re
    concurrent parse jobs (2 on touch, 3 otherwise), dedupes
    repeat loads of the same file into ONE parse whose geometry,
    materials and textures are shared by clones, and downscales
-   any texture above the per-class cap (512px for mansion /
+   any texture above the per-class cap (512px for Japanese /
    Japanese / decor props, 1024px for everything else) before
    the model is handed to the scene, so an oversized texture can
    never reach the GPU at full size. */
 var AssetSystem=(function(){
   var MAXC=(('ontouchstart' in window)||navigator.maxTouchPoints>0)?2:3;
   var active=0, queue=[], cache={}, pending={}, done=0, failed=0, deduped=0, capsApplied=0, installed=false, rawLoad=null;
-  function capFor(url){ return /mansion-|jp-|decor\.glb/.test(url)?512:1024; }
+  function capFor(url){ return /jp-|decor\.glb/.test(url)?512:1024; }
   function resizeTex(tex,cap,seen){
     var img=tex&&tex.image; if(!img||!img.width||!img.height) return;
     if(Math.max(img.width,img.height)<=cap){ if(tex.anisotropy>4) tex.anisotropy=4; return; }
@@ -337,61 +337,32 @@ var AssetSystem=(function(){
   };
 })();
 
-/* ---- WorldSystem: zone streaming. The world is two zones
-   (garage z >= -20, mansion z < -20). Only the player's zone is
-   visible/rendered; the other zone's lights, props and people
-   cost nothing. Streamed mansion props are tracked so they can
-   be unloaded after the player leaves (see MemorySystem) and
-   re-streamed on return. Zone is read from top-level object
-   positions, so new locations only need their own builder. */
+/* ---- WorldSystem: zone culling. The world is two zones
+   (garage z >= -20, apartment z < -20). Only the player's zone
+   is visible/rendered; the other zone's lights, props and
+   people cost nothing. Zone is read from top-level object
+   positions, so new locations only need their own builder.
+   (v23: the mansion's streamed-prop tracking/unload machinery
+   went with the mansion — the apartment is in-engine geometry
+   built once at boot, so there is nothing to stream.) */
 var WorldSystem=(function(){
-  var zone='garage', lastScan=0, prewarm=null, streamed={}, unloadTimer=null;
+  var zone='garage', lastScan=0;
   var api={
-    unloaders:{}, unloaded:{},
     zone:function(){ return zone; },
-    trackStreamed:function(grp,file){
-      if(!grp||!grp.position||grp.position.z>=-20) return;
-      grp.userData.streamZone='mansion'; grp.userData.streamFile=file;
-      (streamed.mansion=streamed.mansion||[]).push(grp);
-    },
-    streamedCount:function(){ return streamed.mansion?streamed.mansion.length:0; },
     update:function(scene,player,now,force){
       if(!scene||!player) return zone;
-      var z=player.z<-20?'mansion':'garage';
+      var z=player.z<-20?'apartment':'garage';
       if(!force&&z===zone&&now-lastScan<400) return zone;
       lastScan=now; zone=z;
       for(var i=0;i<scene.children.length;i++){
         var o=scene.children[i];
         if(o.isAmbientLight||o.isHemisphereLight||(o.userData&&o.userData.zone==='global')){ if(!o.visible) o.visible=true; continue; }
-        var oz=(o.position&&o.position.z<-20)?'mansion':'garage';
-        var vis=(oz===zone)||(prewarm===oz);
+        var oz=(o.position&&o.position.z<-20)?'apartment':'garage';
+        var vis=(oz===zone);
         if(o.visible!==vis) o.visible=vis;
       }
       return zone;
-    },
-    setPrewarm:function(scene,player,z){ prewarm=z; api.update(scene,player,performance.now(),true); },
-    clearPrewarm:function(scene,player){ prewarm=null; api.update(scene,player,performance.now(),true); },
-    scheduleUnload:function(delay,fn){
-      if(unloadTimer||api.unloaded.mansion) return;
-      unloadTimer=setTimeout(function(){ unloadTimer=null; fn(); },delay||45000);
-    },
-    cancelUnload:function(){ if(unloadTimer){ clearTimeout(unloadTimer); unloadTimer=null; } },
-    unloadStreamed:function(zoneName){
-      var list=streamed[zoneName]||[], files={}, removed=0;
-      list.slice().forEach(function(grp){
-        if(grp.parent) grp.parent.remove(grp);
-        removed++;
-        if(grp.userData.streamFile) files[grp.userData.streamFile]=true;
-      });
-      streamed[zoneName]=[];
-      // mansion-door.glb is shared with the garage-side door, which
-      // is still on screen — its cache entry (and GPU data) stays
-      Object.keys(files).forEach(function(f){ if(f!=='assets/mansion-door.glb') AssetSystem.evict(f); });
-      api.unloaded[zoneName]=true;
-      if(api.unloaders[zoneName]){ try{ api.unloaders[zoneName](); }catch(e){ ErrorGuard.report(e,'world-unload'); } }
-      return removed;
-    },
-    markLoaded:function(zoneName){ api.unloaded[zoneName]=false; }
+    }
   };
   return api;
 })();
@@ -419,7 +390,7 @@ var SimulationSystem=(function(){
     lodFor:function(obj,player){
       if(!obj||!player) return {rate:1,skip:false,dist:0};
       var p=rootPos(obj); if(!p) return {rate:1,skip:false,dist:0};
-      var pz=p.z<-20?'mansion':'garage', uz=player.z<-20?'mansion':'garage';
+      var pz=p.z<-20?'apartment':'garage', uz=player.z<-20?'apartment':'garage';
       if(pz!==uz) return {rate:0,skip:true,dist:999};
       var dx=p.x-player.x, dz=p.z-player.z, d=Math.sqrt(dx*dx+dz*dz);
       if(d<7) return {rate:1,skip:false,dist:d};
@@ -515,8 +486,7 @@ var MemorySystem=(function(){
       }catch(e){ /* snapshot is best-effort */ }
       s.assets=AssetSystem.stats();
       s.quality=QualitySystem.tier; s.qualityChanges=QualitySystem.changes;
-      s.zone=WorldSystem.zone(); s.streamedMansionProps=WorldSystem.streamedCount();
-      s.mansionUnloaded=!!WorldSystem.unloaded.mansion;
+      s.zone=WorldSystem.zone();
       s.fps=PerfSystem.stats();
       s.errors=ErrorGuard.counts(); s.errorsSuppressed=ErrorGuard.suppressed();
       return s;
@@ -758,7 +728,7 @@ renderer.toneMapping=THREE.ACESFilmicToneMapping;
    outfits were the first thing this scene clipped to white under
    the key spot — the cars' darker, saturated paint survived, the
    girls didn't. The whole light rig below is rebalanced with it. */
-renderer.toneMappingExposure=1.12; /* v21 polish: a touch more exposure again — v20's real engine bays and the mansion's pale marble both read richer, skin still holds */
+renderer.toneMappingExposure=1.12; /* v21 polish: a touch more exposure again — v20's real engine bays and the apartment's warm wood both read richer, skin still holds */
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 /* Software renderers (SwiftShader / llvmpipe — CI rigs, VMs, ancient
    laptops) can't carry the post chain or transmissive glass at any
@@ -1416,7 +1386,7 @@ var DECOR_COLLIDERS=[ // [centreX, centreZ, halfW, halfD] per prop
 });
 /* The old lounge corner (two stools, towels, a cooler) is gone: the
    front corner by the doors is now the Japanese chill area — benches,
-   tatami, the two dance stages, lanterns and neon — built further down with the
+   tatami, the dance stage, lanterns and neon — built further down with the
    guests who sit there. */
 
 /* ================= CAR BUILDER ================= */
@@ -1851,7 +1821,28 @@ var CAR_SPECS=[
    int16, and an unflagged copy renders 32767x too big. Regions
    and hinge points were validated offline against the decoded
    files (panel sizes: Civic 1.24x1.46 m, S15 1.34x1.52 m,
-   Gallardo cover 1.65x1.16 m; closed car bboxes unchanged). */
+   Gallardo cover 1.65x1.16 m; closed car bboxes unchanged).
+   v23 — the panel is a SHELL, and the v19 test cut only its
+   skin. "In the box + facing up" took the outer skin and left
+   the panel's inner stamping behind, still covering the bay,
+   while flat bay-top hardware that happened to face up (inner
+   fender tops, core-support sheets) rode up with the skin —
+   opening a hood read as the engine bay flipped onto the
+   underside of the hood (Collin's report, confirmed by
+   rendering the decoded files offline: with the old set
+   removed, a complete hood-shaped stamping still sealed the
+   Civic's bay). The set is now built from the car's own top
+   surface: a heightfield over the whole model (car space)
+   marks the outer skin (box + facing up + within 4.5 cm of the
+   surface = seeds); the hood is the seeds plus every triangle
+   inside the seeds' footprint within 6 cm of that surface,
+   whatever it faces — skin, stamping and hems together. Bay
+   hardware sits deeper than the band and stays in the bay;
+   the Gallardo's taillight glass, surface-high but outside
+   the cover's footprint, stays on the body. Verified offline
+   per car: the lifted set is one thin panel sheet, and with
+   it removed each bay stands open (the Civic's real engine,
+   the Gallardo's real V10). */
 var HOOD_SKIP_TOKENS={tire:1,tyre:1,wheel:1,rim:1,engine:1,rotor:1,calip:1,caliper:1,brake:1};
 function partitionHood(car,model,region){
   var g=car.group;
@@ -1862,6 +1853,34 @@ function partitionHood(car,model,region){
   var e1=new THREE.Vector3(),e2=new THREE.Vector3(),nrm=new THREE.Vector3(),cen=new THREE.Vector3();
   var meshes=[];
   model.traverse(function(o){ if(o.isMesh) meshes.push(o); });
+  function vertCar(mesh,pos,i,out){ return out.fromBufferAttribute(pos,i).applyMatrix4(mesh.matrixWorld).applyMatrix4(inv); }
+  /* the car's top surface as a heightfield (car space, 4.5 cm
+     cells, per-cell highest triangle centroid over EVERY mesh —
+     glass, lamps and small parts included, so "the surface" is
+     the car's real outer surface, not just the shell mesh's) */
+  var CELL=0.045, SHELL_BAND=0.06, topY={};
+  function cellKey(x,z){ return Math.round(x/CELL)+','+Math.round(z/CELL); }
+  meshes.forEach(function(mesh){
+    var geo=mesh.geometry;
+    if(!geo||!geo.attributes.position||mesh.isSkinnedMesh) return;
+    var pos=geo.attributes.position, idx=geo.index?geo.index.array:null;
+    var tris=idx?idx.length/3:pos.count/3;
+    for(var t=0;t<tris;t++){
+      cen.set(0,0,0);
+      for(var c=0;c<3;c++){ vertCar(mesh,pos,idx?idx[t*3+c]:t*3+c,vA); cen.add(vA); }
+      cen.multiplyScalar(1/3);
+      var k=cellKey(cen.x,cen.z);
+      if(topY[k]===undefined||cen.y>topY[k]) topY[k]=cen.y;
+    }
+  });
+  /* classification pass over the candidate meshes: per triangle,
+     whether it sits in the strict box, in the band-relaxed box
+     (verts may dip SHELL_BAND below the region floor — the
+     stamping's ribs do), whether it faces up, its depth below
+     the surface and its heightfield cell. Seeds (strict + up +
+     at the surface) grow the panel footprint, dilated one cell
+     so the shell pass below reaches the panel's edge returns. */
+  var candMeshes=[], foot={}, triInfo={};
   meshes.forEach(function(mesh){
     var geo=mesh.geometry;
     if(!geo||!geo.attributes.position||mesh.isSkinnedMesh||Array.isArray(mesh.material)) return;
@@ -1869,20 +1888,28 @@ function partitionHood(car,model,region){
     if(triCount<1500) return;
     var toks=(mesh.name||'').toLowerCase().split(/[^a-z]+/);
     for(var ti=0;ti<toks.length;ti++) if(HOOD_SKIP_TOKENS[toks[ti]]) return;
-    var src=geo;
-    var attrs=Object.keys(src.attributes);
-    var pos=src.attributes.position;
-    var idx=src.index?src.index.array:null;
+    candMeshes.push(mesh);
+  });
+  candMeshes.forEach(function(mesh){
+    var geo=mesh.geometry, pos=geo.attributes.position, idx=geo.index?geo.index.array:null;
     var tris=idx?idx.length/3:pos.count/3;
-    var hoodTris=[], restTris=[];
+    var info={strict:new Uint8Array(tris),low:new Uint8Array(tris),up:new Uint8Array(tris),
+      depth:new Float32Array(tris),cell:new Array(tris)};
     var vs=[vA,vB,vC];
     for(var t=0;t<tris;t++){
-      var keep=true;
+      var strict=true, low=true;
+      cen.set(0,0,0);
       for(var c=0;c<3;c++){
-        vs[c].fromBufferAttribute(pos,idx?idx[t*3+c]:t*3+c).applyMatrix4(mesh.matrixWorld).applyMatrix4(inv);
-        if(!(vs[c].z>=region.zMin&&vs[c].z<=region.zMax&&vs[c].y>=region.yMin&&vs[c].y<=region.yMax&&Math.abs(vs[c].x)<=region.xMax)){ keep=false; break; }
+        vertCar(mesh,pos,idx?idx[t*3+c]:t*3+c,vs[c]); cen.add(vs[c]);
+        var p=vs[c];
+        if(!(p.z>=region.zMin&&p.z<=region.zMax&&p.y<=region.yMax&&Math.abs(p.x)<=region.xMax)){ strict=false; low=false; }
+        else if(p.y<region.yMin){ strict=false; if(p.y<region.yMin-SHELL_BAND) low=false; }
       }
-      if(keep){
+      cen.multiplyScalar(1/3);
+      var k=cellKey(cen.x,cen.z);
+      info.cell[t]=k;
+      info.depth[t]=(topY[k]===undefined?cen.y:topY[k])-cen.y;
+      if(strict){
         e1.copy(vB).sub(vA); e2.copy(vC).sub(vA); nrm.copy(e1).cross(e2);
         // region.absN (the Gallardo's rear deck): accept DOWN-facing
         // triangles too — the cover's glass pane and the panel
@@ -1890,8 +1917,28 @@ function partitionHood(car,model,region){
         // most of the glass floating over the open bay (v20)
         var nl=nrm.lengthSq();
         var ny=nl<1e-12?0:nrm.normalize().y;
-        if(nl<1e-12||(region.absN?Math.abs(ny):ny)<region.nMin) keep=false;
+        info.up[t]=(nl>=1e-12&&(region.absN?Math.abs(ny):ny)>=region.nMin)?1:0;
       }
+      info.strict[t]=strict?1:0; info.low[t]=low?1:0;
+      if(strict&&info.up[t]&&info.depth[t]<=0.045){
+        var parts=k.split(','), kx=+parts[0], kz=+parts[1];
+        for(var dx=-1;dx<=1;dx++) for(var dz=-1;dz<=1;dz++) foot[(kx+dx)+','+(kz+dz)]=1;
+      }
+    }
+    triInfo[mesh.uuid]=info;
+  });
+  candMeshes.forEach(function(mesh){
+    var info=triInfo[mesh.uuid]; if(!info) return;
+    var src=mesh.geometry;
+    var attrs=Object.keys(src.attributes);
+    var idx=src.index?src.index.array:null;
+    var tris=idx?idx.length/3:src.attributes.position.count/3;
+    var hoodTris=[], restTris=[];
+    for(var t=0;t<tris;t++){
+      // the shell rule: a seed, or any triangle inside the panel
+      // footprint within the shell band of the surface
+      var keep=(info.strict[t]&&info.up[t]&&info.depth[t]<=0.045)||
+               (info.low[t]&&foot[info.cell[t]]&&info.depth[t]<=SHELL_BAND);
       (keep?hoodTris:restTris).push(t);
     }
     if(!hoodTris.length) return;
@@ -2332,7 +2379,7 @@ var cars=CAR_SPECS.map(function(spec){
      30-second Mixamo dance loop (verified in-file: 90 channels,
      66-joint rig), staged at the chrome pole on the neon-rimmed
      stage between the benches (v20: moved from the right wall —
-     both stages stand together in the chill corner now). v13 CORRECTION (Collin's call,
+     her stage stands in the chill corner now; v23: the second stage that stood beside it is deleted). v13 CORRECTION (Collin's call,
      superseding the earlier double-her instruction): she stays
      her normal 1.70 m — the same height as the walker, the v12
      height match. Only the POLE changed: taller (5.0 m, as tall
@@ -2343,7 +2390,7 @@ var cars=CAR_SPECS.map(function(spec){
      free model ecosystem has.
    Anna is the aisle walker; cloned Annas stand in the chill
    area and by the cars in the section below. ---- */
-var walker=null, dancer=null, dancer2=null;
+var walker=null, dancer=null;
 var jpMixers=[], jpHalf=false;
 var carSway=[]; // v18: whole-body sway entries for the car-row pair (see updatePeople)
 function fitFigure(model,targetH){
@@ -2538,15 +2585,18 @@ function loadDancer(){
     var startLoad=function(){
       // the stage: a low round platform with a neon-pink rim.
       // v20: the stage moved from the right wall to the chill
-      // corner — it stands between the two benches, side by side
-      // with Anna's stage where the torii gate used to be (see
-      // loadDancer2). The disc is a touch smaller than the old
-      // wall footprint (1.15/1.28 instead of 1.3/1.42) so the pair
-      // fits the gap between the benches clear of the walker's
-      // aisle loop, the tatami mats and the front wall; the disc
-      // top stays at 0.16, so her grounding is unchanged. The
-      // pole is still 5.0 m tall (ceiling is 5.2 m) and slimmed
-      // to just over half its file thickness below.
+      // corner — it stands between the two benches, where the
+      // torii gate used to be. v23: it is the ONLY stage now —
+      // the second pole and its dancer (Anna, whose baked clip
+      // left her arms glitched) are deleted outright, per
+      // Collin; the clothed dancer below is untouched. The disc
+      // is a touch smaller than the old wall footprint
+      // (1.15/1.28 instead of 1.3/1.42) so it fits the gap
+      // between the benches clear of the walker's aisle loop,
+      // the tatami mats and the front wall; the disc top stays
+      // at 0.16, so her grounding is unchanged. The pole is
+      // still 5.0 m tall (ceiling is 5.2 m) and slimmed to just
+      // over half its file thickness below.
       var stage=new THREE.Group(); stage.position.set(1.75,0,8.66); scene.add(stage);
       var disc=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.28,0.16,40),
         new THREE.MeshStandardMaterial({color:0x17181c,roughness:0.35,metalness:0.5,envMapIntensity:1.1}));
@@ -2583,7 +2633,7 @@ function loadDancer(){
         var grp=new THREE.Group();
         grp.add(holder);
         grp.position.set(1.75,0,8.66);
-        grp.rotation.y=Math.PI-0.18; // facing the room, angled a touch toward the other stage
+        grp.rotation.y=Math.PI-0.18; // facing the room, angled a touch
         scene.add(grp);
         dancer={grp:grp,mixer:mixer};
       },undefined,function(){ /* no fallback figure — the capsule people are deleted */ });
@@ -2594,126 +2644,6 @@ function loadDancer(){
 }
 loadWalker();
 loadDancer();
-/* ---- the SECOND pole dancer: ANNA on the Mixamo rig, on a
-   second identical chrome pole beside the first dancer's —
-   since v20 the pair stand together between the benches (they
-   used to face each other from opposite walls).
-   History: v15 retargeted a twerk clip onto Anna's CC4 rig and
-   deformed her arms; v16 swapped in a clothed "Woman In Red"
-   with a native clip. The Mixamo route replaces both: Anna's
-   own mesh was re-rigged by Mixamo onto its standard 41-bone
-   rig (anna-mixamo.glb, no clip of its own), and she danced a
-   real Mixamo hip-hop clip (dance-clip.glb, "Body Wave", 213
-   frames) played NATIVELY on that rig.
-   v20 — SAME DANCE AS DANCER ONE (Collin's call): the Body Wave
-   is out; Anna now dances the clothed dancer's twerk loop
-   itself. The two rigs are both Mixamo but different exports —
-   the twerk file's bones carry numeric suffixes and a standing
-   bind pose, Anna's rig carries neither and her bind lies along
-   the floor — so the clip can't just be re-pointed at her (a
-   name-stripped copy folds her into a crouch, verified offline).
-   Instead the twerk was transferred OFFLINE onto her rig and
-   baked into anna-twerk-clip.glb (30 fps, all 41 bones): each
-   frame's world-space motion delta from the twerk was applied
-   on top of Anna's own standing-idle base pose and solved back
-   to her local bone rotations, and her Hips carry a position
-   track with the twerk's vertical bounce (0.33 m of travel),
-   converted into her armature's frame — without it a
-   rotation-only playback leaves her sunk in a permanent crouch
-   with her feet through the disc. Playback below keeps every
-   rotation track plus that one Hips track, with the Hips'
-   local x/y frozen (in her armature frame those are the
-   horizontal axes; local z is world height) so she stays
-   centred on the disc while the bounce plays. She is grounded
-   from her posed first frame (groundFigure), so she stays on
-   the stage disc at the pole for the whole loop. Verified
-   offline against the shipped files: her figure top ranges
-   1.40-1.77 m across the loop against the clothed dancer's
-   own 1.43-1.85, feet within 5 cm of the disc throughout.
-   Her colour is real: the shipped model file is the
-   re-textured build (30 images, skin/hair/eye maps restored).
-   v20 also moved her stage: she and dancer one now stand side
-   by side between the benches, where the torii gate used to
-   be. Same honest limit as dancer one: she dances AT the
-   pole, not on it. Adults only, per Collin. ---- */
-function loadDancer2(){
-  try{
-    var loader=new THREE.GLTFLoader();
-    if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
-    var startLoad=function(){
-      // mirror of the first stage, beside it between the benches
-      // — same disc, same neon rim, same pink lamp, same tall
-      // skinny pole
-      var stage=new THREE.Group(); stage.position.set(-1.75,0,8.66); scene.add(stage);
-      var disc=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.28,0.16,40),
-        new THREE.MeshStandardMaterial({color:0x17181c,roughness:0.35,metalness:0.5,envMapIntensity:1.1}));
-      disc.position.y=0.08; disc.receiveShadow=true; stage.add(disc);
-      var rim=new THREE.Mesh(new THREE.TorusGeometry(1.16,0.03,10,56),
-        new THREE.MeshStandardMaterial({color:0x1a050c,emissive:0xff2e63,emissiveIntensity:2.2,roughness:0.4}));
-      rim.rotation.x=Math.PI/2; rim.position.y=0.16; stage.add(rim);
-      var lamp=new THREE.PointLight(0xff5c8a,9,10,1.8); lamp.position.set(0,4.7,0); stage.add(lamp);
-      var lampGlow=glowSprite(0xff5c8a,2.4,0.5); lampGlow.position.set(0,4.7,0); stage.add(lampGlow);
-      addCollider(-1.75,8.66,0.95,0.95);
-      loader.load('assets/pole.glb',function(pg){
-        var pole=pg.scene;
-        pole.traverse(function(o){ if(o.isMesh){ o.castShadow=false;
-          if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
-            m.metalness=1.0; m.roughness=0.12; m.envMapIntensity=2.2; }); } } });
-        var holder=fitFigure(pole,5.0);
-        holder.scale.x*=0.55; holder.scale.z*=0.55;
-        stage.add(holder);
-      },undefined,function(){});
-      loader.load('assets/anna-mixamo.glb',function(gltf){
-        var model=gltf.scene;
-        model.traverse(function(o){
-          if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
-          if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
-        });
-        // scaled from her bind-pose stature BEFORE any clip
-        // touches her (see fitFigureMixamo — the old fitFigure
-        // read her lying bind pose's thickness as her height and
-        // she came out 7 m tall)
-        var holder=fitFigureMixamo(model,1.70); // same height as the walker, as always
-        var grp=new THREE.Group(); grp.add(holder);
-        grp.position.set(-1.75,0,8.66);
-        grp.rotation.y=Math.PI+0.18; // facing the room, angled a touch toward the other stage
-        // her dance lives in its own file now — the twerk baked
-        // onto her rig (see the header above). Playback keeps
-        // every rotation track plus the single Hips position
-        // track (the bounce), with the Hips' local x/y frozen to
-        // frame 0 so she stays centred on the disc; then ground
-        // her posed first frame onto the disc so she stays on
-        // it, dancing at the pole
-        loader.load('assets/anna-twerk-clip.glb',function(cg){
-          var mixer=null;
-          if(cg.animations&&cg.animations.length){
-            mixer=new THREE.AnimationMixer(model);
-            var clip=cg.animations[0].clone();
-            clip.tracks=clip.tracks.filter(function(tr){
-              return tr.name.slice(-9)!=='.position'||/Hips/.test(tr.name);
-            });
-            clip.tracks.forEach(function(tr){
-              if(tr.name.slice(-9)==='.position'){
-                var v=tr.values, x0=v[0], y0=v[1];
-                for(var i=0;i<v.length;i+=3){ v[i]=x0; v[i+1]=y0; }
-              }
-            });
-            var act=mixer.clipAction(clip);
-            act.setLoop(THREE.LoopRepeat); act.play();
-            mixer.update(0); // land frame 0 so she can be grounded in the pose
-          }
-          groundFigure(holder,model,grp,0.16); // feet on the stage disc, centred on it
-          holder.position.z+=0.45; // close against the pole, dancing at it
-          scene.add(grp);
-          dancer2={grp:grp,mixer:mixer};
-        },undefined,function(){ /* second dancer simply absent */ });
-      },undefined,function(){ /* second dancer simply absent */ });
-    };
-    if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(startLoad,startLoad);
-    else startLoad();
-  }catch(e){ /* second dancer simply absent */ }
-}
-loadDancer2();
 function updatePeople(dt,t){
   /* v22 LOD (SimulationSystem): nobody simulates at full detail
      just because she exists. An actor in the other zone is not
@@ -2723,7 +2653,7 @@ function updatePeople(dt,t){
      never take the frame — or the game — down with it. */
   SimulationSystem.guard('walker',function(){
     if(!walker) return;
-    if(SimulationSystem.lodFor(walker.grp,player).skip) return; // player is in the mansion
+    if(SimulationSystem.lodFor(walker.grp,player).skip) return; // player is in the apartment
     // the same slow ellipse down the front aisle as before — but the
     // stride, knee bends and arm swing are her real mocap clip now;
     // the group just carries her, facing the way she travels
@@ -2736,9 +2666,6 @@ function updatePeople(dt,t){
   });
   SimulationSystem.guard('dancer',function(){
     if(dancer) SimulationSystem.mixerStep(dancer.mixer,dancer.grp,player,dt,1);
-  });
-  SimulationSystem.guard('dancer2',function(){
-    if(dancer2) SimulationSystem.mixerStep(dancer2.mixer,dancer2.grp,player,dt,2);
   });
   // The bench sitters need no procedural layer any more: their
   // sitting idle is a real clip, advanced with the other guest
@@ -2819,11 +2746,11 @@ function updatePeople(dt,t){
    ditovirnantio station bench, seirogan tatami mats under them,
    abelGB paper lanterns overhead, tokyo45otaku's red Ueno
    Coca-Cola vending machine, Vermos bonsai on a low stand
-   between the two dance stages (v20: the Bazylonator torii
-   that stood between the benches is removed — the stages are
+   beside the dance stage (v20: the Bazylonator torii
+   that stood between the benches is removed — the stage is
    there now), sa6 sign board, and four signs from ydvisual's
    neon set hung individually (izakaya over the garden bench,
-   beer over the station bench, parking over the stages, sushi
+   beer over the station bench, parking over the stage, sushi
    on the right wall). ---- */
 var shadowTimer=0;
 function jpLoader(){
@@ -2860,7 +2787,6 @@ function loadProp(file,opts){
       grp.position.set(opts.x,opts.groundY||0,opts.z);
       grp.rotation.y=opts.ry||0;
       scene.add(grp);
-      WorldSystem.trackStreamed(grp,file); // mansion props become unloadable streamed assets
       if(opts.collider) addCollider(opts.x,opts.z,opts.collider[0],opts.collider[1]);
       shadowTimer=performance.now(); // debounced in the frame loop
       if(opts.onDone) opts.onDone();
@@ -2909,21 +2835,22 @@ function buildChillArea(){
   loadProp('assets/jp-bench.glb',{w:1.9,x:-5.2,z:8.78,ry:Math.PI,groundY:0.11,sy:1.16,collider:[1.05,0.42]});
   loadProp('assets/jp-bench2.glb',{w:2.0,x:5.2,z:8.78,ry:Math.PI,groundY:0.11,sy:0.82,collider:[1.1,0.42]});
   // (v20: the red torii gate that stood between the benches is
-  // GONE — the two pole-dance stages stand there now, side by
-  // side; see loadDancer / loadDancer2.)
+  // GONE — the pole-dance stage stands there now; v23 removed
+  // the second stage that used to stand beside it, see
+  // loadDancer.)
   // red Ueno Coca-Cola vending machine against the front wall
   // (its glass front faces local +z — measured from the file — so
   // it turns around to face the room)
   loadProp('assets/jp-vending.glb',{h:1.85,x:-10.7,z:9.3,ry:Math.PI,collider:[0.55,0.6]});
   // standing sign board by the right bench
   loadProp('assets/jp-sign.glb',{h:1.7,x:9.6,z:8.7,ry:Math.PI+0.3,collider:[0.6,0.25]});
-  // bonsai on a low dark-wood stand, centred behind the two
-  // stages in the notch between them, against the front wall
+  // bonsai on a low dark-wood stand, centred behind the
+  // stage, against the front wall
   var stand=box(0.56,0.5,0.56,new THREE.MeshStandardMaterial({color:0x2e2019,roughness:0.8}),0,0.25,9.3);
   stand.castShadow=true;
   addCollider(0,9.3,0.34,0.34);
   loadProp('assets/jp-bonsai.glb',{h:0.62,x:0,z:9.3,groundY:0.5,ry:1.2});
-  // paper lanterns over the benches and the stages, warm light
+  // paper lanterns over the benches and the stage, warm light
   // pooled over the whole corner
   function lantern(x,z,cy){
     loadProp('assets/jp-lantern.glb',{h:0.55,x:x,z:z,center:true,groundY:cy,tune:function(model){
@@ -2946,7 +2873,7 @@ function buildChillArea(){
       var picks=[
         {node:'sign.009',h:1.9,x:-5.2,y:2.75,z:9.93,ry:Math.PI},   // izakaya, over the garden bench
         {node:'sign.010',h:1.6,x:5.2,y:2.7,z:9.93,ry:Math.PI},     // beer, over the station bench
-        {node:'sign.014',h:1.9,x:0,y:2.85,z:9.93,ry:Math.PI},      // parking, over the stages
+        {node:'sign.014',h:1.9,x:0,y:2.85,z:9.93,ry:Math.PI},      // parking, over the stage
         {node:'sign.003',h:1.5,x:12.93,y:2.5,z:-1.5,ry:-Math.PI/2} // sushi, right wall by the stage
       ];
       picks.forEach(function(p){
@@ -3064,7 +2991,7 @@ function loadSeatedAnna(opts){
            POSED figure in the actual scene is measured again
            after anchoring: if her soles float more than 3 cm over
            the surface under her (opts.feetY — the tatami top in
-           the garage, the mansion floor in the house) or sink
+           the garage, the apartment floor in the house) or sink
            into it, the height splits the difference between
            butt-on-seat and soles-on-floor, so neither error can
            exceed a centimetre or two in the worst case. She also
@@ -3268,7 +3195,7 @@ function buildPolish(){
 /* ================= ATMOSPHERE (v17 refresh) =================
    Cheap cinematic depth that costs almost nothing on a phone:
    additive glow pools on the polished concrete under the neon
-   sign, the DTL cross, both stages and each bay's ceiling tubes —
+   sign, the DTL cross, the stage and each bay's ceiling tubes —
    they read as faint reflections in the floor — plus a small
    cloud of dust motes drifting in the light for depth. No extra
    post-processing anywhere; the motes are skipped entirely on
@@ -3279,8 +3206,7 @@ var dustPts=null, dustBase=null;
 function buildAtmosphere(){
   floorGlow(0,-8.3,7.5,3.2,0xff7a3a,0.10);       // main neon sign spill
   floorGlow(11.5,-5.6,3.6,3.6,0xff2e63,0.08);    // DTL cross spill
-  floorGlow(1.75,8.66,3.2,3.2,0xff2e63,0.07);    // stage one
-  floorGlow(-1.75,8.66,3.2,3.2,0xff2e63,0.07);   // stage two
+  floorGlow(1.75,8.66,3.2,3.2,0xff2e63,0.07);    // the stage
   [-10,-5,0,5,10].forEach(function(x){ floorGlow(x,-2,4.8,3.6,0xffd9a0,0.045); }); // bay light pools
   if(softwareGL||reduceMotion) return;
   var N=140, pos=new Float32Array(N*3); dustBase=new Float32Array(N*3);
@@ -3295,139 +3221,39 @@ function buildAtmosphere(){
     depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true}));
   scene.add(dustPts);
 }
-/* ================= THE MANSION (v21) =================
-   A second full interior behind a door in the garage's back
-   wall — same measure-and-build approach as the garage, at the
-   same realism bar the shipped assets allow: marble floor,
-   panelled walls, columns, a fireplace, a crystal chandelier,
-   a grand piano, a wine cabinet with opening doors, a wall TV
-   and a foyer fountain, plus paintings hung from the garage's
-   own real art files. It lives in its own zone south of the
-   garage (centre z=-38, x -13..13, z -47..-29) so nothing in
-   the garage moves; the two doors teleport the player between
-   zones (see the interactables section). Seven of its pieces are
-   interactable and count toward the objective. All geometry is
-   cheap boxes/cylinders with canvas textures — no new downloads,
-   no extra shadow casters, two base lights — so a phone carries
-   it as easily as the garage. Anna (Mixamo rig, same pipeline
-   as every other guest) stands by the piano and sits on the
-   loveseat by the fire.
-   v21.1 — the furniture is now the REAL Sketchfab set from the
-   mansion research report (all CC BY, credited in the menu):
-   Chesterfield sofas, Victorian fireplace, grand piano, two
-   chandeliers, two Persian rugs, bookshelves, two marble
-   statues and pothos plants, each placed by the same measured
-   loadProp pipeline as the garage's Japanese set. The room
-   shell, wine cabinet, TV, fountain and doors stay in-engine
-   (the report's door/staircase/table models need Collin's
-   Sketchfab sign-in and are noted as upgrades, not blockers). */
-var MANS={fireLight:null,fireMats:[],fireLevel:0,chandLight:null,bulbMat:null,chandGlow:null,
-  tvMat:null,wineL:null,wineR:null,waterFall:null,waterDisc:null,fountainLevel:0,flames:null,lampLight:null};
-/* the real mansion models (~28 MB even after gltfpack) do NOT
-   load at boot: they queue here and stream in once the player
-   enters the garage (step() checks), with the door itself as a
-   backstop trigger. Boot stays at the garage-only weight that
-   has always settled fast — on a phone and in the audit
-   renderer alike — and by the time the player crosses the
-   garage the room is furnished.
-   v21 FIX — entering the mansion froze the game (Collin's
-   phone, on the v20 build). The queue used to fire ALL ~19
-   loads in a single forEach the moment the player neared the
-   door: ~34 MB of GLBs parsing, PNG textures decoding and GPU
-   uploads slamming the main thread in one burst, right at the
-   door, with the teleport and the room's first render landing
-   in the middle of it — on a phone that burst reads as a total
-   freeze and can get the tab killed outright. The drain below
-   is chained instead: two models at a time, the next pair only
-   once the current pair has settled (loadProp's onDone), plus
-   a short breather between pairs — and it starts the moment
-   the player enters the garage, not at the door, so the work
-   is spread over the whole walk across the shop. When the last
-   pair lands and the player is still in the garage, one tiny
-   offscreen render from the mansion doorway pre-warms the
-   room's textures and shader programs, so the first real frame
-   inside does not pay the whole upload spike at once either.
-   The doors never wait on any of this: the room shell is
-   in-engine, the teleport is instant, and any furniture still
-   in flight simply arrives a moment later. */
-var mansionQueue=[], mansionLoaded=false, mansionDraining=false, mansionPropSpecs=[], mansionUnloaded=false;
-function loadMansionModels(){
-  if(mansionLoaded||mansionDraining) return;
-  mansionUnloaded=false; WorldSystem.markLoaded('mansion');
-  mansionDraining=true;
-  drainMansionQueue();
-}
-function drainMansionQueue(){
-  if(!mansionQueue.length){ mansionLoaded=true; mansionDraining=false; warmMansion(); return; }
-  var batch=mansionQueue.splice(0,2), pending=batch.length, settled=false;
-  function done(){
-    if(settled) return;
-    if(--pending<=0){ settled=true; setTimeout(drainMansionQueue,300); }
+/* ================= THE APARTMENT (v23) =================
+   v23 — the mansion is GONE (Collin's call: "the mansion
+   shouldn't be one big space... just give me a simple
+   apartment, like the one from GTA Online"). Everything that
+   was the mansion — the hall, its 17 streamed models, the
+   streaming queue, the zone unload machinery, its seven
+   interactables — is deleted, and the same back-wall door now
+   opens on this: ONE normal room, 11 x 8 m with a 2.7 m
+   ceiling, in the same second zone (z < -20), so the v22 zone
+   culling applies untouched. A couch and TV, a small kitchen
+   run along the west wall, a bed corner, a dresser, a plant,
+   a night-city window. Built entirely from in-engine boxes and
+   canvas textures like the garage's own furniture — no
+   downloads, nothing to stream, nothing Victorian. Three of
+   its pieces are interactable (TV, stereo, bedside lamp) and
+   count toward the objective: 9 car finds + 3 = FIND ALL 12. */
+var APT={tvMat:null,lampLight:null,lampShadeMat:null};
+var woodTex=makeTex(1024,512,function(g,w,h){
+  g.fillStyle='#8a6844'; g.fillRect(0,0,w,h);
+  var rows=6;
+  for(var r2=0;r2<rows;r2++){
+    var y0=r2*h/rows, tone=118+Math.random()*36|0;
+    g.fillStyle='rgb('+(tone+22)+','+(tone-14)+','+(tone-58)+')';
+    g.fillRect(0,y0,w,h/rows-2);
+    g.strokeStyle='rgba(60,38,18,0.5)'; g.lineWidth=1;
+    for(var s3=0;s3<7;s3++){ g.beginPath(); var gy=y0+Math.random()*h/rows;
+      g.moveTo(0,gy); g.bezierCurveTo(w*0.3,gy+3,w*0.6,gy-3,w,gy); g.stroke(); }
+    g.fillStyle='rgba(40,24,10,0.85)'; g.fillRect(0,y0+h/rows-2,w,2);
+    g.fillRect(((r2*397)%w),y0,2,h/rows-2);
   }
-  batch.forEach(function(q){
-    // clone the spec before wrapping onDone: the stored spec is
-    // reused verbatim if the zone unloads and re-streams later
-    var o={}, prev=q[1].onDone;
-    for(var k in q[1]) o[k]=q[1][k];
-    o.onDone=function(){ if(prev) prev(); done(); };
-    loadProp(q[0],o);
-  });
-  // a lost callback must never stall the room half-furnished
-  setTimeout(function(){ if(!settled){ settled=true; drainMansionQueue(); } },15000);
-}
-function warmMansion(){
-  if(player.z<-20) return; // already inside — the room is rendering anyway
-  try{
-    var rt=new THREE.WebGLRenderTarget(64,64);
-    var pc=camera.position.clone(), pr=camera.rotation.clone(),
-        pf=camera.fov, pa=camera.aspect;
-    camera.position.set(0,1.6,-30.4); camera.rotation.order='YXZ';
-    camera.rotation.set(-0.02,0,0); camera.fov=105; camera.aspect=1.7;
-    camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
-    WorldSystem.setPrewarm(scene,player,'mansion'); // zone culling must not hide the room from its own warm-up render
-    renderer.setRenderTarget(rt);
-    renderer.render(scene,camera);
-    renderer.setRenderTarget(null);
-    WorldSystem.clearPrewarm(scene,player);
-    camera.position.copy(pc); camera.rotation.copy(pr);
-    camera.fov=pf; camera.aspect=pa; camera.updateProjectionMatrix();
-    rt.dispose();
-  }catch(e){ try{ renderer.setRenderTarget(null); }catch(e2){} }
-}
-var marbleTex=makeTex(1024,1024,function(g,w,h){
-  g.fillStyle='#cfc8ba'; g.fillRect(0,0,w,h);
-  for(var i=0;i<2600;i++){ var v=170+Math.random()*70|0;
-    g.fillStyle='rgba('+v+','+(v-6)+','+(v-22)+',0.20)'; g.fillRect(Math.random()*w,Math.random()*h,3,3); }
-  g.strokeStyle='rgba(110,100,86,0.35)';
-  for(var v2=0;v2<26;v2++){ g.lineWidth=1+Math.random()*1.6; g.beginPath(); // veins
-    var vx=Math.random()*w, vy=Math.random()*h; g.moveTo(vx,vy);
-    for(var s2=0;s2<5;s2++){ vx+=(Math.random()-0.5)*190; vy+=(Math.random()-0.5)*190; g.lineTo(vx,vy); } g.stroke(); }
-  g.strokeStyle='rgba(70,62,50,0.8)'; g.lineWidth=5;
-  for(var t2=0;t2<=2;t2++){ g.beginPath(); g.moveTo(0,h*t2/2); g.lineTo(w,h*t2/2); g.stroke();
-    g.beginPath(); g.moveTo(w*t2/2,0); g.lineTo(w*t2/2,h); g.stroke(); }
 });
-marbleTex.wrapS=marbleTex.wrapT=THREE.RepeatWrapping; marbleTex.repeat.set(3,2); marbleTex.anisotropy=8;
-var rugTex=makeTex(1024,704,function(g,w,h){
-  g.fillStyle='#5d1420'; g.fillRect(0,0,w,h);
-  g.strokeStyle='#c9a24d'; g.lineWidth=10; g.strokeRect(26,26,w-52,h-52);
-  g.lineWidth=3; g.strokeRect(58,58,w-116,h-116);
-  g.fillStyle='rgba(201,162,77,0.5)';
-  for(var ry2=0;ry2<5;ry2++)for(var rx2=0;rx2<7;rx2++){
-    var cx3=130+rx2*128, cy3=120+ry2*118;
-    g.save(); g.translate(cx3,cy3); g.rotate(Math.PI/4); g.fillRect(-17,-17,34,34); g.restore(); }
-  for(var n2=0;n2<9000;n2++){ g.fillStyle='rgba(0,0,0,'+(Math.random()*0.10)+')';
-    g.fillRect(Math.random()*w,Math.random()*h,2,2); }
-});
-var panelTex=makeTex(1024,512,function(g,w,h){
-  g.fillStyle='#ddd3bf'; g.fillRect(0,0,w,h);
-  for(var i2=0;i2<9000;i2++){ var v3=190+Math.random()*50|0;
-    g.fillStyle='rgba('+v3+','+(v3-8)+','+(v3-26)+',0.16)'; g.fillRect(Math.random()*w,Math.random()*h,3,3); }
-  g.strokeStyle='rgba(120,104,76,0.55)'; g.lineWidth=4;
-  for(var p2=0;p2<4;p2++){ g.strokeRect(40+p2*(w/4),h*0.30,w/4-80,h*0.58); }
-  g.fillStyle='rgba(120,104,76,0.5)'; g.fillRect(0,h*0.26,w,5);
-});
-panelTex.wrapS=THREE.RepeatWrapping; panelTex.repeat.set(3,1); panelTex.anisotropy=8;
-var tvTex=makeTex(1024,576,function(g,w,h){
+woodTex.wrapS=woodTex.wrapT=THREE.RepeatWrapping; woodTex.repeat.set(2,2); woodTex.anisotropy=8;
+var aptTvTex=makeTex(1024,576,function(g,w,h){
   var gr=g.createLinearGradient(0,0,0,h);
   gr.addColorStop(0,'#0d2036'); gr.addColorStop(0.55,'#274b6d'); gr.addColorStop(1,'#0a141f');
   g.fillStyle=gr; g.fillRect(0,0,w,h);
@@ -3438,7 +3264,21 @@ var tvTex=makeTex(1024,576,function(g,w,h){
   g.fillStyle='#f2f0ea'; g.font='700 74px Barlow Condensed, sans-serif'; g.textAlign='center';
   g.fillText('DYING TO LIVE',w/2,h*0.82);
   g.fillStyle='#ffb03a'; g.font='600 34px Barlow Condensed, sans-serif';
-  g.fillText('— M A N S I O N   T V —',w/2,h*0.82+52);
+  g.fillText('- A P A R T M E N T   T V -',w/2,h*0.82+52);
+});
+var cityTex=makeTex(1024,448,function(g,w,h){
+  var gr2=g.createLinearGradient(0,0,0,h);
+  gr2.addColorStop(0,'#0a1226'); gr2.addColorStop(0.7,'#16233f'); gr2.addColorStop(1,'#0a0f1c');
+  g.fillStyle=gr2; g.fillRect(0,0,w,h);
+  for(var st=0;st<130;st++){ g.fillStyle='rgba(255,255,255,'+(0.25+Math.random()*0.6)+')';
+    g.fillRect(Math.random()*w,Math.random()*h*0.5,1.6,1.6); }
+  var bx=0;
+  while(bx<w){ var bw=40+Math.random()*90, bh=h*(0.35+Math.random()*0.5);
+    g.fillStyle='#05080f'; g.fillRect(bx,h-bh,bw,bh);
+    for(var wy=h-bh+10;wy<h-12;wy+=16) for(var wx=bx+6;wx<bx+bw-8;wx+=13){
+      if(Math.random()<0.42){ g.fillStyle=Math.random()<0.75?'rgba(255,196,110,0.95)':'rgba(170,210,255,0.9)';
+        g.fillRect(wx,wy,6,8); } }
+    bx+=bw+6; }
 });
 function doorSignTex(text){
   return makeTex(512,96,function(g,w,h){
@@ -3469,268 +3309,123 @@ function buildDoor(x,z,ry,signText,slim){
   var gl=glowSprite(0xffc98a,2.6,0.35); gl.position.set(0,3.6,0.55); grp.add(gl);
   return grp;
 }
-/* shared polish for the real mansion models: same env-response
-   floor the garage's decor.glb loader applies, so the Sketchfab
-   materials sit in the same light as everything else */
-/* v20 FIX — there is deliberately NO tuneMirror any more. The
-   old one rotated the mirror model x=PI/2 before loadProp
-   measured it, on the belief the file "lies flat". It does not:
-   the file is authored upright (tall in y, thin in z — verified
-   from its own accessors and in the running scene). The
-   rotation laid it flat, so loadProp fitted h:1.9 to the
-   mirror's 5 cm thin axis and blew its footprint up to a
-   39 x 56 m plate at head height (y 0.85-2.75) spanning the
-   mansion AND the garage. Because the mansion models stream in
-   late, the room looked fine on entry and the plate then
-   appeared overhead as the player moved — Collin's "the
-   ceiling falls down as soon as I move". The mirror now loads
-   with plain tuneMansion and stands on the entry wall at its
-   real ~1.3 x 1.9 m. The room's actual ceiling was never the
-   problem: it is a static scene mesh at y 6.2, parented to
-   nothing, with no animation, physics or per-frame writer. */
-function tuneMansion(model){
-  model.traverse(function(o){ if(o.isMesh&&o.material){
-    (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
-      if(m.envMapIntensity!==undefined&&m.envMapIntensity<0.55) m.envMapIntensity=0.55; }); } });
-}
-function buildMansion(){
-  var MX=0, MZ=-38;
-  function mProp(f,o){ mansionQueue.push([f,o]); mansionPropSpecs.push([f,o]); }
-  var stoneMat=new THREE.MeshStandardMaterial({color:0x8d8578,roughness:0.85,envMapIntensity:0.4});
-  var woodMat=new THREE.MeshStandardMaterial({color:0x4a2e1a,roughness:0.5,metalness:0.1,envMapIntensity:0.7});
-  var goldMat=new THREE.MeshStandardMaterial({color:0xc9a24d,roughness:0.28,metalness:1,envMapIntensity:1.25});
-  var fabricMat=new THREE.MeshStandardMaterial({color:0x274435,roughness:0.95,envMapIntensity:0.3});
-  var fabric2Mat=new THREE.MeshStandardMaterial({color:0x5d2430,roughness:0.95,envMapIntensity:0.3});
-  // floor + rug + ceiling
-  var mfloor=new THREE.Mesh(new THREE.PlaneGeometry(26,18),
-    new THREE.MeshStandardMaterial({map:marbleTex,roughness:0.24,metalness:0.3,envMapIntensity:1.1}));
-  mfloor.rotation.x=-Math.PI/2; mfloor.position.set(MX,0,MZ); scene.add(mfloor);
-  // the rugs are REAL Sketchfab models now (see the loadProp calls
-  // at the end of this function) — the canvas rug is retired
-  var mceil=new THREE.Mesh(new THREE.PlaneGeometry(26,18),
-    new THREE.MeshStandardMaterial({color:0x2e241a,roughness:0.95}));
-  mceil.rotation.x=Math.PI/2; mceil.position.set(MX,6.2,MZ); scene.add(mceil);
-  for(var bx2=-10;bx2<=10;bx2+=5) box(0.3,0.26,18,woodMat,bx2,6.05,MZ,scene,false);
-  for(var bz2=-45;bz2<=-31;bz2+=4.7) box(26,0.26,0.3,woodMat,MX,6.05,bz2,scene,false);
-  // walls + wainscot
-  var panelMat=new THREE.MeshStandardMaterial({map:panelTex,roughness:0.9,envMapIntensity:0.35});
-  function mwall(wd,x,z,ry){
-    var m=new THREE.Mesh(new THREE.PlaneGeometry(wd,6.2),panelMat);
-    m.position.set(x,3.1,z); m.rotation.y=ry; scene.add(m);
-  }
-  mwall(26,MX,-47,0); mwall(26,MX,-29,Math.PI); mwall(18,-13,MZ,Math.PI/2); mwall(18,13,MZ,-Math.PI/2);
-  box(26,1.05,0.08,woodMat,MX,0.52,-46.95,scene,false);
-  box(26,1.05,0.08,woodMat,MX,0.52,-29.05,scene,false);
-  box(0.08,1.05,18,woodMat,-12.95,0.52,MZ,scene,false);
-  box(0.08,1.05,18,woodMat,12.95,0.52,MZ,scene,false);
-  // columns
-  [[-8.5,-33],[8.5,-33],[-8.5,-43],[8.5,-43]].forEach(function(cp){
-    var col=new THREE.Mesh(new THREE.CylinderGeometry(0.27,0.3,6.2,18),
-      new THREE.MeshStandardMaterial({color:0xd9d2c2,roughness:0.3,metalness:0.15,envMapIntensity:0.9}));
-    col.position.set(cp[0],3.1,cp[1]); scene.add(col);
-    box(0.72,0.2,0.72,goldMat,cp[0],5.95,cp[1],scene,false);
-    box(0.78,0.24,0.78,stoneMat,cp[0],0.12,cp[1],scene,false);
-    addCollider(cp[0],cp[1],0.36,0.36);
-  });
-  // base light — warm and low, so the room reads before anything is switched on
-  var base=new THREE.PointLight(0xffd9b0,26,26,1.8); base.position.set(MX,4.6,MZ); scene.add(base);
-  var foyer=new THREE.PointLight(0xffd9b0,8,11,1.8); foyer.position.set(MX,3.2,-31); scene.add(foyer);
-  /* fireplace on the north wall — the REAL Victorian fireplace
-     model (bcfbox, Sketchfab CC BY), measured and grounded by
-     loadProp like every other real prop in this game. The
-     interactable flames and fire light below sit in its firebox. */
-  mProp('assets/mansion-fireplace.glb',{w:2.3,x:MX,z:-46.55,ry:0,tune:tuneMansion});
-  var flameMat=new THREE.MeshBasicMaterial({color:0xff7a26,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
-  var flameMat2=new THREE.MeshBasicMaterial({color:0xffc94d,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
-  MANS.flames=new THREE.Group(); MANS.flames.position.set(MX,0.1,-46.32); scene.add(MANS.flames);
-  [[0,flameMat,0.62,0.78],[0.5,flameMat,0.45,0.6],[-0.5,flameMat,0.45,0.6],[0,flameMat2,0.34,0.5]].forEach(function(fl){
-    var p=new THREE.Mesh(new THREE.PlaneGeometry(fl[2],fl[3]),fl[1]);
-    p.position.y=fl[3]/2+0.08; p.rotation.y=fl[0]; MANS.flames.add(p);
-  });
-  MANS.fireMats=[flameMat,flameMat2];
-  MANS.fireLight=new THREE.PointLight(0xff7a2a,0,10,1.8); MANS.fireLight.position.set(MX,0.9,-45.8); scene.add(MANS.fireLight);
-  addCollider(MX,-46.6,1.3,0.5);
-  /* chandeliers — the REAL 5,056-face chandelier model
-     (MikhailKadilnikov, Sketchfab CC BY), hung twice: over the
-     rug and over the foyer fountain. The interactable light and
-     glow below are what the E key switches. */
-  mProp('assets/mansion-chandelier.glb',{h:1.15,x:MX,z:MZ,center:true,groundY:4.55,tune:tuneMansion});
-  mProp('assets/mansion-chandelier.glb',{h:0.85,x:MX,z:-33,center:true,groundY:4.5,tune:tuneMansion});
-  MANS.chandLight=new THREE.PointLight(0xffd9a0,0,24,1.7); MANS.chandLight.position.set(MX,4.5,MZ); scene.add(MANS.chandLight);
-  MANS.chandGlow=glowSprite(0xffd9a0,4.6,0); MANS.chandGlow.position.set(MX,4.95,MZ); scene.add(MANS.chandGlow);
-  /* sofas — built facing -z (toward the fire) */
-  function sofa(x,z,w,mat){
-    var grp=new THREE.Group(); grp.position.set(x,0,z); scene.add(grp);
-    box(w,0.38,0.98,mat,0,0.21,0,grp,false);
-    box(w/2-0.07,0.16,0.8,mat,-w/4+0.02,0.46,0.02,grp,false);
-    box(w/2-0.07,0.16,0.8,mat,w/4-0.02,0.46,0.02,grp,false);
-    box(w,0.72,0.22,mat,0,0.78,0.4,grp,false);
-    box(0.24,0.34,0.98,mat,-(w/2-0.12),0.57,0,grp,false);
-    box(0.24,0.34,0.98,mat,(w/2-0.12),0.57,0,grp,false);
-    var pil=new THREE.MeshStandardMaterial({color:0xc9a24d,roughness:0.9});
-    box(0.34,0.34,0.1,pil,-w/4,0.72,0.28,grp,false).rotation.x=-0.25;
-    box(0.34,0.34,0.1,pil,w/4,0.72,0.28,grp,false).rotation.x=-0.25;
-    addCollider(x,z,w/2+0.05,0.55);
-    return grp;
-  }
-  // the two main seats are the REAL Chesterfield model
-  // (anandayokesh, Sketchfab CC BY, the textured low-poly one);
-  // sofa() above now only builds the two armchairs + colliders
-  addCollider(MX,-35.2,1.65,0.55);
-  mProp('assets/mansion-sofa.glb',{w:2.6,x:MX,z:-35.2,ry:Math.PI,tune:tuneMansion});
-  addCollider(-6.5,-44.55,1.05,0.55);
-  mProp('assets/mansion-sofa.glb',{w:2.0,x:-6.5,z:-44.55,ry:Math.PI,tune:tuneMansion});
-  sofa(3.6,-40.6,1.15,fabricMat).rotation.y=0.5;   // armchairs
-  sofa(-3.6,-40.6,1.15,fabric2Mat).rotation.y=-0.5;
-  // coffee table — the REAL marble coffee table (MaX3Dd, CC BY;
-  // its 34 MB of 4K textures downscaled to a 278 KB file)
-  mProp('assets/mansion-coffee.glb',{w:1.15,x:MX,z:-37.4,ry:0,tune:tuneMansion});
-  addCollider(MX,-37.4,0.95,0.55);
-  // side tables with the REAL elegant table lamps (eltayerkebulan,
-  // CC BY) — the lamps are interactable #7 in the mansion
-  [-2.15,2.15].forEach(function(tx){
-    var tbl=new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.3,0.55,14),woodMat);
-    tbl.position.set(tx,0.28,-35.2); scene.add(tbl);
-  });
-  mProp('assets/mansion-lamp.glb',{h:0.52,x:-2.15,z:-35.2,groundY:0.55,tune:tuneMansion});
-  mProp('assets/mansion-lamp.glb',{h:0.52,x:2.15,z:-35.2,groundY:0.55,tune:tuneMansion});
-  MANS.lampLight=new THREE.PointLight(0xffc98a,0,9,1.8); MANS.lampLight.position.set(MX,1.4,-35.2); scene.add(MANS.lampLight);
-  // the royal blue armchairs (klava88, CC BY) flanking the fire
-  mProp('assets/mansion-armchair.glb',{x:-2.7,z:-44.85,ry:Math.PI-0.35,tune:tuneMansion});
-  mProp('assets/mansion-armchair.glb',{x:2.7,z:-44.85,ry:Math.PI+0.35,tune:tuneMansion});
-  addCollider(-2.7,-44.85,0.6,0.6); addCollider(2.7,-44.85,0.6,0.6);
-  /* grand piano, north-east — the REAL model (farhad.Guli,
-     Sketchfab CC BY), scaled by its full height with the lid up */
-  mProp('assets/mansion-piano.glb',{h:1.3,x:7.8,z:-43.2,ry:-0.7,tune:tuneMansion});
-  addCollider(7.8,-43.2,0.9,0.85);
-  /* wine cabinet on the west wall — doors on hinge pivots */
-  box(0.08,2.3,2.3,woodMat,-12.9,1.15,MZ,scene,false);
-  box(0.55,0.07,2.3,woodMat,-12.62,2.32,MZ,scene,false);
-  box(0.55,0.07,2.3,woodMat,-12.62,0.05,MZ,scene,false);
-  var bottleMat=new THREE.MeshStandardMaterial({color:0x14351c,roughness:0.15,metalness:0.1,envMapIntensity:1.2});
-  var bottleMat2=new THREE.MeshStandardMaterial({color:0x3a1420,roughness:0.15,metalness:0.1,envMapIntensity:1.2});
-  [0.62,1.22,1.82].forEach(function(sy){
-    box(0.5,0.04,2.1,woodMat,-12.62,sy,MZ,scene,false);
-    for(var bz3=-0.88;bz3<=0.88;bz3+=0.22){
-      var bot=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,0.3,10),(bz3*10|0)%2?bottleMat:bottleMat2);
-      bot.position.set(-12.62,sy+0.18,MZ+bz3); scene.add(bot);
-      var neck=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.02,0.12,8),bottleMat);
-      neck.position.set(-12.62,sy+0.38,MZ+bz3); scene.add(neck);
-    }
-  });
-  var strip=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.03,2.0),
-    new THREE.MeshStandardMaterial({color:0x201408,emissive:0xffc98a,emissiveIntensity:1.6}));
-  strip.position.set(-12.38,2.2,MZ); scene.add(strip);
-  function wineDoor(hingeZ,offZ){
-    var piv=new THREE.Group(); piv.position.set(-12.3,1.16,hingeZ); scene.add(piv);
-    var panel=box(0.045,2.2,1.08,woodMat,0,0,offZ,piv,false);
-    var inset=new THREE.Mesh(new THREE.PlaneGeometry(0.8,1.7),
-      new THREE.MeshStandardMaterial({color:0x9fc4d8,roughness:0.08,metalness:0.4,transparent:true,opacity:0.35,envMapIntensity:1.4}));
-    inset.rotation.y=Math.PI/2; inset.position.set(0.03,0,offZ); piv.add(inset);
-    return piv;
-  }
-  MANS.wineL=wineDoor(MZ-1.12,0.55);
-  MANS.wineR=wineDoor(MZ+1.12,-0.55);
-  addCollider(-12.6,MZ,0.45,1.2);
-  /* wall TV on the east wall */
-  box(0.09,1.95,3.45,new THREE.MeshStandardMaterial({color:0x0a0a0c,roughness:0.4}),12.93,2.25,MZ,scene,false);
-  MANS.tvMat=new THREE.MeshStandardMaterial({map:tvTex,emissive:0xffffff,emissiveMap:tvTex,emissiveIntensity:0.04,roughness:0.3});
-  var screen=new THREE.Mesh(new THREE.PlaneGeometry(3.2,1.72),MANS.tvMat);
-  screen.rotation.y=-Math.PI/2; screen.position.set(12.87,2.25,MZ); scene.add(screen);
-  box(0.14,0.09,1.6,new THREE.MeshStandardMaterial({color:0x141416,roughness:0.5}),12.88,1.12,MZ,scene,false);
-  /* foyer fountain */
-  var fbase=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.25,0.34,26),stoneMat);
-  fbase.position.set(MX,0.17,-33); scene.add(fbase);
-  var frim=new THREE.Mesh(new THREE.TorusGeometry(1.15,0.05,10,30),stoneMat);
-  frim.rotation.x=Math.PI/2; frim.position.set(MX,0.35,-33); scene.add(frim);
-  var fcol=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.17,0.85,12),stoneMat);
-  fcol.position.set(MX,0.72,-33); scene.add(fcol);
-  var fbowl=new THREE.Mesh(new THREE.CylinderGeometry(0.62,0.4,0.14,20),stoneMat);
-  fbowl.position.set(MX,1.18,-33); scene.add(fbowl);
-  MANS.waterDisc=new THREE.Mesh(new THREE.CircleGeometry(1.04,24),
-    new THREE.MeshStandardMaterial({color:0x7fb8d8,roughness:0.08,metalness:0.1,transparent:true,opacity:0.45,envMapIntensity:1.5}));
-  MANS.waterDisc.rotation.x=-Math.PI/2; MANS.waterDisc.position.set(MX,0.31,-33); scene.add(MANS.waterDisc);
-  MANS.waterFall=new THREE.Mesh(new THREE.CylinderGeometry(0.52,0.58,0.8,20,1,true),
-    new THREE.MeshBasicMaterial({color:0xbfe2f2,transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide}));
-  MANS.waterFall.position.set(MX,0.76,-33); scene.add(MANS.waterFall);
-  addCollider(MX,-33,1.3,1.3);
-  /* paintings — the garage's real art files, reframed for the house */
-  var pm1=photoPoster('assets/garage-hero.webp',2.3,1.54); pm1.position.set(MX,3.55,-46.68);
-  var pm2=photoPoster('assets/mural-tokyo.webp',3.4,2.15); pm2.position.set(-12.93,3.1,-33); pm2.rotation.y=Math.PI/2;
-  var pm3=photoPoster('assets/poster-r34.webp',2.9,1.94); pm3.position.set(12.93,3.1,-33.5); pm3.rotation.y=-Math.PI/2;
-  var pm4=photoPoster('assets/poster-rx7.webp',2.4,1.6); pm4.position.set(-6.5,3.3,-46.9);
-  // floor plants in the corners — real pothos models (AllQuad, CC BY)
-  mProp('assets/mansion-plant.glb',{h:0.85,x:11.9,z:-46,ry:0.6,tune:tuneMansion});
-  mProp('assets/mansion-plant.glb',{h:0.85,x:-11.9,z:-30.6,ry:2.1,tune:tuneMansion});
-  /* the rest of the real-model set: Persian rugs (nrecord +
-     mfb64), bookshelves on both side walls (Fenes.Octavian),
-     and the two marble statues flanking the entry (Nymchee +
-     ajnikstudio) — all Sketchfab CC BY, all placed by loadProp
-     from their own measured bounding boxes */
-  mProp('assets/mansion-rug.glb',{w:6.4,x:MX,z:-38.3,ry:Math.PI/2,groundY:0.015,tune:tuneMansion});
-  mProp('assets/mansion-rug2.glb',{w:3.2,x:7.6,z:-43.0,ry:0.4,groundY:0.016,tune:tuneMansion});
-  mProp('assets/mansion-bookshelf.glb',{x:-12.72,z:-43.5,ry:Math.PI/2,tune:tuneMansion});
-  mProp('assets/mansion-bookshelf.glb',{x:12.72,z:-43.5,ry:-Math.PI/2,tune:tuneMansion});
-  addCollider(-12.7,-43.5,0.3,0.7); addCollider(12.7,-43.5,0.3,0.7);
-  mProp('assets/mansion-statue.glb',{h:2.1,x:-3.3,z:-30.7,ry:Math.PI,tune:tuneMansion});
-  mProp('assets/mansion-statue2.glb',{h:2.0,x:3.3,z:-30.7,ry:Math.PI,tune:tuneMansion});
-  addCollider(-3.3,-30.7,0.42,0.42); addCollider(3.3,-30.7,0.42,0.42);
-  floorGlow(MX,-33,3.4,3.4,0x9fd4ff,0.05);
-  floorGlow(MX,-46.2,4.4,2.2,0xff7a2a,0.05);
-  // the doors themselves: garage side on the back wall, mansion
-  // side on its south wall — both are the REAL Double Wooden Door
-  // model (ahmagh2e, Sketchfab CC BY; textures downscaled to
-  // 1024 and gltfpack-compressed to 532 KB, so the garage-side
-  // one can load at boot with the room; the mansion-side one
-  // rides the deferred queue with the rest of the set)
-  buildDoor(10.6,-9.9,0,'MANSION',true);
-  loadProp('assets/mansion-door.glb',{h:2.55,x:10.6,z:-9.95,ry:0,tune:tuneMansion});
+/* the apartment itself: one room, normal scale, built from
+   the same box() helper as the garage's in-engine furniture.
+   Everything is a direct scene child at z < -20, so the
+   WorldSystem zone culling treats it exactly like it treated
+   the old second zone — no streaming, no queue, no unload. */
+function buildApartment(){
+  var floorMat=new THREE.MeshStandardMaterial({map:woodTex,roughness:0.7,metalness:0.05,envMapIntensity:0.7});
+  var wallMat=new THREE.MeshStandardMaterial({color:0xe9e3d8,roughness:0.95});
+  var ceilMat=new THREE.MeshStandardMaterial({color:0xf4f1ec,roughness:0.95});
+  var fabric=new THREE.MeshStandardMaterial({color:0x878d94,roughness:1});
+  var fabricLight=new THREE.MeshStandardMaterial({color:0x9aa0a6,roughness:1});
+  var fabricDark=new THREE.MeshStandardMaterial({color:0x4c5157,roughness:1});
+  var rust=new THREE.MeshStandardMaterial({color:0xc05a2e,roughness:0.9});
+  var darkWood=new THREE.MeshStandardMaterial({color:0x4a3421,roughness:0.6,envMapIntensity:0.7});
+  var black=new THREE.MeshStandardMaterial({color:0x0c0c0e,roughness:0.4,metalness:0.3});
+  var cabinet=new THREE.MeshStandardMaterial({color:0xb7babe,roughness:0.55,metalness:0.1,envMapIntensity:0.8});
+  var counter=new THREE.MeshStandardMaterial({color:0xd9d5cc,roughness:0.3,envMapIntensity:0.9});
+  var steel=new THREE.MeshStandardMaterial({color:0xc9ccd0,roughness:0.32,metalness:0.75,envMapIntensity:1.1});
+  // shell: wood floor, ceiling, four walls (2.7 m ceiling)
+  var fl=box(11,0.1,8,floorMat,0,-0.05,-29); fl.receiveShadow=true;
+  box(11,0.1,8,ceilMat,0,2.75,-29);
+  box(11.4,2.7,0.2,wallMat,0,1.35,-25.1);
+  box(11.4,2.7,0.2,wallMat,0,1.35,-32.9);
+  box(0.2,2.7,8.2,wallMat,-5.6,1.35,-29);
+  box(0.2,2.7,8.2,wallMat,5.6,1.35,-29);
+  // ceiling light fixture + the room's one base light
+  var fixMat=new THREE.MeshStandardMaterial({color:0xf8f4e8,emissive:0xffe9c4,emissiveIntensity:1.6,roughness:0.5});
+  box(1.7,0.06,0.55,fixMat,0,2.68,-29);
+  var aptLight=new THREE.PointLight(0xffd9b0,16,14,1.8); aptLight.position.set(0,2.4,-29); scene.add(aptLight);
+  // night-city window on the south wall, curtains at its sides
+  box(3.3,1.5,0.08,darkWood,1.6,1.65,-32.78);
+  var cityMat=new THREE.MeshStandardMaterial({map:cityTex,emissive:0xffffff,emissiveMap:cityTex,emissiveIntensity:0.8,color:0x222222,roughness:0.4});
+  box(3.1,1.3,0.04,cityMat,1.6,1.65,-32.72);
+  var curtain=new THREE.MeshStandardMaterial({color:0x74584a,roughness:1});
+  box(0.42,1.8,0.07,curtain,0.08,1.6,-32.7);
+  box(0.42,1.8,0.07,curtain,3.12,1.6,-32.7);
+  // living area: rug, couch facing the TV on the east wall
+  box(3.4,0.02,2.6,new THREE.MeshStandardMaterial({color:0x7a4a3a,roughness:1}),3.55,0.011,-29);
+  box(0.5,0.42,2.6,darkWood,5.18,0.21,-29); addCollider(5.18,-29,0.3,1.35); // TV stand
+  box(0.07,1.1,2.0,black,5.44,1.3,-29); // TV body
+  APT.tvMat=new THREE.MeshStandardMaterial({map:aptTvTex,emissive:0xffffff,emissiveMap:aptTvTex,emissiveIntensity:0.06,color:0x2a2a2a,roughness:0.25});
+  box(0.03,0.98,1.86,APT.tvMat,5.39,1.3,-29); // the screen
+  box(0.24,0.34,0.24,black,5.18,0.59,-27.95); // speakers + receiver (the stereo)
+  box(0.24,0.34,0.24,black,5.18,0.59,-30.05);
+  box(0.4,0.09,0.5,black,5.18,0.47,-29);
+  box(0.85,0.12,2.2,fabricDark,2.55,0.06,-29); // the couch
+  box(0.95,0.38,2.3,fabric,2.55,0.31,-29);
+  box(0.8,0.16,1.05,fabricLight,2.6,0.56,-29.55);
+  box(0.8,0.16,1.05,fabricLight,2.6,0.56,-28.45);
+  box(0.24,0.62,2.3,fabric,2.14,0.78,-29);
+  box(0.14,0.45,1.05,fabricLight,2.31,0.83,-29.55);
+  box(0.14,0.45,1.05,fabricLight,2.31,0.83,-28.45);
+  box(0.95,0.28,0.22,fabric,2.55,0.64,-30.14);
+  box(0.95,0.28,0.22,fabric,2.55,0.64,-27.86);
+  box(0.36,0.36,0.13,rust,2.42,0.8,-29.92);
+  addCollider(2.55,-29,0.55,1.2);
+  box(0.55,0.05,1.15,darkWood,3.95,0.36,-29); // coffee table
+  box(0.5,0.04,1.05,darkWood,3.95,0.12,-29);
+  addCollider(3.95,-29,0.32,0.62);
+  // kitchen run along the west wall: cabinets, counter, stove, sink, fridge
+  box(0.62,0.86,4.2,cabinet,-5.16,0.43,-29.7);
+  box(0.68,0.05,4.26,counter,-5.16,0.885,-29.7);
+  box(0.4,0.8,3.2,cabinet,-5.28,2.0,-29.7);
+  addCollider(-5.16,-29.7,0.38,2.15);
+  box(0.75,1.95,0.8,steel,-5.12,0.975,-32.25); addCollider(-5.12,-32.25,0.42,0.45); // fridge
+  box(0.5,0.02,0.55,black,-5.16,0.92,-30.9); // cooktop
+  box(0.02,0.5,0.58,black,-4.84,0.55,-30.9); // oven front
+  box(0.44,0.03,0.6,new THREE.MeshStandardMaterial({color:0x3a3f45,roughness:0.25,metalness:0.6}),-5.16,0.915,-28.4); // sink
+  var faucet=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.3,10),steel);
+  faucet.position.set(-5.38,1.05,-28.4); scene.add(faucet);
+  box(0.16,0.2,0.16,steel,-5.2,1.01,-29.6); // kettle
+  // bed corner (south-west): frame, headboard, mattress, blanket, pillows
+  box(1.7,0.28,2.2,darkWood,-3.3,0.14,-31.55);
+  box(1.7,0.85,0.08,darkWood,-3.3,0.55,-32.68);
+  box(1.6,0.2,2.1,new THREE.MeshStandardMaterial({color:0xf0ece2,roughness:0.95}),-3.3,0.38,-31.5);
+  box(1.64,0.07,1.35,new THREE.MeshStandardMaterial({color:0x37506b,roughness:0.95}),-3.3,0.5,-31.05);
+  box(0.62,0.12,0.4,new THREE.MeshStandardMaterial({color:0xfaf7f0,roughness:0.95}),-3.72,0.53,-32.35);
+  box(0.62,0.12,0.4,new THREE.MeshStandardMaterial({color:0xfaf7f0,roughness:0.95}),-2.88,0.53,-32.35);
+  addCollider(-3.3,-31.55,0.9,1.15);
+  box(0.5,0.42,0.4,darkWood,-1.95,0.21,-32.5); addCollider(-1.95,-32.5,0.3,0.25); // nightstand
+  box(0.24,0.04,0.17,rust,-2.05,0.44,-32.42); // a book on it
+  var stem=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.045,0.26,10),black);
+  stem.position.set(-1.95,0.55,-32.5); scene.add(stem);
+  APT.lampShadeMat=new THREE.MeshStandardMaterial({color:0xf5e6c8,emissive:0xffc37a,emissiveIntensity:0.08,roughness:0.8});
+  var shade=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.13,0.17,14,1,true),APT.lampShadeMat);
+  shade.position.set(-1.95,0.74,-32.5); scene.add(shade);
+  APT.lampLight=new THREE.PointLight(0xffc37a,0,6,1.8);
+  APT.lampLight.position.set(-1.95,0.8,-32.5); scene.add(APT.lampLight);
+  // dresser on the north wall + a plant by the door
+  box(1.7,0.8,0.45,darkWood,3.3,0.4,-25.28); addCollider(3.3,-25.28,0.9,0.3);
+  box(0.3,0.22,0.3,new THREE.MeshStandardMaterial({color:0x2e6f6a,roughness:0.8}),2.8,0.91,-25.28);
+  var pot=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.12,0.3,12),new THREE.MeshStandardMaterial({color:0x8a4a34,roughness:0.85}));
+  pot.position.set(4.95,0.15,-25.75); scene.add(pot);
+  var leaf=new THREE.MeshStandardMaterial({color:0x3f7a3a,roughness:0.9});
+  [[4.95,0.62,-25.75,0.24],[4.82,0.82,-25.66,0.17],[5.08,0.85,-25.84,0.15]].forEach(function(s){
+    var b=new THREE.Mesh(new THREE.IcosahedronGeometry(s[3],1),leaf);
+    b.position.set(s[0],s[1],s[2]); scene.add(b); });
+  addCollider(4.95,-25.75,0.25,0.25);
+  box(1.4,0.015,0.7,new THREE.MeshStandardMaterial({color:0x3a3a3e,roughness:1}),0,0.008,-26.1); // door mat
+  // the doors: the garage's back-wall door (the tall buildDoor —
+  // the garage wall is 5.2 m) and a normal single door in here
+  buildDoor(10.6,-9.9,0,'APARTMENT',false);
   addCollider(10.6,-9.85,1.35,0.3);
-  buildDoor(MX,-29.05,Math.PI,'GARAGE',true);
-  mProp('assets/mansion-door.glb',{h:2.55,x:MX,z:-29.02,ry:Math.PI,tune:tuneMansion});
-  addCollider(MX,-29.2,1.35,0.32);
-  /* the Victorian framed painting (mtcollings, CC BY — 41 MB
-     of 4K textures downscaled to a 384 KB file) east of the
-     fireplace, and the royal mirror (modeneseinteriors, CC BY)
-     on the entry wall, standing upright exactly as its file is
-     authored (see the tuneMirror note above).
-     v20 FIX — the Titanic grand staircase model is GONE. The
-     file (joshuagoldenburgh, CC BY) is not a staircase: it is
-     the whole staircase ROOM — walls, domed ceiling and
-     red-carpet stairs, 15.4 x 7.6 x 12.1 m in its own units,
-     472 nodes. Fitted by h:3.2 it landed in the north-west
-     corner as a 4.9 x 3.2 x 5.1 m miniature red ballroom poking
-     through the north wall — and the loveseat with Anna sitting
-     on it at (-6.5,-44.5) stood INSIDE its footprint, so she
-     rendered clipped and glitchy inside the little room
-     (Collin's phone report). A room inside the room does not
-     belong at any scale, so the model and its wall-long
-     collider are removed outright; the corner keeps the
-     fireplace, the real Chesterfield loveseat and Anna sitting
-     on it in the open, measured clean at 0.9 x 1.24 x 1.15 m
-     with her seat anchored to the sofa (see loadSeatedAnna). */
-  mProp('assets/mansion-painting.glb',{x:5.2,z:-46.92,groundY:1.85,tune:tuneMansion});
-  mProp('assets/mansion-mirror.glb',{h:1.9,x:-5.5,z:-29.14,groundY:0.85,ry:Math.PI,tune:tuneMansion});
-  // Anna in the mansion: standing by the piano, sitting by the fire
-  loadStandingAnna({x:6.1,z:-41.3,ry:-2.25,collider:[0.3,0.3],clip:'assets/idle-stand-clip.glb',timeOffset:1.3});
-  loadSeatedAnna({x:-6.5,z:-44.5,ry:Math.PI+0.06,seatH:0.48,anchor:'seat',floorY:0,feetY:0,timeOffset:4.1});
-  /* WorldSystem unload hook: when the streamed props are dropped
-     (memory pressure, or 45 s after leaving), the room returns to
-     its un-streamed state and the queue is rebuilt from the stored
-     specs, ready to stream again on the next approach. The shell,
-     lights, interactables and the two Annas stay — they are small
-     and shared with the garage. */
-  WorldSystem.unloaders.mansion=function(){
-    mansionLoaded=false; mansionDraining=false; mansionUnloaded=true;
-    mansionQueue=mansionPropSpecs.map(function(q){ return [q[0],q[1]]; });
-    MemorySystem.noteTrim();
-  };
+  box(1.1,2.2,0.08,darkWood,0,1.1,-24.96);
+  box(0.92,2.06,0.05,new THREE.MeshStandardMaterial({color:0x6b4a2f,roughness:0.55,envMapIntensity:0.8}),0,1.03,-24.9);
+  var knob2=new THREE.Mesh(new THREE.SphereGeometry(0.04,12,10),
+    new THREE.MeshStandardMaterial({color:0xc9a24d,roughness:0.25,metalness:1,envMapIntensity:1.3}));
+  knob2.position.set(0.36,1.02,-24.84); scene.add(knob2);
+  var sign2=new THREE.Mesh(new THREE.PlaneGeometry(1.1,0.21),
+    new THREE.MeshStandardMaterial({map:doorSignTex('GARAGE'),emissive:0xffffff,emissiveMap:doorSignTex('GARAGE'),emissiveIntensity:0.55,color:0x333333}));
+  sign2.position.set(0,2.32,-24.93); sign2.rotation.y=Math.PI; scene.add(sign2);
 }
-buildChillArea(); loadAllGuests(); buildPolish(); buildMansion();
+buildChillArea(); loadAllGuests(); buildPolish(); buildApartment();
 
 /* ================= INTERACTABLES ================= */
 var interactables=[];
-var foundCount=0, TOTAL=16;
+var foundCount=0, TOTAL=12;
 var foundEl=document.getElementById('foundNum');
 var chipEl=document.getElementById('foundChip');
 var toastEl=document.getElementById('toast'), toastTimer=null;
@@ -3742,13 +3437,13 @@ function markFound(it){
   if(it.found)return; it.found=true; foundCount++;
   foundEl.textContent=foundCount+'/'+TOTAL;
   chipEl.classList.remove('pulse'); void chipEl.offsetWidth; chipEl.classList.add('pulse');
-  if(foundCount===TOTAL) toast('FULL HOUSE — all '+TOTAL+' interactions found. Garage and mansion are yours.',4200);
+  if(foundCount===TOTAL) toast('FULL HOUSE — all '+TOTAL+' interactions found. Garage and apartment are yours.',4200);
 }
 function addInter(car,kind,labelFn,point,apply){
   var it={car:car,kind:kind,labelFn:labelFn,point:point,apply:apply,on:false,anim:0,target:0,found:false};
   interactables.push(it); return it;
 }
-/* decor interactables (the mansion): same prompt / E-key / found
+/* decor interactables (the apartment): same prompt / E-key / found
    machinery as the cars, but the effect lives in onToggle/apply
    instead of a car part. noCount pieces (the two doors) start
    with found=true so travelling never inflates the objective. */
@@ -3779,22 +3474,11 @@ cars.forEach(function(car){
     new THREE.Vector3(cx+s.W/2+0.55,1.0,cz+car.doorFront+0.55),
     function(v){ /* engine state handled in toggle */ });
 });
-/* ---- mansion audio: a gentle piano loop, fountain water and
-   fire crackle, all synthesized like the rest of the game ---- */
-var pianoTimer=null, fountainNodes=null, fireNodes=null;
-function loopNoise(freq,gainVal,type){
-  var ac=audio(); if(!ac||MUTED) return null;
-  var src=ac.createBufferSource(); src.buffer=noiseBuffer(ac,2); src.loop=true;
-  var f=ac.createBiquadFilter(); f.type=type||'lowpass'; f.frequency.value=freq;
-  var g=ac.createGain(); g.gain.value=0; g.gain.linearRampToValueAtTime(gainVal,ac.currentTime+0.4);
-  src.connect(f); f.connect(g); g.connect(ac.destination); src.start();
-  return {src:src,gain:g};
-}
-function stopLoop(n){
-  if(!n) return;
-  try{ n.gain.gain.linearRampToValueAtTime(0,AC.currentTime+0.25);
-    setTimeout(function(){ try{n.src.stop();}catch(e){} },350); }catch(e){}
-}
+/* ---- apartment audio: the stereo plays a gentle synth
+   loop (the note synth is kept from the mansion's piano — it
+   is a music box, not mansion content). The fountain and fire
+   noise loops went with the mansion. ---- */
+var pianoTimer=null;
 function pianoNote(freq,when){
   var ac=AC; if(!ac) return;
   [[freq,'triangle',0.11],[freq*2,'sine',0.045]].forEach(function(v){
@@ -3805,7 +3489,7 @@ function pianoNote(freq,when){
     o.connect(g); g.connect(ac.destination); o.start(when); o.stop(when+1.5);
   });
 }
-function setPiano(on){
+function setStereo(on){
   if(on){
     audio(); if(!AC) return;
     var seq=[261.63,329.63,392.0,523.25,493.88,392.0,329.63,293.66,261.63,329.63,392.0,587.33,523.25,392.0,329.63,293.66];
@@ -3814,46 +3498,29 @@ function setPiano(on){
     pianoTimer=setInterval(function(){ if(MUTED) return; pianoNote(seq[idx%seq.length],AC.currentTime+0.02); idx++; },430);
   } else if(pianoTimer){ clearInterval(pianoTimer); pianoTimer=null; }
 }
-/* ---- the mansion's seven finds + the two doors ---- */
-addDecor('chandelier',function(it){ return (it.on?'Dim':'Light')+' the chandelier'; },
-  new THREE.Vector3(0,2.0,-36.4),
-  function(v){ if(MANS.chandLight) MANS.chandLight.intensity=v*52;
-    if(MANS.bulbMat) MANS.bulbMat.emissiveIntensity=0.15+v*2.6;
-    if(MANS.chandGlow) MANS.chandGlow.material.opacity=v*0.4; });
-addDecor('fireplace',function(it){ return (it.on?'Let the fire die':'Light the fireplace'); },
-  new THREE.Vector3(0,1.0,-45.1),
-  function(v){ MANS.fireLevel=v;
-    MANS.fireMats.forEach(function(m,i){ m.opacity=v*(i?0.85:0.62); }); },
-  function(it){ if(it.on){ fireNodes=loopNoise(420,0.035); } else { stopLoop(fireNodes); fireNodes=null; } });
-addDecor('piano',function(it){ return (it.on?'Stop':'Play')+' the grand piano'; },
-  new THREE.Vector3(6.7,1.0,-42.1), null,
-  function(it){ setPiano(it.on); if(it.on) toast('The grand piano — she has good taste in music.',2200); });
-addDecor('wine',function(it){ return (it.on?'Close':'Open')+' the wine cabinet'; },
-  new THREE.Vector3(-11.1,1.2,-38),
-  function(v){ if(MANS.wineL) MANS.wineL.rotation.y=1.65*v; if(MANS.wineR) MANS.wineR.rotation.y=-1.65*v; });
-addDecor('tv',function(it){ return 'Turn the TV '+(it.on?'off':'on'); },
-  new THREE.Vector3(11.3,1.6,-38),
-  function(v){ if(MANS.tvMat) MANS.tvMat.emissiveIntensity=0.04+v*1.55; });
-addDecor('fountain',function(it){ return (it.on?'Stop':'Start')+' the fountain'; },
-  new THREE.Vector3(0,0.9,-31.35),
-  function(v){ MANS.fountainLevel=v; if(MANS.waterFall) MANS.waterFall.material.opacity=v*0.5;
-    if(MANS.waterDisc) MANS.waterDisc.material.opacity=0.45+v*0.3; },
-  function(it){ if(it.on){ fountainNodes=loopNoise(1400,0.028,'bandpass'); } else { stopLoop(fountainNodes); fountainNodes=null; } });
-addDecor('lamp',function(it){ return 'Turn the table lamps '+(it.on?'off':'on'); },
-  new THREE.Vector3(2.15,0.9,-34.2),
-  function(v){ if(MANS.lampLight) MANS.lampLight.intensity=v*13; });
+/* ---- the apartment's three finds + the two doors ---- */
+addDecor('apt-tv',function(it){ return 'Turn the TV '+(it.on?'off':'on'); },
+  new THREE.Vector3(4.9,1.3,-28.6),
+  function(v){ if(APT.tvMat) APT.tvMat.emissiveIntensity=0.06+v*1.6; });
+addDecor('apt-stereo',function(it){ return (it.on?'Stop':'Play')+' the stereo'; },
+  new THREE.Vector3(4.9,0.75,-30.0), null,
+  function(it){ setStereo(it.on); if(it.on) toast('The stereo hums a soft loop through the apartment.',2200); });
+addDecor('apt-lamp',function(it){ return 'Turn the lamp '+(it.on?'off':'on'); },
+  new THREE.Vector3(-1.95,0.8,-32.5),
+  function(v){ if(APT.lampLight) APT.lampLight.intensity=v*10;
+    if(APT.lampShadeMat) APT.lampShadeMat.emissiveIntensity=0.08+v*2.4; });
 function teleport(x,z,yaw,msg){
   clunk(.4,300);
   player.x=x; player.z=z; player.yaw=yaw; player.pitch=-0.02;
   camYaw=yaw; camPitch=-0.02; lookQueueX=0; lookQueueY=0;
   if(msg) toast(msg,2400);
 }
-var doorToMansion=addDecor('door',function(){ return 'Enter the mansion'; },
+var doorToApartment=addDecor('door',function(){ return 'Enter the apartment'; },
   new THREE.Vector3(10.6,1.2,-8.5), null,
-  function(it){ mansionUnloaded=false; loadMansionModels(); teleport(0,-30.55,0,'The mansion — light the fire, play the piano, make yourself at home.');
+  function(it){ teleport(0,-26.4,0,'The apartment — couch, TV, kitchen, bed. Make yourself at home.');
     it.on=false; it.target=0; }, true);
 var doorToGarage=addDecor('door',function(){ return 'Return to the garage'; },
-  new THREE.Vector3(0,1.2,-30.35), null,
+  new THREE.Vector3(0,1.2,-25.75), null,
   function(it){ teleport(10.6,-8.3,Math.PI,'Back to the garage.');
     it.on=false; it.target=0; }, true);
 function toggleInter(it){
@@ -4078,13 +3745,14 @@ muteBtn.addEventListener('pointerdown',function(e){ e.stopPropagation(); });
 
 /* ================= MOVEMENT + COLLISION ================= */
 function collide(){
-  /* two zones: the garage (z -10..10) and the mansion (z -47..-29).
-     The doors teleport between them; whichever zone the player is
-     in supplies the bounds, and the shared collider list never
-     false-fires because the two interiors are disjoint in z. */
+  /* two zones: the garage (z -10..10) and the apartment
+     (x -5.5..5.5, z -33..-25). The doors teleport between them;
+     whichever zone the player is in supplies the bounds, and
+     the shared collider list never false-fires because the two
+     interiors are disjoint in z. */
   if(player.z<-20){
-    player.x=Math.max(-12.55,Math.min(12.55,player.x));
-    player.z=Math.max(-46.5,Math.min(-29.6,player.z));
+    player.x=Math.max(-5.08,Math.min(5.08,player.x));
+    player.z=Math.max(-32.42,Math.min(-25.38,player.z));
   } else {
     player.x=Math.max(-12.55,Math.min(12.55,player.x));
     player.z=Math.max(-9.45,Math.min(9.55,player.z));
@@ -4150,13 +3818,11 @@ function step(dt,t){
   // (a light, a flame, the wine doors) throwing on some device
   // used to propagate out of step(), skip that frame's render and
   // re-fire on every frame until the value converged — on
-  // Collin's phone, interacting with a mansion object "crashed
+  // Collin's phone, interacting with a decor object "crashed
   // the game". No single toggle effect can take the frame loop
   // down now: the value still converges, the prompt/count logic
   // in toggleInter is untouched, and the rest of the frame —
-  // movement, people, render — always runs. (Verified in the
-  // running game: all seven mansion toggles + both doors fire
-  // clean on/off, found 1->7, zero exceptions.)
+  // movement, people, render — always runs.
   var anyAnim=false;
   for(var i=0;i<interactables.length;i++){
     var it=interactables[i];
@@ -4176,28 +3842,7 @@ function step(dt,t){
   neonLight.intensity=26+Math.sin(t*29)*0.8+Math.sin(t*7.7)*1.1;
   neon.material.emissiveIntensity=1.15+Math.sin(t*29)*0.03+Math.sin(t*7.7)*0.04;
   if(neonGlowMat) neonGlowMat.opacity=0.30+Math.sin(t*29)*0.012+Math.sin(t*7.7)*0.016;
-  // mansion models stream in gently from the moment the player
-  // enters the garage (see loadMansionModels — chained pairs,
-  // never the whole set in one burst at the door)
-  WorldSystem.update(scene,player,performance.now()); // zone streaming: only the player's zone renders
-  if(!mansionLoaded&&started&&!mansionUnloaded) loadMansionModels();
-  if(mansionUnloaded&&started){ // re-stream when the player walks back to the door
-    var mdx=player.x-10.6, mdz=player.z+9.5;
-    if(mdx*mdx+mdz*mdz<30){ mansionUnloaded=false; loadMansionModels(); }
-  }
-  if(WorldSystem.zone()==='mansion') WorldSystem.cancelUnload();
-  else if(mansionLoaded&&!mansionDraining&&!WorldSystem.unloaded.mansion)
-    WorldSystem.scheduleUnload(45000,function(){ if(player.z>=-20&&mansionLoaded&&!mansionDraining) WorldSystem.unloadStreamed('mansion'); });
-  if(mansionLoaded&&!mansionDraining&&player.z>=-20&&MemorySystem.evaluate(renderer,performance.now())==='critical')
-    WorldSystem.unloadStreamed('mansion'); // memory pressure: drop the room's props now, not in 45 s
-  // mansion life: fire flicker, fountain water turning, a breath of chandelier sway
-  if(MANS.fireLight) MANS.fireLight.intensity=MANS.fireLevel*(13+Math.sin(t*31)*2.6+Math.sin(t*13.7)*2.1);
-  if(MANS.flames&&MANS.fireLevel>0.02){ MANS.flames.visible=true;
-    MANS.flames.scale.y=0.9+Math.sin(t*23)*0.08+Math.sin(t*7.3)*0.05;
-    MANS.flames.rotation.y=Math.sin(t*1.7)*0.15;
-  } else if(MANS.flames) MANS.flames.visible=false;
-  if(MANS.waterDisc&&MANS.fountainLevel>0.02) MANS.waterDisc.rotation.z+=dt*0.7;
-  if(MANS.waterFall) MANS.waterFall.rotation.y+=dt*0.4;
+  WorldSystem.update(scene,player,performance.now()); // zone culling: only the player's zone renders
   // dust motes: a slow drift on two axes, phased per mote —
   // v22: updated at 1/3 rate (positions are a pure function of t,
   // so skipped steps are invisible) and never in the lean/minimal
