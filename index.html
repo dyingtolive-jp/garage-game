@@ -152,7 +152,7 @@
     <div class="note" id="plateNote"></div>
     <div class="states" id="plateStates"></div>
   </div>
-  <div id="foundChip"><span class="objLabel">OBJECTIVE · FIND ALL 8</span><span class="objCount">FOUND <b id="foundNum">0/8</b></span></div>
+  <div id="foundChip"><span class="objLabel">OBJECTIVE · FIND ALL 9</span><span class="objCount">FOUND <b id="foundNum">0/9</b></span></div>
   <button id="muteBtn" aria-label="Mute sound">SOUND ON</button>
   <div id="prompt"><span class="key">E</span><span class="txt" id="promptTxt">Pop the hood</span></div>
   <div id="toast"></div>
@@ -170,7 +170,7 @@
 
 <div id="startCard">
   <h1>THE <span>GARAGE</span></h1>
-  <p class="tagline">Three bays, eight interactions hiding in plain sight — <b>pop the hoods, flip the lights, start the engines</b> and find them all.</p>
+  <p class="tagline">Three bays, nine interactions hiding in plain sight — <b>pop the hoods, flip the lights, start the engines</b> and find them all.</p>
   <div id="lineup">
     <div class="carRow"><span class="bayNo">BAY 2</span><span class="carName">Nissan Silvia S15</span><span class="carTag">drift build</span></div>
     <div class="carRow"><span class="bayNo">BAY 3</span><span class="carName">1998 Honda Civic</span><span class="carTag">your car</span></div>
@@ -1448,10 +1448,10 @@ function buildCar(spec){
 var CAR_SPECS=[
  { id:'s15', bay:2, x:-5, name:'Nissan Silvia S15', short:'S15', tag:'THE DRIFT CAR',
    spec:'SR20DET 2.0L turbo four · RWD · 5-speed',
-   note:'New in Bay 2 — the IS300 is gone. A widebody S15 drift build by Socksthecat (CC BY 4.0): red paint over a black carbon hood, GT wing, deep-dish wheels with tire lettering. One honest catch — the body is a single shell, so the hood stays sealed; lights and engine still work.',
+   note:'New in Bay 2 — the IS300 is gone. A widebody S15 drift build by Socksthecat (CC BY 4.0): red paint over a black carbon hood, GT wing, deep-dish wheels with tire lettering. Pop the hood — the SR20 is under there, turbo and all.',
    color:0xa31616, valveColor:0x2456a6, duffelColor:0x22242a, rimColor:0xc8ccd2, spokes:5,
    L:4.45,W:1.9,wb:2.64,wr:0.33,belt:0.86,roof:1.28,tail:0.84,nose:0.6,cabinF:0.7,cabinR:-1.2,
-   fourDoor:false, doorFront:0.7, hasHood:false,
+   fourDoor:false, doorFront:0.7,
    spoiler:'wing', exhausts:[0.45], idleHz:60, crankHz:31 },
  { id:'civic', bay:3, x:0, name:'1998 Honda Civic Sedan', short:'Civic', tag:'YOUR CAR · STANCED',
    spec:'1.6L SOHC · FWD · 5-speed · real 3D model',
@@ -1468,6 +1468,155 @@ var CAR_SPECS=[
    doorFront:0.6,
    spoiler:'none', exhausts:[-0.4,0.4], plateX:-0.3, idleHz:68, crankHz:36 }
 ];
+/* ---- measured hood partition (v19) ----
+   The name-based hood hinges below were written for earlier
+   exports of these car files. The files that actually ship were
+   re-exported name-stripped (glTF node names like 'civ_hood' and
+   'b_hood' simply do not exist in them any more — verified by
+   parsing the shipped GLBs), so every car's hood interactable
+   animated an empty pivot and no panel ever moved. This is the
+   geometric replacement, in the same measure-don't-trust-names
+   spirit as the rest of the loaders: after a car is fitted, every
+   triangle of every substantial mesh that lies inside the car's
+   measured hood region (car space, from the fitted profile:
+   between the cowl and the nose, above the beltline, inside the
+   panel's width, facing up) is split out into a new mesh on a
+   hinge pivot at the region's cowl edge; the rest of the mesh is
+   untouched, so the panel sits dead flush when shut and lifts
+   like the procedural car's hood when open. The Gallardo's
+   region is its rear engine cover, hinged at its front edge.
+   Two hard-won details: the skip-list matches whole name TOKENS
+   (the S15's main shell is 'Mesh2_trimbl_0' — a substring test
+   for 'rim' would have excluded it), and copied attributes keep
+   their `normalized` flag — these files are KHR_mesh_quantization
+   int16, and an unflagged copy renders 32767x too big. Regions
+   and hinge points were validated offline against the decoded
+   files (panel sizes: Civic 1.24x1.46 m, S15 1.34x1.52 m,
+   Gallardo cover 1.65x1.16 m; closed car bboxes unchanged). */
+var HOOD_SKIP_TOKENS={tire:1,tyre:1,wheel:1,rim:1,engine:1,rotor:1,calip:1,caliper:1,brake:1};
+function partitionHood(car,model,region){
+  var g=car.group;
+  g.updateMatrixWorld(true);
+  var inv=new THREE.Matrix4().copy(g.matrixWorld).invert(); // world -> car space
+  var hoodMeshes=[];
+  var vA=new THREE.Vector3(),vB=new THREE.Vector3(),vC=new THREE.Vector3();
+  var e1=new THREE.Vector3(),e2=new THREE.Vector3(),nrm=new THREE.Vector3(),cen=new THREE.Vector3();
+  var meshes=[];
+  model.traverse(function(o){ if(o.isMesh) meshes.push(o); });
+  meshes.forEach(function(mesh){
+    var geo=mesh.geometry;
+    if(!geo||!geo.attributes.position||mesh.isSkinnedMesh||Array.isArray(mesh.material)) return;
+    var triCount=geo.index?geo.index.count/3:geo.attributes.position.count/3;
+    if(triCount<1500) return;
+    var toks=(mesh.name||'').toLowerCase().split(/[^a-z]+/);
+    for(var ti=0;ti<toks.length;ti++) if(HOOD_SKIP_TOKENS[toks[ti]]) return;
+    var src=geo;
+    var attrs=Object.keys(src.attributes);
+    var pos=src.attributes.position;
+    var idx=src.index?src.index.array:null;
+    var tris=idx?idx.length/3:pos.count/3;
+    var hoodTris=[], restTris=[];
+    var vs=[vA,vB,vC];
+    for(var t=0;t<tris;t++){
+      var keep=true;
+      for(var c=0;c<3;c++){
+        vs[c].fromBufferAttribute(pos,idx?idx[t*3+c]:t*3+c).applyMatrix4(mesh.matrixWorld).applyMatrix4(inv);
+        if(!(vs[c].z>=region.zMin&&vs[c].z<=region.zMax&&vs[c].y>=region.yMin&&vs[c].y<=region.yMax&&Math.abs(vs[c].x)<=region.xMax)){ keep=false; break; }
+      }
+      if(keep){
+        e1.copy(vB).sub(vA); e2.copy(vC).sub(vA); nrm.copy(e1).cross(e2);
+        if(nrm.lengthSq()<1e-12||nrm.normalize().y<region.nMin) keep=false;
+      }
+      (keep?hoodTris:restTris).push(t);
+    }
+    if(!hoodTris.length) return;
+    var hoodMesh;
+    if(idx&&( !src.groups||src.groups.length<=1)){
+      // indexed split (the fast path, and the one every shipped
+      // car takes): the two halves SHARE the source's attribute
+      // buffers and differ only in their index — no vertex is
+      // copied or de-indexed, so the render cost of the car is
+      // exactly what it was with the panel shut in the shell
+      function buildIndexed(idxs){
+        var out=new THREE.BufferGeometry();
+        attrs.forEach(function(name){ out.setAttribute(name,src.attributes[name]); });
+        var arr=new Uint32Array(idxs.length*3);
+        for(var k=0;k<idxs.length;k++){ arr[k*3]=idx[idxs[k]*3]; arr[k*3+1]=idx[idxs[k]*3+1]; arr[k*3+2]=idx[idxs[k]*3+2]; }
+        out.setIndex(new THREE.BufferAttribute(arr,1));
+        return out;
+      }
+      hoodMesh=new THREE.Mesh(buildIndexed(hoodTris),mesh.material);
+      mesh.geometry=buildIndexed(restTris);
+    } else {
+      // non-indexed fallback: copy the attribute ranges per part.
+      // Raw .array reads can't handle interleaved attributes
+      // (the shipped cars' position/normal ARE interleaved —
+      // but they all take the indexed path above, where reads go
+      // through getX/getY and the buffers are shared untouched)
+      for(var ai=0;ai<attrs.length;ai++) if(src.attributes[attrs[ai]].isInterleavedBufferAttribute) return;
+      function buildPart(idxs){
+        var out=new THREE.BufferGeometry();
+        attrs.forEach(function(name){
+          var at=src.attributes[name];
+          var arr=new at.array.constructor(idxs.length*3*at.itemSize);
+          for(var k=0;k<idxs.length;k++){
+            var t3=idxs[k]*3, k3=k*3;
+            for(var c2=0;c2<3;c2++) for(var j=0;j<at.itemSize;j++)
+              arr[(k3+c2)*at.itemSize+j]=at.array[(t3+c2)*at.itemSize+j];
+          }
+          var na=new THREE.BufferAttribute(arr,at.itemSize);
+          na.normalized=at.normalized; // quantized int attributes MUST stay normalized
+          out.setAttribute(name,na);
+        });
+        return out;
+      }
+      hoodMesh=new THREE.Mesh(buildPart(hoodTris),mesh.material);
+      mesh.geometry=buildPart(restTris);
+    }
+    hoodMesh.castShadow=true; hoodMesh.receiveShadow=true;
+    mesh.parent.add(hoodMesh);
+    hoodMesh.position.copy(mesh.position); hoodMesh.quaternion.copy(mesh.quaternion); hoodMesh.scale.copy(mesh.scale);
+    hoodMesh.updateMatrixWorld(true);
+    hoodMeshes.push(hoodMesh);
+  });
+  if(!hoodMeshes.length) return null;
+  var pivot=new THREE.Group();
+  pivot.position.set(0,region.hingeY,region.hingeZ);
+  g.add(pivot);
+  g.updateMatrixWorld(true);
+  hoodMeshes.forEach(function(m){ pivot.attach(m); });
+  return pivot;
+}
+/* a simple dressed engine bay that lives in the car's
+   engineGroup (revealed when the partitioned hood opens, exactly
+   like the procedural car's bay): a dark tub so the opening never
+   reads as a hollow shell, plus block, valve cover in the car's
+   colour and small hardware for the two front-engine cars. The
+   Gallardo already models its own V10 — it just gets the tub
+   under it. Positions are car space, measured from each car's
+   fitted profile and hood region. */
+function dressBay(car){
+  var eg=car.engineGroup, id=car.spec.id;
+  var valveMat=new THREE.MeshStandardMaterial({color:car.spec.valveColor,roughness:0.35,metalness:0.6});
+  if(id==='lambo'){
+    box(1.7,0.1,1.3,blackTrim,0,0.74,-1.5,eg,false);
+    return;
+  }
+  var cz=id==='civic'?1.43:1.3, fy=id==='civic'?0.68:0.52;
+  box(1.3,0.03,1.46,new THREE.MeshStandardMaterial({color:0x0c0d10,roughness:1}),0,fy,cz,eg,false);
+  box(0.58,0.15,0.62,darkMetal,0,fy+0.07,cz,eg,false);
+  box(0.44,0.05,0.48,valveMat,0,fy+0.165,cz,eg,false);
+  var intake=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,0.5,12),chromeMat);
+  intake.rotation.z=Math.PI/2; intake.rotation.y=0.25; intake.position.set(0.1,fy+0.14,cz+0.2); eg.add(intake);
+  var strut=new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,1.14,8),chromeMat);
+  strut.rotation.z=Math.PI/2; strut.position.set(0,fy+0.2,cz-0.55); eg.add(strut);
+  box(0.24,0.14,0.18,blackTrim,-0.44,fy+0.07,cz-0.45,eg,false);
+  if(id==='s15'){
+    var turbo=new THREE.Mesh(new THREE.TorusGeometry(0.07,0.03,10,18),discMat);
+    turbo.rotation.y=Math.PI/2; turbo.position.set(-0.38,fy+0.08,cz+0.25); eg.add(turbo);
+  }
+}
+
 /* ---- Bay 3: your Civic sedan — a real GLB file from the same
    Sketchfab pipeline as the old EK9, meshopt-compressed at build
    time. The loader is fully measurement-driven: it aligns the
@@ -1607,6 +1756,12 @@ function buildRealCar(spec){
         pivot.attach(hoodNode);
         car.hoodPivot=pivot;
       }
+      // the shipped file has no hood group under that name (v19):
+      // cut the panel out of the shell geometrically instead
+      if(!hoodNode&&spec.hoodRegion){
+        var hp19=partitionHood(car,model,spec.hoodRegion);
+        if(hp19){ car.hoodPivot=hp19; dressBay(car); }
+      }
       // headlight glow quads that fade in with the lights toggle
       var glowY=spec.glowY||0.6, glowX=spec.glowX||0.58;
       [-1,1].forEach(function(sd){
@@ -1628,8 +1783,10 @@ function buildRealCar(spec){
 /* ---- Bay 4: the Gallardo — Artem P's 2010 Gallardo GLB (CC BY 4.0,
    Objaverse), meshopt-compressed + WebP textures. Auto-fitted to its
    real length, grounded on its own bounding box, and polished with
-   the garage's material recipe. Its rear engine cover (node b_hood)
-   is a real separate panel and hinges open. ---- */
+   the garage's material recipe. Its rear engine cover gets a
+   working hinge from the measured partition in partitionHood
+   (the node name the old code looked for no longer exists in
+   the shipped file). ---- */
 function buildGLBCar(spec){
   var g=new THREE.Group();
   var blob=new THREE.Mesh(new THREE.PlaneGeometry(spec.W+0.85,spec.L+0.85),
@@ -1740,6 +1897,12 @@ function buildGLBCar(spec){
         pivot.attach(hoodNode);
         car.hoodPivot=pivot;
       }
+      // the shipped files have no hood node under that name (v19):
+      // cut the panel out of the shell geometrically instead
+      if(!hoodNode&&spec.hoodRegion){
+        var hp19=partitionHood(car,model,spec.hoodRegion);
+        if(hp19){ car.hoodPivot=hp19; dressBay(car); }
+      }
       // headlight glow quads that fade in with the lights toggle
       var glowY=spec.glowY||(spec.id==='lambo'?0.58:0.62), glowX=spec.glowX||(spec.id==='lambo'?0.68:0.58);
       [-1,1].forEach(function(sd){
@@ -1759,15 +1922,18 @@ function buildGLBCar(spec){
 var cars=CAR_SPECS.map(function(spec){
   if(spec.id==='lambo'){
     spec.glb='assets/lambo.glb'; spec.fitLen=spec.L; spec.hoodNode='b_hood';
+    spec.hoodRegion={zMin:-2.08,zMax:-0.92,yMin:0.78,yMax:1.10,xMax:0.80,nMin:0.25,hingeZ:-0.92,hingeY:1.02};
     return buildGLBCar(spec);
   }
   if(spec.id==='s15'){
     spec.glb='assets/s15.glb'; spec.fitLen=spec.L; spec.glowX=0.6; spec.glowY=0.6;
+    spec.hoodRegion={zMin:0.52,zMax:2.08,yMin:0.52,yMax:0.92,xMax:0.62,nMin:0.30,hingeZ:0.52,hingeY:0.88};
     return buildGLBCar(spec);
   }
   spec.glb='assets/civic.glb';
   spec.fitLen=spec.L;
   spec.hoodMatch='civ_hood'; spec.glowX=0.56; spec.glowY=0.6;
+  spec.hoodRegion={zMin:0.70,zMax:2.16,yMin:0.70,yMax:1.08,xMax:0.62,nMin:0.30,hingeZ:0.70,hingeY:1.00};
   return buildRealCar(spec);
 });
 
@@ -1809,6 +1975,7 @@ var cars=CAR_SPECS.map(function(spec){
    area and by the cars in the section below. ---- */
 var walker=null, dancer=null, dancer2=null;
 var jpMixers=[], jpHalf=false;
+var carSway=[]; // v18: whole-body sway entries for the car-row pair (see updatePeople)
 function fitFigure(model,targetH){
   // measure, scale to a real height, ground her, centre her on the
   // group origin — all from her own bounding box, like the cars
@@ -1925,6 +2092,52 @@ function playClip(gltf,model,pinRoot){
   var act=mixer.clipAction(prepClip(gltf.animations[0],pinRoot));
   act.setLoop(THREE.LoopRepeat); act.play();
   return mixer;
+}
+/* ---- idle amplification (v18) ----
+   Diagnosis, measured from the shipped clip files: the standing
+   idle's mixers were wired fine all along (they sit in jpMixers
+   and advance with every other guest's) — the CLIP is the frozen
+   part. Across its whole 10 s loop the hips rotate 4.8°, the
+   spine 1.8°, the arms under 3°; only the head reaches 13.7°,
+   and the hips translation channel is constant, so the
+   rotation-only prep above loses nothing — there is almost no
+   body motion in the file to play. From the spawn point the
+   car-row pair stand ~11 m away, part-hidden by their cars, so
+   a sub-5° sway spread over 10 s is sub-pixel: screenshots
+   seconds apart read as frozen even though the clip is running.
+   amplifyClip scales every rotation track's deviation from its
+   own first keyframe — frame 0 itself is untouched, so the
+   load-time grounding/seating maths, which measures a posed
+   frame of this same clip, stays exact — with a bigger gain on
+   the body core than on the head/neck (she reads as shifting
+   her weight, not nodding) and none on fingers/toes (invisible
+   at distance, odd up close). Runs on the cloned clip prepClip
+   returns, never on the shared file data. The car-row pair
+   additionally get the whole-body sway layer in updatePeople
+   (carSway), which moves the entire silhouette and so registers
+   at any distance. */
+function amplifyClip(clip,gainCore,gainHead){
+  var q0=new THREE.Quaternion(), q=new THREE.Quaternion(), out=new THREE.Quaternion();
+  clip.tracks.forEach(function(tr){
+    // v19 FIX: '.quaternion' is ELEVEN characters — this test used
+    // slice(-10), which never equals '.quaternion', so every track
+    // was skipped and the amplification silently never happened.
+    // That, not the mixers, is why the car-row pair read as frozen.
+    if(tr.name.slice(-11)!=='.quaternion') return;
+    var bone=tr.name.slice(0,-11);
+    if(/Hand|Toe/.test(bone)) return;
+    var gain=/Head|Neck/.test(bone)?gainHead:gainCore;
+    if(gain===1) return;
+    var v=tr.values;
+    q0.set(v[0],v[1],v[2],v[3]).normalize();
+    for(var i=0;i<v.length;i+=4){
+      q.set(v[i],v[i+1],v[i+2],v[i+3]);
+      if(q0.dot(q)<0) q.set(-q.x,-q.y,-q.z,-q.w); // same rotation, near hemisphere
+      out.copy(q0).slerp(q,gain); // extrapolating past q by (gain-1) = amplified deviation
+      v[i]=out.x; v[i+1]=out.y; v[i+2]=out.z; v[i+3]=out.w;
+    }
+  });
+  return clip;
 }
 function loadWalker(){
   try{
@@ -2133,6 +2346,25 @@ function updatePeople(dt,t){
       .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*0.71+st.phase*2)*0.03))
       .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Z,Math.sin(t*0.39+st.phase*2.6)*0.045));
   }
+  // car-row sway layer (v18): the two standing guests by the cars
+  // play a LOOPING clip, so the bone layer above can't touch them
+  // (it would reset the clip's own waist/head motion every frame).
+  // Instead their whole group leans and settles around their feet
+  // — a slow weight shift hip-to-hip, a smaller fore-aft rock, a
+  // breath bob and a centimetres-wide lateral settle, phased per
+  // guest. It composes with the (now amplified) clip instead of
+  // fighting it, moves the entire silhouette by centimetres at
+  // the head, and so is plainly visible from the spawn point
+  // ~11 m away, where the clip alone was sub-pixel. Angles are
+  // small enough that her feet stay planted (the group origin is
+  // at floor level on her spot) and the blob shadow tilts with
+  // her, unnoticeably.
+  for(var cwi=0;cwi<carSway.length;cwi++){ var cw=carSway[cwi], cph=cw.phase;
+    cw.grp.rotation.z=Math.sin(t*0.85+cph)*0.038;                    // ~2.2° lean, hip to hip
+    cw.grp.rotation.x=Math.sin(t*0.57+cph*1.7)*0.018;                // gentle fore-aft rock
+    cw.holder.position.y=cw.baseY+Math.sin(t*1.7+cph)*0.007;         // breath bob
+    cw.holder.position.x=cw.baseX+Math.sin(t*0.42+cph)*0.028;        // slow weight shift
+  }
 }
 
 /* ================= THE JAPANESE CHILL AREA + GUESTS =================
@@ -2191,7 +2423,7 @@ function loadProp(file,opts){
       var s=1;
       if(opts.h) s=opts.h/Math.max(sz.y,0.01);
       else if(opts.w) s=opts.w/Math.max(sz.x,0.01);
-      holder.scale.setScalar(s);
+      holder.scale.set(s,s*(opts.sy||1),s); // sy: optional vertical stretch, applied before grounding so the fit stays honest
       holder.updateMatrixWorld(true);
       bb=new THREE.Box3().setFromObject(model);
       var ctr=bb.getCenter(new THREE.Vector3());
@@ -2235,9 +2467,15 @@ function buildChillArea(){
   loadProp('assets/jp-tatami.glb',{w:3.8,x:5.2,z:8.62});
   // benches — the garden bench's backrest is on its local -z side
   // (measured from the file), so both benches turn their backs to
-  // the front wall and face the cars
-  loadProp('assets/jp-bench.glb',{w:1.9,x:-5.2,z:8.78,ry:Math.PI,collider:[1.05,0.42]});
-  loadProp('assets/jp-bench2.glb',{w:2.0,x:5.2,z:8.78,ry:Math.PI,collider:[1.1,0.42]});
+  // the front wall and face the cars. v19: both stand ON the
+  // tatami platform (its top is 0.11, measured from the file)
+  // instead of sinking their legs through it, and the garden
+  // bench is stretched 1.26x taller — its seat was 0.43 over its
+  // base, too low for the sitter's pose (0.549); stretched and
+  // on the platform its seat top lands at 0.65 absolute, 0.54
+  // over the mat her feet rest on.
+  loadProp('assets/jp-bench.glb',{w:1.9,x:-5.2,z:8.78,ry:Math.PI,groundY:0.11,sy:1.26,collider:[1.05,0.42]});
+  loadProp('assets/jp-bench2.glb',{w:2.0,x:5.2,z:8.78,ry:Math.PI,groundY:0.11,collider:[1.1,0.42]});
   // torii gate as the chill area's entrance, behind the spawn point
   loadProp('assets/jp-torii.glb',{h:3.05,x:0,z:9.05,ry:Math.PI});
   addCollider(-1.45,9.05,0.2,0.35); addCollider(1.45,9.05,0.2,0.35);
@@ -2313,18 +2551,30 @@ function buildChillArea(){
    0.549 m above her feet, pelvis joint 0.10 m above that (both
    measured off her skinned mesh, steady to ±1 mm across the
    whole loop, so a frame-0 placement holds for every frame).
-   The station bench's seat (0.59 m) sits just above the pose's
-   natural seat height, so that sitter is anchored butt-to-seat
-   with a 1 cm press; her feet hover ~3 cm, a natural perch on
-   a tall bench, and nothing clips. The garden bench's seat
-   (0.44 m) sits BELOW the pose's seat height, where
-   butt-to-seat would bury her feet 11 cm through the floor —
-   so that sitter is anchored feet-on-floor instead: soles
-   planted, nothing through the bench, at the price of
-   daylight under her on the low bench. Her hips are centred
-   over her spot directly, never by bounding box: the seated
-   box reaches ~0.6 m forward of the hips, so bbox centring
-   (groundFigure) would shove her back into the backrest. */
+   Her hips are centred over her spot directly, never by
+   bounding box: the seated box reaches ~0.6 m forward of the
+   hips, so bbox centring (groundFigure) would shove her back
+   into the backrest.
+   v19 — why the sitters looked messed up, and the fix. THREE
+   things were wrong at once: (1) GLTFLoader strips the colon
+   from node names, so the Hips lookup below ('mixamorig:Hips')
+   never matched the loaded bone ('mixamorigHips') — the seat
+   anchor and hip centring silently never ran, and both girls
+   were placed feet-first whatever the bench. (2) The benches
+   stood on the FLOOR (y=0) in the middle of the tatami
+   platform (top at 0.11), so their legs sank through it and
+   both girls' feet anchored a full mat-thickness under the
+   surface they were visibly standing on. (3) The garden
+   bench's seat (0.43 over its base) is simply too low for the
+   pose's 0.549 seat height. Now: both benches stand ON the
+   tatami (groundY 0.11), the garden bench is stretched 1.26x
+   taller so its seat sits 0.54 over the platform (0.65
+   absolute — the ~0.55 the pose wants), and both sitters are
+   anchored butt-to-seat from the (fixed) Hips lookup with
+   their group raised to the platform top. Verified offline
+   against the real files: garden girl's butt lands 2 mm into
+   the seat with her soles on the mat; station girl presses
+   ~1.5 cm into her contoured seat, feet 1 cm over the mat. */
 var SEAT_AXIS_X=new THREE.Vector3(1,0,0), SEAT_AXIS_Y=new THREE.Vector3(0,1,0), SEAT_AXIS_Z=new THREE.Vector3(0,0,1);
 var seatTmpQ=new THREE.Quaternion();
 function loadSeatedAnna(opts){
@@ -2338,22 +2588,30 @@ function loadSeatedAnna(opts){
       var grp=figureGroup();
       var holder=fitFigureMixamo(model,1.70);
       grp.add(holder);
-      grp.position.set(opts.x,0,opts.z);
+      grp.position.set(opts.x,opts.floorY||0,opts.z);
       grp.rotation.y=opts.ry||0;
       var loader=jpLoader();
       jpStart(function(){ loader.load('assets/idle-sit-clip.glb',function(cg){
         if(cg.animations&&cg.animations.length){
           var mixer=new THREE.AnimationMixer(model);
-          var act=mixer.clipAction(prepClip(cg.animations[0],false,true)); // rotation-only
+          // v19: amplified a touch harder (1.9 core / 1.5 head)
+          // so the sitting idle plainly reads as movement across
+          // the chill area; frame 0 is untouched, so the
+          // seat/floor anchoring measured from the posed frame
+          // below stays exact
+          var act=mixer.clipAction(amplifyClip(prepClip(cg.animations[0],false,true),1.9,1.5)); // rotation-only
           act.setLoop(THREE.LoopRepeat); act.play();
           mixer.update(opts.timeOffset||0); // land a frame now, so she can be placed in the pose
           jpMixers.push(mixer);
         }
         // place her from the posed figure herself (see above):
-        // hips over her spot, then the per-bench height anchor
+        // hips over her spot, then the per-bench height anchor.
+        // NOTE the bone's loaded name: GLTFLoader strips the
+        // colon out of 'mixamorig:Hips' — searching with the
+        // colon finds nothing and the anchor silently skips.
         grp.updateMatrixWorld(true);
         var hips=null;
-        model.traverse(function(o){ if(!hips&&o.isBone&&o.name==='mixamorig:Hips') hips=o; });
+        model.traverse(function(o){ if(!hips&&o.isBone&&o.name==='mixamorigHips') hips=o; });
         var feetY=figureBBox(model).min.y; // model only — the group's blob shadow plane would floor this at 0.013
         var dy=-feetY; // feet exactly on the floor
         if(hips){
@@ -2429,9 +2687,10 @@ function loadStandingAnna(opts){
       var B={};
       model.traverse(function(o){ if(o.isBone) B[o.name]=o; });
       // her idle bones on the Mixamo rig: waist = Spine2,
-      // head = Head (the CC-rig names belong to the walker and
-      // the sitters, who keep their own file and are untouched)
-      var entry={ waist:B['mixamorig:Spine2'], head:B['mixamorig:Head'], phase:opts.phase||0,
+      // head = Head — under their LOADED names (GLTFLoader
+      // strips the colon from 'mixamorig:Spine2'/'mixamorig:Head';
+      // the colon forms silently matched nothing)
+      var entry={ waist:B['mixamorigSpine2'], head:B['mixamorigHead'], phase:opts.phase||0,
         baseWaist:null, baseHead:null };
       function captureBase(){
         entry.baseWaist=entry.waist?entry.waist.quaternion.clone():null;
@@ -2443,7 +2702,14 @@ function loadStandingAnna(opts){
         jpStart(function(){ loader.load(opts.clip||opts.pose,function(pg){
           if(pg.animations&&pg.animations.length){
             var mixer=new THREE.AnimationMixer(model);
-            var act=mixer.clipAction(prepClip(pg.animations[0],false,true)); // rotation-only
+            // v18: a looping idle is amplified hard on the body
+            // core (hips 4.8°->11°, legs ~4.5°->10°) — measured
+            // from the file, the raw clip's sway was sub-pixel
+            // from the spawn point and the pair read as frozen;
+            // held poses keep their raw frame 0 for captureBase
+            var act=mixer.clipAction(opts.clip
+              ? amplifyClip(prepClip(pg.animations[0],false,true),2.3,1.45)
+              : prepClip(pg.animations[0],false,true)); // rotation-only
             act.setLoop(THREE.LoopRepeat); act.play();
             // a held pose lands frame 0; a looping clip lands at
             // its desync offset — either way the pose is on her
@@ -2452,6 +2718,13 @@ function loadStandingAnna(opts){
             jpMixers.push(mixer);
           }
           groundFigure(holder,model,grp,0); // feet on the floor, centred on her spot
+          // v18: looping-clip guests join the whole-body sway
+          // layer (updatePeople) — base offsets captured AFTER
+          // grounding, so the sway settles around exactly where
+          // groundFigure planted her; phases differ per guest so
+          // the pair never sway in sync
+          if(opts.clip) carSway.push({grp:grp,holder:holder,baseX:holder.position.x,baseY:holder.position.y,
+            phase:(opts.timeOffset||0)*1.37+1.1});
           // a looping clip animates the waist and head itself, so
           // the guest stays OUT of standingAnnas: the procedural
           // layer there resets those bones to a captured base
@@ -2466,8 +2739,8 @@ function loadStandingAnna(opts){
    Headings use the figure convention: rotation 0 faces +z, so
    ry = atan2(dx, dz) toward whatever she's looking at. */
 function loadAllGuests(){
-loadSeatedAnna({x:-5.2,z:8.84,ry:Math.PI-0.10,seatH:0.44,anchor:'floor',timeOffset:0});
-loadSeatedAnna({x:5.35,z:8.84,ry:Math.PI+0.14,seatH:0.59,anchor:'seat',timeOffset:2.3});
+loadSeatedAnna({x:-5.2,z:8.84,ry:Math.PI-0.10,seatH:0.66,anchor:'seat',floorY:0.11,timeOffset:0});
+loadSeatedAnna({x:5.35,z:8.84,ry:Math.PI+0.14,seatH:0.68,anchor:'seat',floorY:0.11,timeOffset:2.3});
 loadStandingAnna({x:-6.6,z:-1.2,ry:2.03,collider:[0.3,0.3],clip:'assets/idle-stand-clip.glb',timeOffset:0});
 loadStandingAnna({x:6.6,z:-1.2,ry:-2.03,collider:[0.3,0.3],clip:'assets/idle-stand-clip.glb',timeOffset:3.7});
 loadGuest('assets/alina.glb',{h:1.68,x:-8.6,z:0.6,ry:1.76,pin:true,collider:[0.32,0.32]});
@@ -2572,7 +2845,7 @@ buildChillArea(); loadAllGuests(); buildPolish();
 
 /* ================= INTERACTABLES ================= */
 var interactables=[];
-var foundCount=0, TOTAL=8;
+var foundCount=0, TOTAL=9;
 var foundEl=document.getElementById('foundNum');
 var chipEl=document.getElementById('foundChip');
 var toastEl=document.getElementById('toast'), toastTimer=null;
@@ -2584,7 +2857,7 @@ function markFound(it){
   if(it.found)return; it.found=true; foundCount++;
   foundEl.textContent=foundCount+'/'+TOTAL;
   chipEl.classList.remove('pulse'); void chipEl.offsetWidth; chipEl.classList.add('pulse');
-  if(foundCount===TOTAL) toast('FULL HOUSE — all 8 interactions found. The garage is yours.',4200);
+  if(foundCount===TOTAL) toast('FULL HOUSE — all 9 interactions found. The garage is yours.',4200);
 }
 function addInter(car,kind,labelFn,point,apply){
   var it={car:car,kind:kind,labelFn:labelFn,point:point,apply:apply,on:false,anim:0,target:0,found:false};
