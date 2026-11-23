@@ -191,8 +191,353 @@
 (function(){
 "use strict";
 var errBox=document.getElementById('errBox');
-window.onerror=function(msg,src,line){ errBox.style.display='block'; errBox.textContent='Error: '+msg+' (line '+line+')'; };
-window.addEventListener('unhandledrejection',function(e){ errBox.style.display='block'; errBox.textContent='Error: '+(e.reason&&e.reason.message||e.reason); });
+
+/* ================= v22 CORE SYSTEMS =================
+   Bedrock rules (see AGENTS.md): (1) Modular Development — the
+   systems below are self-contained and content code (garage,
+   mansion, cars, people) reaches them only through these small
+   interfaces; (2) Performance First — world streaming, LOD
+   simulation rates, capped concurrent loads, capped textures,
+   adaptive quality. No content system loads a GLB, sets a quality
+   level, or advances an NPC except through here. */
+
+/* ---- ErrorGuard: one bad frame, toggle, asset or actor can
+   never kill the page. Errors are counted per context, shown at
+   most once per context per 8 s, and the caller always continues. */
+var ErrorGuard=(function(){
+  var counts={}, lastShown={}, suppressed=0;
+  return {
+    report:function(err,context,fatal){
+      context=context||'runtime';
+      counts[context]=(counts[context]||0)+1;
+      var now=Date.now();
+      if(fatal||!lastShown[context]||now-lastShown[context]>8000){
+        lastShown[context]=now;
+        errBox.style.display='block';
+        errBox.textContent=(fatal?'Start error: ':'Recovered from a '+context+' error: ')+((err&&err.message)||err||'unknown')+' — the game keeps running.';
+      } else suppressed++;
+      return counts[context];
+    },
+    fatal:function(err){ this.report(err,'boot',true); },
+    counts:function(){ return counts; },
+    suppressed:function(){ return suppressed; }
+  };
+})();
+window.onerror=function(msg,src,line){ ErrorGuard.report(new Error(String(msg)+' (line '+line+')'),'window'); };
+window.addEventListener('unhandledrejection',function(e){ ErrorGuard.report(e.reason,'promise'); });
+
+/* ---- AssetSystem: every GLTF load in the game flows through
+   this queue (installed as a GLTFLoader patch in boot). It caps
+   concurrent parse jobs (2 on touch, 3 otherwise), dedupes
+   repeat loads of the same file into ONE parse whose geometry,
+   materials and textures are shared by clones, and downscales
+   any texture above the per-class cap (512px for mansion /
+   Japanese / decor props, 1024px for everything else) before
+   the model is handed to the scene, so an oversized texture can
+   never reach the GPU at full size. */
+var AssetSystem=(function(){
+  var MAXC=(('ontouchstart' in window)||navigator.maxTouchPoints>0)?2:3;
+  var active=0, queue=[], cache={}, pending={}, done=0, failed=0, deduped=0, capsApplied=0, installed=false, rawLoad=null;
+  function capFor(url){ return /mansion-|jp-|decor\.glb/.test(url)?512:1024; }
+  function resizeTex(tex,cap,seen){
+    var img=tex&&tex.image; if(!img||!img.width||!img.height) return;
+    if(Math.max(img.width,img.height)<=cap){ if(tex.anisotropy>4) tex.anisotropy=4; return; }
+    for(var i=0;i<seen.length;i++) if(seen[i].img===img){ tex.image=seen[i].canvas; tex.needsUpdate=true; capsApplied++; return; }
+    try{
+      var s=cap/Math.max(img.width,img.height);
+      var c=document.createElement('canvas');
+      c.width=Math.max(1,Math.round(img.width*s)); c.height=Math.max(1,Math.round(img.height*s));
+      var g=c.getContext('2d'); if(!g) return;
+      g.drawImage(img,0,0,c.width,c.height);
+      seen.push({img:img,canvas:c});
+      tex.image=c; tex.needsUpdate=true; if(tex.anisotropy>4) tex.anisotropy=4; capsApplied++;
+    }catch(e){ /* texture ships as authored rather than failing the load */ }
+  }
+  function optimize(root,url){
+    if(!root||!root.traverse) return;
+    var cap=capFor(url), seen=[];
+    root.traverse(function(o){
+      if(!o.material) return;
+      (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
+        for(var k in m){ var v=m[k]; if(v&&v.isTexture) resizeTex(v,cap,seen); }
+      });
+    });
+  }
+  function hasSkin(root){ var s=false; root.traverse(function(o){ if(o.isSkinnedMesh) s=true; }); return s; }
+  function clone(gltf){
+    try{
+      var scene=(hasSkin(gltf.scene)&&THREE.SkeletonUtils&&THREE.SkeletonUtils.clone)
+        ?THREE.SkeletonUtils.clone(gltf.scene):gltf.scene.clone(true);
+      return {scene:scene,animations:gltf.animations||[],asset:gltf.asset,cameras:gltf.cameras||[],scenes:gltf.scenes||[],userData:gltf.userData||{}};
+    }catch(e){ return gltf; }
+  }
+  function finish(){ active--; pump(); }
+  function succeed(group,gltf){
+    cache[group.url]=gltf; delete pending[group.url]; done+=group.jobs.length;
+    // build every delivery BEFORE running any callback: a first
+    // caller may reparent or extract nodes from its scene, and a
+    // later caller of the same file must still get the full model
+    var outs=group.jobs.map(function(job,i){ return i===0?gltf:clone(gltf); });
+    group.jobs.forEach(function(job,i){
+      if(job.onLoad){ try{ job.onLoad(outs[i]); }catch(e){ ErrorGuard.report(e,'asset-callback'); } }
+    });
+    finish();
+  }
+  function fail(group,err){
+    delete pending[group.url]; failed+=group.jobs.length;
+    group.jobs.forEach(function(job){
+      if(job.onError){ try{ job.onError(err); }catch(e){ ErrorGuard.report(e,'asset-error-callback'); } }
+    });
+    finish();
+  }
+  function pump(){
+    while(active<MAXC&&queue.length){
+      var group=queue.shift(); active++;
+      if(cache[group.url]){
+        deduped+=group.jobs.length;
+        (function(g){
+          setTimeout(function(){
+            done+=g.jobs.length;
+            var outs=g.jobs.map(function(){ return clone(cache[g.url]); });
+            g.jobs.forEach(function(job,i){
+              if(job.onLoad){ try{ job.onLoad(outs[i]); }catch(e){ ErrorGuard.report(e,'asset-callback'); } }
+            });
+            finish();
+          },0);
+        })(group);
+        continue;
+      }
+      pending[group.url]=group;
+      var first=group.jobs[0];
+      try{
+        rawLoad.call(first.self,group.url,function(gltf){
+          try{ optimize(gltf.scene,group.url); }catch(e){ ErrorGuard.report(e,'texture-cap'); }
+          succeed(group,gltf);
+        },first.onProgress,function(err){ fail(group,err); });
+      }catch(e){ fail(group,e); }
+    }
+  }
+  function enqueue(self,url,onLoad,onError,onProgress){
+    var job={self:self,onLoad:onLoad,onError:onError,onProgress:onProgress};
+    if(pending[url]){ pending[url].jobs.push(job); deduped++; return; }
+    for(var i=0;i<queue.length;i++) if(queue[i].url===url){ queue[i].jobs.push(job); deduped++; return; }
+    queue.push({url:url,jobs:[job]}); pump();
+  }
+  return {
+    install:function(){
+      if(installed||!window.THREE||!THREE.GLTFLoader) return;
+      installed=true; rawLoad=THREE.GLTFLoader.prototype.load;
+      // three's signature is load(url, onLoad, onProgress, onError) — every
+      // caller in the game uses it, so the patch preserves it exactly
+      THREE.GLTFLoader.prototype.load=function(url,onLoad,onProgress,onError){ enqueue(this,url,onLoad,onError,onProgress); };
+    },
+    evict:function(url){ if(cache[url]){ delete cache[url]; return true; } return false; },
+    isCached:function(url){ return !!cache[url]; },
+    stats:function(){ return {active:active,queued:queue.length,maxConcurrent:MAXC,cached:Object.keys(cache).length,completed:done,failed:failed,deduped:deduped,textureCaps:capsApplied}; }
+  };
+})();
+
+/* ---- WorldSystem: zone streaming. The world is two zones
+   (garage z >= -20, mansion z < -20). Only the player's zone is
+   visible/rendered; the other zone's lights, props and people
+   cost nothing. Streamed mansion props are tracked so they can
+   be unloaded after the player leaves (see MemorySystem) and
+   re-streamed on return. Zone is read from top-level object
+   positions, so new locations only need their own builder. */
+var WorldSystem=(function(){
+  var zone='garage', lastScan=0, prewarm=null, streamed={}, unloadTimer=null;
+  var api={
+    unloaders:{}, unloaded:{},
+    zone:function(){ return zone; },
+    trackStreamed:function(grp,file){
+      if(!grp||!grp.position||grp.position.z>=-20) return;
+      grp.userData.streamZone='mansion'; grp.userData.streamFile=file;
+      (streamed.mansion=streamed.mansion||[]).push(grp);
+    },
+    streamedCount:function(){ return streamed.mansion?streamed.mansion.length:0; },
+    update:function(scene,player,now,force){
+      if(!scene||!player) return zone;
+      var z=player.z<-20?'mansion':'garage';
+      if(!force&&z===zone&&now-lastScan<400) return zone;
+      lastScan=now; zone=z;
+      for(var i=0;i<scene.children.length;i++){
+        var o=scene.children[i];
+        if(o.isAmbientLight||o.isHemisphereLight||(o.userData&&o.userData.zone==='global')){ if(!o.visible) o.visible=true; continue; }
+        var oz=(o.position&&o.position.z<-20)?'mansion':'garage';
+        var vis=(oz===zone)||(prewarm===oz);
+        if(o.visible!==vis) o.visible=vis;
+      }
+      return zone;
+    },
+    setPrewarm:function(scene,player,z){ prewarm=z; api.update(scene,player,performance.now(),true); },
+    clearPrewarm:function(scene,player){ prewarm=null; api.update(scene,player,performance.now(),true); },
+    scheduleUnload:function(delay,fn){
+      if(unloadTimer||api.unloaded.mansion) return;
+      unloadTimer=setTimeout(function(){ unloadTimer=null; fn(); },delay||45000);
+    },
+    cancelUnload:function(){ if(unloadTimer){ clearTimeout(unloadTimer); unloadTimer=null; } },
+    unloadStreamed:function(zoneName){
+      var list=streamed[zoneName]||[], files={}, removed=0;
+      list.slice().forEach(function(grp){
+        if(grp.parent) grp.parent.remove(grp);
+        removed++;
+        if(grp.userData.streamFile) files[grp.userData.streamFile]=true;
+      });
+      streamed[zoneName]=[];
+      // mansion-door.glb is shared with the garage-side door, which
+      // is still on screen — its cache entry (and GPU data) stays
+      Object.keys(files).forEach(function(f){ if(f!=='assets/mansion-door.glb') AssetSystem.evict(f); });
+      api.unloaded[zoneName]=true;
+      if(api.unloaders[zoneName]){ try{ api.unloaders[zoneName](); }catch(e){ ErrorGuard.report(e,'world-unload'); } }
+      return removed;
+    },
+    markLoaded:function(zoneName){ api.unloaded[zoneName]=false; }
+  };
+  return api;
+})();
+
+/* ---- SimulationSystem: NPC/actor LOD. An actor in the other
+   zone is not simulated at all; a near actor (<7 m) advances
+   every step; mid (7-14 m) every 2nd step; far (>14 m) every
+   4th step with proportionally larger dt, staggered by phase so
+   the cheap frames never line up. */
+var SimulationSystem=(function(){
+  var frame=0, tmp=null;
+  function topRoot(obj){ var o=obj; while(o&&o.parent&&!o.parent.isScene) o=o.parent; return o; }
+  function rootPos(obj){
+    if(!window.THREE) return null;
+    if(!tmp) tmp=new THREE.Vector3();
+    var r=topRoot(obj);
+    if(r&&r.getWorldPosition){ r.getWorldPosition(tmp); return tmp; }
+    return null;
+  }
+  var api={
+    tick:function(){ frame++; },
+    frame:function(){ return frame; },
+    every:function(n,phase){ return ((frame+(phase||0))%n)===0; },
+    guard:function(name,fn){ try{ fn(); }catch(e){ ErrorGuard.report(e,'actor:'+name); } },
+    lodFor:function(obj,player){
+      if(!obj||!player) return {rate:1,skip:false,dist:0};
+      var p=rootPos(obj); if(!p) return {rate:1,skip:false,dist:0};
+      var pz=p.z<-20?'mansion':'garage', uz=player.z<-20?'mansion':'garage';
+      if(pz!==uz) return {rate:0,skip:true,dist:999};
+      var dx=p.x-player.x, dz=p.z-player.z, d=Math.sqrt(dx*dx+dz*dz);
+      if(d<7) return {rate:1,skip:false,dist:d};
+      if(d<14) return {rate:2,skip:false,dist:d};
+      return {rate:4,skip:false,dist:d};
+    },
+    mixerStep:function(mixer,obj,player,dt,phase){
+      if(!mixer) return 0;
+      var lod=api.lodFor(obj,player);
+      if(lod.skip) return 0;
+      if(lod.rate===1){ mixer.update(dt); return 1; }
+      if(api.every(lod.rate,phase)){ mixer.update(dt*lod.rate); return 1; }
+      return 0;
+    }
+  };
+  return api;
+})();
+
+/* ---- PerfSystem: rolling frame metrics with no per-frame
+   allocation. Windows are 1.5 s; QualitySystem consumes them. */
+var PerfSystem=(function(){
+  var frames=0,total=0,worst=0,long50=0,long100=0,lastFps=0,winStart=0,winFrames=0,winLong=0;
+  return {
+    begin:function(now){ winStart=now; winFrames=0; winLong=0; },
+    frame:function(now,dtMs){
+      frames++; total+=dtMs; if(dtMs>worst) worst=dtMs;
+      if(dtMs>50) long50++; if(dtMs>100) long100++;
+      winFrames++; if(dtMs>50) winLong++;
+    },
+    window:function(now){
+      var el=now-winStart; if(el<1500) return null;
+      var r={fps:winFrames/(el/1000),longRatio:winFrames?winLong/winFrames:0,frames:winFrames};
+      winStart=now; winFrames=0; winLong=0; lastFps=r.fps; return r;
+    },
+    stats:function(){ return {frames:frames,avgMs:frames?Math.round(total/frames*10)/10:0,worstMs:Math.round(worst),long50:long50,long100:long100,fps:Math.round(lastFps*10)/10}; }
+  };
+})();
+
+/* ---- QualitySystem: adaptive tiers. State and policy live
+   here; the renderer-specific apply() is registered by the
+   render module at the bottom of boot, so this system never
+   touches game content. Steps down fast (one bad window, two
+   tiers under 14 fps), back up only after four consecutive
+   stable windows, with a cooldown after every change. */
+var QualitySystem={
+  tier:'balanced',
+  rank:{minimal:0,lean:1,balanced:2,full:3},
+  order:['minimal','lean','balanced','full'],
+  cooldownUntil:0, goodWindows:0, applyFn:null, batteryCap:null, changes:0,
+  setApply:function(fn){ this.applyFn=fn; },
+  applyCurrent:function(){ if(this.applyFn){ try{ this.applyFn(this.tier,'boot'); }catch(e){ ErrorGuard.report(e,'quality'); } } },
+  setTier:function(name,reason){
+    if(!this.rank.hasOwnProperty(name)||name===this.tier) return false;
+    this.tier=name; this.changes++;
+    this.cooldownUntil=performance.now()+4000; this.goodWindows=0;
+    if(this.applyFn){ try{ this.applyFn(name,reason||''); }catch(e){ ErrorGuard.report(e,'quality'); } }
+    return true;
+  },
+  stepDown:function(reason){
+    var r=this.rank[this.tier];
+    if(r>0) this.setTier(this.order[r-1],reason||'step-down');
+  },
+  stepUp:function(reason){
+    var r=this.rank[this.tier], cap=this.batteryCap?this.rank[this.batteryCap]:3;
+    if(r<3&&r<cap) this.setTier(this.order[r+1],reason||'step-up');
+  },
+  evaluate:function(win,now){
+    if(!win) return;
+    if(now<this.cooldownUntil){ if(win.fps<20) this.goodWindows=0; return; }
+    if(win.fps<14){ this.goodWindows=0; this.stepDown('fps<14'); this.stepDown('fps<14'); return; }
+    if(win.fps<26||win.longRatio>0.18){ this.goodWindows=0; this.stepDown('fps<26'); return; }
+    if(win.fps>52&&win.longRatio<0.03){ this.goodWindows++; if(this.goodWindows>=4) this.stepUp('stable>52fps'); }
+    else this.goodWindows=0;
+  }
+};
+
+/* ---- MemorySystem: pressure snapshots (JS heap where the
+   browser exposes it, plus renderer.info) and the trim counter.
+   The game loop acts on 'critical' (drop a quality tier, unload
+   the inactive zone's streamed props). */
+var MemorySystem=(function(){
+  var lastCheck=0, lastPressure='ok', trims=0, lastRenderer=null;
+  var api={
+    snapshot:function(renderer){
+      var r=renderer||lastRenderer, s={pressure:lastPressure,trims:trims};
+      try{
+        if(window.performance&&performance.memory) s.jsHeapMB=Math.round(performance.memory.usedJSHeapSize/1048576);
+        if(r&&r.info){
+          s.geometries=r.info.memory.geometries; s.textures=r.info.memory.textures;
+          s.programs=(r.info.programs&&r.info.programs.length)||0;
+          s.drawCalls=r.info.render.calls; s.triangles=r.info.render.triangles;
+        }
+      }catch(e){ /* snapshot is best-effort */ }
+      s.assets=AssetSystem.stats();
+      s.quality=QualitySystem.tier; s.qualityChanges=QualitySystem.changes;
+      s.zone=WorldSystem.zone(); s.streamedMansionProps=WorldSystem.streamedCount();
+      s.mansionUnloaded=!!WorldSystem.unloaded.mansion;
+      s.fps=PerfSystem.stats();
+      s.errors=ErrorGuard.counts(); s.errorsSuppressed=ErrorGuard.suppressed();
+      return s;
+    },
+    evaluate:function(renderer,now){
+      if(renderer) lastRenderer=renderer;
+      if(now-lastCheck<5000) return lastPressure;
+      lastCheck=now;
+      var s=api.snapshot(renderer), tex=s.textures||0, heap=s.jsHeapMB||0;
+      lastPressure=(heap>1100||tex>520)?'critical':(heap>750||tex>430)?'high':'ok';
+      if(lastPressure==='critical') QualitySystem.stepDown('memory-pressure');
+      return lastPressure;
+    },
+    noteTrim:function(){ trims++; }
+  };
+  return api;
+})();
+/* Headless verification hook: the audit/probe reads real numbers
+   (fps, tier, draw calls, triangles, textures, programs, heap,
+   loader and error stats) from here instead of guessing. */
+window.__GARAGE_PERF__={ snapshot:function(){ return MemorySystem.snapshot(null); } };
 
 /* ================= AUDIO (all synthesized) ================= */
 var AC=null, MUTED=false;
@@ -356,14 +701,16 @@ function hoodBlip(spec){
    document finishes loading immediately, even on a slow renderer. */
 function safeBoot(){
   try{ boot(); }
-  catch(err){
-    errBox.style.display='block';
-    errBox.textContent='Start error: '+(err&&err.message||err)+' — the garage could not start on this device. Tap ENTER THE GARAGE to dismiss this and try again.'+(err&&err.stack?'\n'+err.stack.split('\n').slice(0,4).join('\n'):'');
-  }
+  catch(err){ ErrorGuard.fatal(err); }
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',safeBoot);
 else safeBoot();
 function boot(){
+/* v22: all GLB traffic goes through AssetSystem from here on
+   (queue + dedupe + texture caps), and the adaptive quality tier
+   starts at 'balanced' — the post chain is earned, never assumed. */
+AssetSystem.install();
+var quality='balanced';
 /* ENTER is wired before any heavy scene work: if a later step fails on a
    weak device, the button still responds and the error box says why,
    instead of a dead black screen. */
@@ -721,9 +1068,13 @@ function floorGlow(x,z,sx,sz,color,opacity){
   m.rotation.x=-Math.PI/2; m.position.set(x,0.018,z); m.renderOrder=3; scene.add(m); return m;
 }
 var photoLoader=new THREE.TextureLoader();
+var photoCache={};
 function photoTex(path){
+  // the same print hangs in both rooms (hero, R34, RX7) — one
+  // texture object, one GPU upload, shared by every frame
+  if(photoCache[path]) return photoCache[path];
   var t=photoLoader.load(path);
-  t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=8; return t;
+  t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; photoCache[path]=t; return t;
 }
 
 function seatTex(driver){
@@ -841,7 +1192,14 @@ var darkMetal=new THREE.MeshStandardMaterial({color:0x2b2e33,roughness:0.5,metal
 /* ================= GARAGE SHELL ================= */
 var GAR={W:26,D:20,H:5.2};
 var colliders=[]; // {minX,maxX,minZ,maxZ}
-function addCollider(cx,cz,hw,hd){ colliders.push({minX:cx-hw,maxX:cx+hw,minZ:cz-hd,maxZ:cz+hd}); }
+function addCollider(cx,cz,hw,hd){
+  // deduped: streamed zones unload and reload, and a re-streamed
+  // prop must not stack a second identical collider every visit
+  var nx=cx-hw,xx=cx+hw,nz=cz-hd,xz=cz+hd;
+  for(var i=0;i<colliders.length;i++){ var b=colliders[i];
+    if(b.minX===nx&&b.maxX===xx&&b.minZ===nz&&b.maxZ===xz) return; }
+  colliders.push({minX:nx,maxX:xx,minZ:nz,maxZ:xz});
+}
 
 var floor=new THREE.Mesh(new THREE.PlaneGeometry(GAR.W,GAR.D),
   new THREE.MeshStandardMaterial({map:floorTex,roughnessMap:floorRoughTex,roughness:1.0,metalness:0.22,envMapIntensity:0.95}));
@@ -2357,7 +2715,15 @@ function loadDancer2(){
 }
 loadDancer2();
 function updatePeople(dt,t){
-  if(walker){
+  /* v22 LOD (SimulationSystem): nobody simulates at full detail
+     just because she exists. An actor in the other zone is not
+     advanced at all; near actors advance every step; mid/far
+     actors advance at 1/2 / 1/4 rate with scaled dt, staggered
+     per actor. Each actor is guarded, so one bad mixer can
+     never take the frame — or the game — down with it. */
+  SimulationSystem.guard('walker',function(){
+    if(!walker) return;
+    if(SimulationSystem.lodFor(walker.grp,player).skip) return; // player is in the mansion
     // the same slow ellipse down the front aisle as before — but the
     // stride, knee bends and arm swing are her real mocap clip now;
     // the group just carries her, facing the way she travels
@@ -2366,24 +2732,23 @@ function updatePeople(dt,t){
     var vx=-Math.sin(walker.ang)*walker.dir, vz=Math.cos(walker.ang)*walker.dir;
     walker.grp.position.set(px,0,pz);
     walker.grp.rotation.y=Math.atan2(vx,vz);
-    if(walker.mixer) walker.mixer.update(dt);
-  }
-  if(dancer){
-    if(dancer.mixer) dancer.mixer.update(dt);
-  }
-  if(dancer2){
-    if(dancer2.mixer) dancer2.mixer.update(dt);
-  }
+    SimulationSystem.mixerStep(walker.mixer,walker.grp,player,dt,0);
+  });
+  SimulationSystem.guard('dancer',function(){
+    if(dancer) SimulationSystem.mixerStep(dancer.mixer,dancer.grp,player,dt,1);
+  });
+  SimulationSystem.guard('dancer2',function(){
+    if(dancer2) SimulationSystem.mixerStep(dancer2.mixer,dancer2.grp,player,dt,2);
+  });
   // The bench sitters need no procedural layer any more: their
   // sitting idle is a real clip, advanced with the other guest
-  // mixers just below.
-  // Alina's clip and the standing guests' clips advance.
-  // On a software renderer the guest mixers advance at half rate
-  // (double dt every other step): the loop reads identically, and
-  // the CPU saving keeps weak devices responsive.
+  // mixers just below — each at its own LOD rate. On a software
+  // renderer the guest mixers additionally advance at half rate
+  // (double dt every other step), as before.
   jpHalf=!jpHalf;
   if(!softwareGL||jpHalf){ var jdt=softwareGL?dt*2:dt;
-    for(var jpi=0;jpi<jpMixers.length;jpi++) jpMixers[jpi].update(jdt); }
+    for(var jpi=0;jpi<jpMixers.length;jpi++)
+      SimulationSystem.mixerStep(jpMixers[jpi],jpMixers[jpi].getRoot(),player,jdt,jpi); }
   // standing Annas in a HELD pose (opts.pose guests — none are
   // currently placed; the car-row pair play a looping clip and
   // stay out of this list): a slow breath at the waist and
@@ -2393,6 +2758,8 @@ function updatePeople(dt,t){
   // bones, so the idle layers on top of the Mixamo pose
   // instead of fighting it.
   for(var sti=0;sti<standingAnnas.length;sti++){ var st=standingAnnas[sti];
+    var stLod=SimulationSystem.lodFor(st.grp,player); // LOD: other zone / far held poses update rarely
+    if(stLod.skip||!SimulationSystem.every(stLod.rate,sti)) continue;
     if(st.waist&&st.baseWaist) st.waist.quaternion.copy(st.baseWaist)
       .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*1.15+st.phase)*0.02))
       .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Z,Math.sin(t*0.47+st.phase*1.3)*0.02))
@@ -2416,6 +2783,8 @@ function updatePeople(dt,t){
   // at floor level on her spot) and the blob shadow tilts with
   // her, unnoticeably.
   for(var cwi=0;cwi<carSway.length;cwi++){ var cw=carSway[cwi], cph=cw.phase;
+    var cwLod=SimulationSystem.lodFor(cw.grp,player); // LOD: sway is absolute-time, so skipped steps cost nothing
+    if(cwLod.skip||!SimulationSystem.every(cwLod.rate,cwi)) continue;
     cw.grp.rotation.z=Math.sin(t*0.85+cph)*0.038;                    // ~2.2° lean, hip to hip
     cw.grp.rotation.x=Math.sin(t*0.57+cph*1.7)*0.018;                // gentle fore-aft rock
     cw.holder.position.y=cw.baseY+Math.sin(t*1.7+cph)*0.007;         // breath bob
@@ -2491,6 +2860,7 @@ function loadProp(file,opts){
       grp.position.set(opts.x,opts.groundY||0,opts.z);
       grp.rotation.y=opts.ry||0;
       scene.add(grp);
+      WorldSystem.trackStreamed(grp,file); // mansion props become unloadable streamed assets
       if(opts.collider) addCollider(opts.x,opts.z,opts.collider[0],opts.collider[1]);
       shadowTimer=performance.now(); // debounced in the frame loop
       if(opts.onDone) opts.onDone();
@@ -2775,7 +3145,7 @@ function loadStandingAnna(opts){
       // strips the colon from 'mixamorig:Spine2'/'mixamorig:Head';
       // the colon forms silently matched nothing)
       var entry={ waist:B['mixamorigSpine2'], head:B['mixamorigHead'], phase:opts.phase||0,
-        baseWaist:null, baseHead:null };
+        baseWaist:null, baseHead:null, grp:grp };
       function captureBase(){
         entry.baseWaist=entry.waist?entry.waist.quaternion.clone():null;
         entry.baseHead=entry.head?entry.head.quaternion.clone():null;
@@ -2913,7 +3283,7 @@ function buildAtmosphere(){
   floorGlow(-1.75,8.66,3.2,3.2,0xff2e63,0.07);   // stage two
   [-10,-5,0,5,10].forEach(function(x){ floorGlow(x,-2,4.8,3.6,0xffd9a0,0.045); }); // bay light pools
   if(softwareGL||reduceMotion) return;
-  var N=240, pos=new Float32Array(N*3); dustBase=new Float32Array(N*3);
+  var N=140, pos=new Float32Array(N*3); dustBase=new Float32Array(N*3);
   for(var i=0;i<N;i++){
     var bx=(Math.random()*22-11), by=0.3+Math.random()*4.2, bz=-7+Math.random()*13;
     dustBase[i*3]=bx; dustBase[i*3+1]=by; dustBase[i*3+2]=bz;
@@ -2980,9 +3350,10 @@ var MANS={fireLight:null,fireMats:[],fireLevel:0,chandLight:null,bulbMat:null,ch
    The doors never wait on any of this: the room shell is
    in-engine, the teleport is instant, and any furniture still
    in flight simply arrives a moment later. */
-var mansionQueue=[], mansionLoaded=false, mansionDraining=false;
+var mansionQueue=[], mansionLoaded=false, mansionDraining=false, mansionPropSpecs=[], mansionUnloaded=false;
 function loadMansionModels(){
   if(mansionLoaded||mansionDraining) return;
+  mansionUnloaded=false; WorldSystem.markLoaded('mansion');
   mansionDraining=true;
   drainMansionQueue();
 }
@@ -2994,7 +3365,10 @@ function drainMansionQueue(){
     if(--pending<=0){ settled=true; setTimeout(drainMansionQueue,300); }
   }
   batch.forEach(function(q){
-    var o=q[1], prev=o.onDone;
+    // clone the spec before wrapping onDone: the stored spec is
+    // reused verbatim if the zone unloads and re-streams later
+    var o={}, prev=q[1].onDone;
+    for(var k in q[1]) o[k]=q[1][k];
     o.onDone=function(){ if(prev) prev(); done(); };
     loadProp(q[0],o);
   });
@@ -3010,9 +3384,11 @@ function warmMansion(){
     camera.position.set(0,1.6,-30.4); camera.rotation.order='YXZ';
     camera.rotation.set(-0.02,0,0); camera.fov=105; camera.aspect=1.7;
     camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
+    WorldSystem.setPrewarm(scene,player,'mansion'); // zone culling must not hide the room from its own warm-up render
     renderer.setRenderTarget(rt);
     renderer.render(scene,camera);
     renderer.setRenderTarget(null);
+    WorldSystem.clearPrewarm(scene,player);
     camera.position.copy(pc); camera.rotation.copy(pr);
     camera.fov=pf; camera.aspect=pa; camera.updateProjectionMatrix();
     rt.dispose();
@@ -3119,7 +3495,7 @@ function tuneMansion(model){
 }
 function buildMansion(){
   var MX=0, MZ=-38;
-  function mProp(f,o){ mansionQueue.push([f,o]); }
+  function mProp(f,o){ mansionQueue.push([f,o]); mansionPropSpecs.push([f,o]); }
   var stoneMat=new THREE.MeshStandardMaterial({color:0x8d8578,roughness:0.85,envMapIntensity:0.4});
   var woodMat=new THREE.MeshStandardMaterial({color:0x4a2e1a,roughness:0.5,metalness:0.1,envMapIntensity:0.7});
   var goldMat=new THREE.MeshStandardMaterial({color:0xc9a24d,roughness:0.28,metalness:1,envMapIntensity:1.25});
@@ -3338,6 +3714,17 @@ function buildMansion(){
   // Anna in the mansion: standing by the piano, sitting by the fire
   loadStandingAnna({x:6.1,z:-41.3,ry:-2.25,collider:[0.3,0.3],clip:'assets/idle-stand-clip.glb',timeOffset:1.3});
   loadSeatedAnna({x:-6.5,z:-44.5,ry:Math.PI+0.06,seatH:0.48,anchor:'seat',floorY:0,feetY:0,timeOffset:4.1});
+  /* WorldSystem unload hook: when the streamed props are dropped
+     (memory pressure, or 45 s after leaving), the room returns to
+     its un-streamed state and the queue is rebuilt from the stored
+     specs, ready to stream again on the next approach. The shell,
+     lights, interactables and the two Annas stay — they are small
+     and shared with the garage. */
+  WorldSystem.unloaders.mansion=function(){
+    mansionLoaded=false; mansionDraining=false; mansionUnloaded=true;
+    mansionQueue=mansionPropSpecs.map(function(q){ return [q[0],q[1]]; });
+    MemorySystem.noteTrim();
+  };
 }
 buildChillArea(); loadAllGuests(); buildPolish(); buildMansion();
 
@@ -3463,7 +3850,7 @@ function teleport(x,z,yaw,msg){
 }
 var doorToMansion=addDecor('door',function(){ return 'Enter the mansion'; },
   new THREE.Vector3(10.6,1.2,-8.5), null,
-  function(it){ loadMansionModels(); teleport(0,-30.55,0,'The mansion — light the fire, play the piano, make yourself at home.');
+  function(it){ mansionUnloaded=false; loadMansionModels(); teleport(0,-30.55,0,'The mansion — light the fire, play the piano, make yourself at home.');
     it.on=false; it.target=0; }, true);
 var doorToGarage=addDecor('door',function(){ return 'Return to the garage'; },
   new THREE.Vector3(0,1.2,-30.35), null,
@@ -3792,7 +4179,17 @@ function step(dt,t){
   // mansion models stream in gently from the moment the player
   // enters the garage (see loadMansionModels — chained pairs,
   // never the whole set in one burst at the door)
-  if(!mansionLoaded&&started) loadMansionModels();
+  WorldSystem.update(scene,player,performance.now()); // zone streaming: only the player's zone renders
+  if(!mansionLoaded&&started&&!mansionUnloaded) loadMansionModels();
+  if(mansionUnloaded&&started){ // re-stream when the player walks back to the door
+    var mdx=player.x-10.6, mdz=player.z+9.5;
+    if(mdx*mdx+mdz*mdz<30){ mansionUnloaded=false; loadMansionModels(); }
+  }
+  if(WorldSystem.zone()==='mansion') WorldSystem.cancelUnload();
+  else if(mansionLoaded&&!mansionDraining&&!WorldSystem.unloaded.mansion)
+    WorldSystem.scheduleUnload(45000,function(){ if(player.z>=-20&&mansionLoaded&&!mansionDraining) WorldSystem.unloadStreamed('mansion'); });
+  if(mansionLoaded&&!mansionDraining&&player.z>=-20&&MemorySystem.evaluate(renderer,performance.now())==='critical')
+    WorldSystem.unloadStreamed('mansion'); // memory pressure: drop the room's props now, not in 45 s
   // mansion life: fire flicker, fountain water turning, a breath of chandelier sway
   if(MANS.fireLight) MANS.fireLight.intensity=MANS.fireLevel*(13+Math.sin(t*31)*2.6+Math.sin(t*13.7)*2.1);
   if(MANS.flames&&MANS.fireLevel>0.02){ MANS.flames.visible=true;
@@ -3801,8 +4198,11 @@ function step(dt,t){
   } else if(MANS.flames) MANS.flames.visible=false;
   if(MANS.waterDisc&&MANS.fountainLevel>0.02) MANS.waterDisc.rotation.z+=dt*0.7;
   if(MANS.waterFall) MANS.waterFall.rotation.y+=dt*0.4;
-  // dust motes: a slow drift on two axes, phased per mote
-  if(dustPts){ var dp=dustPts.geometry.attributes.position;
+  // dust motes: a slow drift on two axes, phased per mote —
+  // v22: updated at 1/3 rate (positions are a pure function of t,
+  // so skipped steps are invisible) and never in the lean/minimal
+  // tiers or the other zone
+  if(dustPts&&QualitySystem.tier!=='lean'&&QualitySystem.tier!=='minimal'&&WorldSystem.zone()==='garage'&&SimulationSystem.every(3)){ var dp=dustPts.geometry.attributes.position;
     for(var dmi=0;dmi<dp.count;dmi++){
       dp.array[dmi*3]=dustBase[dmi*3]+Math.sin(t*0.12+dmi*1.7)*0.22;
       dp.array[dmi*3+1]=dustBase[dmi*3+1]+Math.sin(t*0.22+dmi*1.3)*0.16;
@@ -3861,16 +4261,7 @@ if(window.visualViewport) window.visualViewport.addEventListener('resize',resize
 resize();
 
 var last=performance.now(), acc=0;
-step(1/60,0); // position the camera before the first frame is ever drawn
-/* Staged quality: the game boots 'lean' (plain renderer, no
-   transmissive glass) so the first frame is cheap on every device.
-   Sustained 25+ fps upgrades to 'full' — the pmndrs post chain plus
-   the Civic's real glass. Sustained under 12 fps drops to 'minimal'
-   (pixel ratio 1) and stays there. One-way steps, wide thresholds:
-   no flapping, and load jank is absorbed by the warmup window. */
-var leanMode=false;
-var quality='lean';
-var perfT0=performance.now(), perfFrames=0, perfWarm=true;
+try{ step(1/60,0); }catch(e){ ErrorGuard.report(e,'initial-step'); } // position the camera before the first frame is ever drawn
 function stripTransmission(){
   cars.forEach(function(c){
     if(c.allMats) c.allMats.forEach(function(m){ if(m.transmission) m.transmission=0; });
@@ -3881,26 +4272,68 @@ function restoreTransmission(){
     if(c.allMats) c.allMats.forEach(function(m){ if(m.userData._trans) m.transmission=m.userData._trans; });
   });
 }
-function perfCheck(now){
-  perfFrames++;
-  var el=now-perfT0;
-  if(el<2500) return;
-  var fps=perfFrames/(el/1000);
-  if(perfWarm){ perfWarm=false; }
-  else if(quality==='lean'&&!softwareGL){
-    // v17: phones may earn the post chain too, but the bar is far
-    // higher (45 fps sustained) and the downgrade path below still
-    // pulls it the moment the frame rate sags — glow sprites carry
-    // the look everywhere else
-    if(fps>=(touchDev?45:25)){ restoreTransmission(); buildComposer(); quality='full'; }
-    else if(fps<12){ leanMode=true; renderer.setPixelRatio(1); resize(); quality='minimal'; }
+/* ---- QualitySystem apply(): the renderer-side half of the
+   adaptive tiers. Registered here, where renderer/scene/camera
+   live, so QualitySystem itself stays content-free.
+   full:     native-ish pixel ratio, 2048 shadows, post chain +
+             transmissive glass (earned, never the boot state)
+   balanced: the boot tier — plain renderer, 1024 shadows, dust
+   lean:     0.8 pixel ratio on touch, dust off, glass off
+   minimal:  0.65 pixel ratio, shadows off, shorter camera far —
+             the tier that exists so a weak phone keeps playing
+             instead of getting its tab killed */
+QualitySystem.setApply(function(tier){
+  quality=tier;
+  var pr=softwareGL?0.5
+    :tier==='full'?(touchDev?1:Math.min(window.devicePixelRatio||1,1.25))
+    :tier==='balanced'?(touchDev?0.92:1)
+    :tier==='lean'?(touchDev?0.8:0.9)
+    :(touchDev?0.65:0.78);
+  renderer.setPixelRatio(pr);
+  if(tier==='minimal'){ renderer.shadowMap.enabled=false; }
+  else{
+    renderer.shadowMap.enabled=true;
+    var sz=tier==='full'?2048:1024;
+    if(keySpot.shadow.mapSize.x!==sz){
+      keySpot.shadow.mapSize.set(sz,sz);
+      if(keySpot.shadow.map){ try{ keySpot.shadow.map.dispose(); }catch(e){} keySpot.shadow.map=null; }
+    }
+    renderer.shadowMap.needsUpdate=true;
   }
-  else if(quality==='full'&&fps<12){
-    leanMode=true; composer=null; stripTransmission(); quality='minimal';
-  }
-  perfT0=now; perfFrames=0;
+  if(tier==='full') restoreTransmission(); else stripTransmission();
+  if(tier==='full'){ buildComposer(); }
+  else if(composer){ var oldC=composer; composer=null; try{ if(oldC.dispose) oldC.dispose(); }catch(e){} }
+  if(dustPts) dustPts.visible=(tier==='full'||tier==='balanced');
+  camera.far=tier==='minimal'?58:80; camera.updateProjectionMatrix();
+  resize();
+});
+QualitySystem.tier=softwareGL?'minimal':'balanced';
+QualitySystem.applyCurrent();
+/* a nearly-flat battery caps the ceiling at 'lean' — thermal and
+   battery throttling are how long sessions die on phones */
+if(navigator.getBattery){
+  try{
+    navigator.getBattery().then(function(b){
+      if(!b.charging&&b.level<0.2){
+        QualitySystem.batteryCap='lean';
+        if(QualitySystem.rank[QualitySystem.tier]>QualitySystem.rank.lean) QualitySystem.setTier('lean','low-battery');
+      }
+    }).catch(function(){});
+  }catch(e){ /* no battery API — no cap */ }
 }
+/* if the GPU context is lost (the classic phone tab-kill
+   precursor), keep the page alive and come back at minimal */
+canvas.addEventListener('webglcontextlost',function(e){
+  e.preventDefault();
+  ErrorGuard.report(new Error('Graphics context lost'),'webgl',true);
+  QualitySystem.tier='minimal';
+},false);
+canvas.addEventListener('webglcontextrestored',function(){
+  try{ QualitySystem.applyCurrent(); renderer.shadowMap.needsUpdate=true; resize(); }catch(e){ ErrorGuard.report(e,'webgl-restore'); }
+},false);
+
 var lastRenderMs=0;
+PerfSystem.begin(performance.now());
 function frame(now){
   requestAnimationFrame(frame);
   // software renderers: cap at ~12fps. Rendering flat-out in software
@@ -3911,28 +4344,44 @@ function frame(now){
   // page's own load and any capture/teardown waiting on it.
   if(softwareGL&&now-lastRenderMs<(started?80:250)){ last=now; return; }
   lastRenderMs=now;
-  perfCheck(now);
+  if(document.hidden){ last=now; acc=0; PerfSystem.begin(now); return; }
+  var rawMs=now-last; last=now;
+  PerfSystem.frame(now,Math.min(rawMs,250));
+  SimulationSystem.tick();
   // the chill-area props stream in over a second or two; refresh the
   // (static, expensive) shadow map once they have all landed, not
   // once per file — a shadow render is a full scene pass, and a
   // dozen of them back to back can stall a weak device for minutes
   if(shadowTimer&&now-shadowTimer>900){ renderer.shadowMap.needsUpdate=true; shadowTimer=0; }
-  if(document.hidden){ last=now; acc=0; return; }
-  var dt=(now-last)/1000; last=now;
-  if(dt>0.1)dt=0.1; acc+=dt;
+  var dt=rawMs/1000; if(dt>0.1)dt=0.1; acc+=dt;
+  /* simulation and render are guarded SEPARATELY: a throwing step
+     can no longer skip the frame's render, a throwing render can
+     no longer kill the loop, and the fixed-step accumulator is
+     capped at 3 steps with the backlog dropped — the old loop's
+     catch-up spiral (6 steps per frame on a struggling phone,
+     making every frame later than the last) is gone. */
   try{
-    if(acc<=1/60){ step(1/60,now/1000); acc=0; }
-    while(acc>1/60){ step(1/60,now/1000); acc-=1/60;
-      // software renderers never catch up by piling on extra steps:
-      // one step per frame there, simulation just runs a touch slow
-      if(softwareGL){ acc=0; break; } }
+    var steps=0;
+    while(acc>=1/60&&steps<3){ step(1/60,now/1000); acc-=1/60; steps++; if(softwareGL){ acc=0; break; } }
+    if(steps===0) step(1/60,now/1000);
+    if(acc>1/30) acc=1/30;
+  }catch(err){ ErrorGuard.report(err,'simulation'); acc=0; }
+  // adaptive quality reads clean windows only — never judge the
+  // device by frames it spent parsing a streamed model
+  var win=PerfSystem.window(now);
+  if(win&&!softwareGL&&AssetSystem.stats().active===0) QualitySystem.evaluate(win,now);
+  MemorySystem.evaluate(renderer,now);
+  try{
     if(composer){
       try{ composer.render(); }
-      catch(pe){ composer=null; renderer.render(scene,camera); } // polish layer failed — keep playing without it
+      catch(pe){
+        ErrorGuard.report(pe,'composer');
+        var badC=composer; composer=null;
+        try{ if(badC.dispose) badC.dispose(); }catch(e){}
+        renderer.render(scene,camera); // polish layer failed — keep playing without it
+      }
     } else renderer.render(scene,camera);
-  }catch(err){
-    errBox.style.display='block'; errBox.textContent='Render error: '+err.message;
-  }
+  }catch(err){ ErrorGuard.report(err,'render'); QualitySystem.stepDown('render-error'); }
 }
 requestAnimationFrame(frame);
 }
