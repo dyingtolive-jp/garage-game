@@ -15,7 +15,7 @@
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0;height:100%;overflow:hidden;background:#0b0c0e;font-family:"Barlow","Segoe UI",system-ui,sans-serif;color:var(--ink);
     touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;}
-  #scene{position:fixed;inset:0;display:block;touch-action:none;}
+  #scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;}
   #touchUI,#touchUI *{touch-action:none;}
   button{font-family:inherit;cursor:pointer;}
   .noselect{user-select:none;-webkit-user-select:none;}
@@ -27,16 +27,23 @@
   body.playing #crosshair{opacity:1;}
 
   #foundChip{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;background:var(--plate);
-    border:1px solid var(--line);padding:7px 12px;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:17px;
-    letter-spacing:.08em;font-weight:600;}
+    border:1px solid var(--line);border-radius:6px;padding:7px 12px 8px;font-family:"Barlow Condensed","Arial Narrow",sans-serif;
+    letter-spacing:.08em;font-weight:600;text-align:right;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+  #foundChip .objLabel{display:block;font-size:10.5px;letter-spacing:.24em;color:var(--dim);font-weight:600;margin-bottom:1px;}
+  #foundChip .objCount{font-size:17px;}
   #foundChip b{color:var(--amber);font-weight:700;}
+  #muteBtn{position:absolute;top:calc(66px + env(safe-area-inset-top));right:12px;pointer-events:auto;background:var(--plate);
+    border:1px solid var(--line);border-radius:6px;color:var(--dim);padding:6px 11px;font-family:"Barlow Condensed","Arial Narrow",sans-serif;
+    font-size:12.5px;font-weight:600;letter-spacing:.14em;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+  #muteBtn:active{color:var(--ink);border-color:var(--amber);}
   #foundChip.pulse{animation:pulse .35s ease;}
   @keyframes pulse{40%{transform:scale(1.07);}}
 
   /* car info plate */
   #carPlate{position:absolute;left:12px;top:calc(10px + env(safe-area-inset-top));max-width:min(320px,72vw);
-    background:var(--plate);border:1px solid var(--line);border-left:3px solid var(--amber);
-    padding:10px 14px 11px;opacity:0;transform:translateY(-4px);transition:opacity .25s,transform .25s;}
+    background:var(--plate);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:6px;
+    padding:10px 14px 11px;opacity:0;transform:translateY(-4px);transition:opacity .25s,transform .25s;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
   #carPlate.show{opacity:1;transform:none;}
   #carPlate .bay{font-size:11px;letter-spacing:.22em;color:var(--amber);font-weight:600;}
   #carPlate h2{margin:2px 0 3px;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:26px;line-height:1.02;font-weight:700;letter-spacing:.02em;}
@@ -50,17 +57,19 @@
 
   /* interact prompt */
   #prompt{position:absolute;left:50%;bottom:calc(118px + env(safe-area-inset-bottom));transform:translate(-50%,8px);
-    background:var(--plate);border:1px solid var(--line);padding:9px 16px;display:flex;align-items:center;gap:10px;
-    opacity:0;transition:opacity .18s,transform .18s;white-space:nowrap;max-width:92vw;}
+    background:var(--plate);border:1px solid var(--line);border-radius:6px;padding:9px 16px;display:flex;align-items:center;gap:10px;
+    opacity:0;transition:opacity .18s,transform .18s;white-space:nowrap;max-width:92vw;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
   #prompt.show{opacity:1;transform:translate(-50%,0);}
   #prompt .key{background:var(--amber);color:#141414;font-weight:700;font-family:"Barlow Condensed","Arial Narrow",sans-serif;
     font-size:16px;padding:2px 9px;letter-spacing:.05em;}
   #prompt .txt{font-size:15.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;}
 
   /* toast */
-  #toast{position:absolute;left:50%;top:16%;transform:translate(-50%,-6px);background:var(--plate);
+  #toast{position:absolute;left:50%;top:16%;transform:translate(-50%,-6px);background:var(--plate);border-radius:6px;
     border:1px solid var(--amber);color:var(--ink);padding:10px 18px;font-family:"Barlow Condensed","Arial Narrow",sans-serif;
-    font-size:19px;letter-spacing:.06em;font-weight:600;opacity:0;transition:opacity .3s,transform .3s;text-align:center;max-width:88vw;}
+    font-size:19px;letter-spacing:.06em;font-weight:600;opacity:0;transition:opacity .3s,transform .3s;text-align:center;max-width:88vw;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
   #toast.show{opacity:1;transform:translate(-50%,0);}
 
   /* ---------- touch controls ---------- */
@@ -90,20 +99,40 @@
   #vignette{position:fixed;inset:0;z-index:4;pointer-events:none;
     background:radial-gradient(ellipse at 50% 42%,transparent 52%,rgba(0,0,0,.38) 100%),
                linear-gradient(rgba(0,0,0,.14),transparent 18%,transparent 84%,rgba(0,0,0,.22));}
-  /* minimal start menu: title + one button, nothing else. The
-     button reads LOADING while the game preloads behind it and
-     turns into START when the load settles. */
+  /* start menu: big title, the objective in one line, the three
+     cars by bay, one button. The button reads LOADING while the
+     game preloads behind it and turns into START when the load
+     settles. */
   #startCard{position:fixed;z-index:10;left:50%;top:50%;transform:translate(-50%,-50%);
-    width:min(320px,calc(100vw - 48px));border:1px solid var(--line);
-    background:rgba(8,9,11,.85);padding:28px 24px 24px;text-align:center;backdrop-filter:blur(6px);}
-  #startCard h1{margin:0;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:40px;
-    font-weight:700;letter-spacing:.04em;line-height:.95;text-shadow:0 1px 8px rgba(0,0,0,.8);}
+    width:min(452px,calc(100vw - 40px));max-height:calc(100dvh - 32px);overflow-y:auto;border:1px solid var(--line);border-radius:10px;
+    background:linear-gradient(165deg,rgba(17,18,21,.95),rgba(8,9,11,.92));padding:30px 30px 22px;text-align:left;
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 24px 70px rgba(0,0,0,.55);}
+  #startCard h1{margin:0;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:clamp(52px,13vw,72px);
+    font-weight:700;letter-spacing:.03em;line-height:.92;text-shadow:0 2px 14px rgba(0,0,0,.85);}
   #startCard h1 span{color:var(--amber);}
-  #enterBtn{margin-top:20px;width:100%;min-height:52px;background:var(--amber);color:#161616;border:0;
-    font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:21px;font-weight:700;letter-spacing:.14em;}
+  #startCard .tagline{margin:12px 0 0;font-size:15px;line-height:1.5;color:#cfccc2;}
+  #startCard .tagline b{color:var(--amber);font-weight:600;}
+  #lineup{margin:18px 0 2px;border-top:1px solid var(--line);}
+  #lineup .carRow{display:flex;align-items:baseline;gap:12px;padding:9px 2px;border-bottom:1px solid var(--line);}
+  #lineup .bayNo{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:12.5px;font-weight:700;letter-spacing:.18em;color:var(--amber);white-space:nowrap;}
+  #lineup .carName{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:19px;font-weight:600;letter-spacing:.03em;line-height:1.1;}
+  #lineup .carTag{margin-left:auto;font-size:12px;color:var(--dim);white-space:nowrap;}
+  #enterBtn{margin-top:20px;width:100%;min-height:54px;background:var(--amber);color:#161616;border:0;border-radius:6px;
+    font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:22px;font-weight:700;letter-spacing:.16em;}
   #enterBtn:active{background:#ffc35e;}
   #enterBtn:disabled{background:#33363c;color:#8f8c84;cursor:wait;}
-  #startCard .credits{margin:14px 0 0;font-size:10.5px;line-height:1.55;color:var(--dim);}
+  #startCard .controls{margin:14px 0 0;font-size:12.5px;line-height:1.6;color:var(--dim);}
+  #startCard .controls b{color:var(--ink);font-weight:600;}
+  #startCard .credits{margin:12px 0 0;font-size:10px;line-height:1.55;color:#7d7a71;}
+  @media (max-height:520px){
+    #startCard{padding:18px 22px 14px;}
+    #startCard h1{font-size:44px;}
+    #startCard .tagline{display:none;}
+    #lineup{margin-top:10px;}
+    #lineup .carRow{padding:6px 2px;}
+    #enterBtn{margin-top:12px;min-height:46px;}
+    #startCard .controls{display:none;}
+  }
   body.playing #startCard{display:none;}
 
   #errBox{position:fixed;z-index:50;left:12px;right:12px;top:12px;background:#3d0f0a;border:1px solid var(--red);
@@ -123,7 +152,8 @@
     <div class="note" id="plateNote"></div>
     <div class="states" id="plateStates"></div>
   </div>
-  <div id="foundChip">FOUND <b id="foundNum">0/8</b></div>
+  <div id="foundChip"><span class="objLabel">OBJECTIVE · FIND ALL 8</span><span class="objCount">FOUND <b id="foundNum">0/8</b></span></div>
+  <button id="muteBtn" aria-label="Mute sound">SOUND ON</button>
   <div id="prompt"><span class="key">E</span><span class="txt" id="promptTxt">Pop the hood</span></div>
   <div id="toast"></div>
 </div>
@@ -140,7 +170,14 @@
 
 <div id="startCard">
   <h1>THE <span>GARAGE</span></h1>
+  <p class="tagline">Three bays, eight interactions hiding in plain sight — <b>pop the hoods, flip the lights, start the engines</b> and find them all.</p>
+  <div id="lineup">
+    <div class="carRow"><span class="bayNo">BAY 2</span><span class="carName">Nissan Silvia S15</span><span class="carTag">drift build</span></div>
+    <div class="carRow"><span class="bayNo">BAY 3</span><span class="carName">1998 Honda Civic</span><span class="carTag">your car</span></div>
+    <div class="carRow"><span class="bayNo">BAY 4</span><span class="carName">Lamborghini Gallardo</span><span class="carTag">V10</span></div>
+  </div>
   <button id="enterBtn" disabled>LOADING&hellip;</button>
+  <p class="controls"><b>WASD</b> walk &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>E</b> interact &nbsp;·&nbsp; <b>Shift</b> run &nbsp;—&nbsp; on touch, use the stick and buttons.</p>
   <p class="credits">Cars: blender aboba · Socksthecat · Artem P — People: Jungle Jim · BadutSaurus · reizibarrientos — Japan set: ydvisual · Bazylonator · abelGB · tokyo45otaku · Vermos · chertpaderi · ditovirnantio · seirogan · sa6 — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — all CC BY 4.0 · HDRI: Poly Haven CC0</p>
 </div>
 
@@ -157,8 +194,8 @@ window.onerror=function(msg,src,line){ errBox.style.display='block'; errBox.text
 window.addEventListener('unhandledrejection',function(e){ errBox.style.display='block'; errBox.textContent='Error: '+(e.reason&&e.reason.message||e.reason); });
 
 /* ================= AUDIO (all synthesized) ================= */
-var AC=null;
-function audio(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC&&AC.state==='suspended')AC.resume(); return AC; }
+var AC=null, MUTED=false;
+function audio(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(AC&&AC.state==='suspended'&&!MUTED)AC.resume(); return AC; }
 function noiseBuffer(ac,dur){ var b=ac.createBuffer(1,ac.sampleRate*dur,ac.sampleRate),d=b.getChannelData(0); for(var i=0;i<d.length;i++)d[i]=Math.random()*2-1; return b; }
 function clunk(vol,freq){
   var ac=audio(); if(!ac)return; var t=ac.currentTime;
@@ -261,6 +298,59 @@ function startEngineAudio(car){
 }
 function stopEngineAudio(car){ if(car._audio){ car._audio.stop(); car._audio=null; } }
 
+/* ---- proximity engine voices (v17 refresh): each car also has a
+   whisper-quiet idle voice of its own — same per-car character as
+   the full engine (the spec's idleHz, sub-octave weight) through a
+   low lowpass — that fades in as you walk up to the car and out as
+   you leave. It never doubles the real engine: while a car's
+   engine toggle is on, its proximity voice stays silent. Popping
+   a hood gets a short idle swell with a little blip, like someone
+   just woke the motor up. All of it obeys the HUD mute. ---- */
+var proxVoices={}, lastProxT=0, PROX=null; // PROX is wired by boot() — cars/player/started live in its scope
+function proxVoice(spec){
+  if(proxVoices[spec.id]) return proxVoices[spec.id];
+  if(!AC) return null;
+  var ac=AC;
+  var g=ac.createGain(); g.gain.value=0;
+  var lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=230; lp.Q.value=1.1;
+  lp.connect(g); g.connect(ac.destination);
+  var o1=ac.createOscillator(); o1.type='sawtooth'; o1.frequency.value=spec.idleHz;
+  var og1=ac.createGain(); og1.gain.value=0.5; o1.connect(og1); og1.connect(lp);
+  var o2=ac.createOscillator(); o2.type='square'; o2.frequency.value=spec.idleHz*0.5;
+  var og2=ac.createGain(); og2.gain.value=0.32; o2.connect(og2); og2.connect(lp);
+  o1.start(); o2.start();
+  var v={gain:g}; proxVoices[spec.id]=v; return v;
+}
+function updateProxAudio(t){
+  if(t-lastProxT<0.15) return; lastProxT=t;
+  if(!PROX||!AC) return;
+  PROX.cars.forEach(function(car){
+    var v=proxVoice(car.spec); if(!v) return;
+    var dx=PROX.player.x-car.spec.x, dz=PROX.player.z-(-2), d=Math.sqrt(dx*dx+dz*dz);
+    var target=(!PROX.isStarted()||MUTED||car.engineOn)?0:Math.max(0,(3.6-d)/3.6)*0.05;
+    v.gain.gain.setTargetAtTime(target,AC.currentTime,0.25);
+  });
+}
+function hoodBlip(spec){
+  var ac=audio(); if(!ac||MUTED) return; var t=ac.currentTime;
+  var g=ac.createGain(); g.gain.value=0;
+  var lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=260; lp.Q.value=1.2;
+  lp.connect(g); g.connect(ac.destination);
+  var o=ac.createOscillator(); o.type='sawtooth'; o.frequency.value=spec.idleHz;
+  var o2=ac.createOscillator(); o2.type='square'; o2.frequency.value=spec.idleHz*0.5;
+  var og2=ac.createGain(); og2.gain.value=0.4;
+  o.connect(lp); o2.connect(og2); og2.connect(lp);
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.055,t+0.18);
+  o.frequency.setValueAtTime(spec.idleHz,t);
+  o.frequency.linearRampToValueAtTime(spec.idleHz*1.5,t+0.45);
+  o.frequency.linearRampToValueAtTime(spec.idleHz,t+0.9);
+  o2.frequency.setValueAtTime(spec.idleHz*0.5,t);
+  o2.frequency.linearRampToValueAtTime(spec.idleHz*0.75,t+0.45);
+  o2.frequency.linearRampToValueAtTime(spec.idleHz*0.5,t+0.9);
+  g.gain.linearRampToValueAtTime(0,t+1.05);
+  o.start(t); o2.start(t); o.stop(t+1.1); o2.stop(t+1.1);
+}
+
 /* Defer all heavy scene work until after DOMContentLoaded so the page
    document finishes loading immediately, even on a slow renderer. */
 function safeBoot(){
@@ -320,7 +410,7 @@ renderer.toneMapping=THREE.ACESFilmicToneMapping;
    outfits were the first thing this scene clipped to white under
    the key spot — the cars' darker, saturated paint survived, the
    girls didn't. The whole light rig below is rebalanced with it. */
-renderer.toneMappingExposure=1.0;
+renderer.toneMappingExposure=1.07; /* v17 refresh: a touch more exposure — the glow pass below carries the neon, so the room can afford it without clipping skin */
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 /* Software renderers (SwiftShader / llvmpipe — CI rigs, VMs, ancient
    laptops) can't carry the post chain or transmissive glass at any
@@ -337,7 +427,7 @@ if(softwareGL){ renderer.setPixelRatio(0.5); renderer.shadowMap.enabled=false; }
 
 var scene=new THREE.Scene();
 scene.background=new THREE.Color(0x0b0c0e);
-scene.fog=new THREE.Fog(0x0b0c0e,20,46);
+scene.fog=new THREE.Fog(0x0b0c0e,17,44); // v17: a whisper closer, so the far wall falls off into depth
 
 var camera=new THREE.PerspectiveCamera(72,1,0.05,80);
 
@@ -607,6 +697,28 @@ var shaftTex=makeTex(64,256,function(g,w,h){
   gr.addColorStop(0,'rgba(255,240,210,0.55)'); gr.addColorStop(0.6,'rgba(255,240,210,0.13)'); gr.addColorStop(1,'rgba(255,240,210,0)');
   g.fillStyle=gr; g.fillRect(0,0,w,h);
 });
+/* soft radial glow sprite/plane texture — the cheap half of the
+   v17 lighting pass. Bloom (desktop, and phones that prove they
+   can carry it) makes emissives glow in the framebuffer; these
+   additive glows make the neon, tubes and stage lamps read as
+   glowing on EVERY device, including the lean path, for the cost
+   of a handful of transparent planes. */
+var glowTex=makeTex(128,128,function(g,w,h){
+  var gr=g.createRadialGradient(64,64,2,64,64,62);
+  gr.addColorStop(0,'rgba(255,255,255,0.9)'); gr.addColorStop(0.4,'rgba(255,255,255,0.26)'); gr.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=gr; g.fillRect(0,0,w,h);
+});
+function glowSprite(color,scale,opacity){
+  var m=new THREE.SpriteMaterial({map:glowTex,color:color,transparent:true,opacity:opacity,depthWrite:false,blending:THREE.AdditiveBlending});
+  var s=new THREE.Sprite(m); s.scale.set(scale,scale,1); return s;
+}
+/* a soft pool of coloured light lying on the concrete — reads as
+   the sign's reflection in the polished floor */
+function floorGlow(x,z,sx,sz,color,opacity){
+  var m=new THREE.Mesh(new THREE.PlaneGeometry(sx,sz),
+    new THREE.MeshBasicMaterial({map:glowTex,color:color,transparent:true,opacity:opacity,depthWrite:false,blending:THREE.AdditiveBlending}));
+  m.rotation.x=-Math.PI/2; m.position.set(x,0.018,z); m.renderOrder=3; scene.add(m); return m;
+}
 var photoLoader=new THREE.TextureLoader();
 function photoTex(path){
   var t=photoLoader.load(path);
@@ -731,7 +843,7 @@ var colliders=[]; // {minX,maxX,minZ,maxZ}
 function addCollider(cx,cz,hw,hd){ colliders.push({minX:cx-hw,maxX:cx+hw,minZ:cz-hd,maxZ:cz+hd}); }
 
 var floor=new THREE.Mesh(new THREE.PlaneGeometry(GAR.W,GAR.D),
-  new THREE.MeshStandardMaterial({map:floorTex,roughnessMap:floorRoughTex,roughness:1.0,metalness:0.12,envMapIntensity:0.75}));
+  new THREE.MeshStandardMaterial({map:floorTex,roughnessMap:floorRoughTex,roughness:1.0,metalness:0.22,envMapIntensity:0.95}));
 floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
 
 var wallMat=new THREE.MeshStandardMaterial({map:wallTex,roughness:0.94,envMapIntensity:0.35});
@@ -761,8 +873,9 @@ for(var bx=-12;bx<=12;bx+=4){
   var fix=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.09,0.5),darkMetal);
   fix.position.set(x,GAR.H-0.32,-2); scene.add(fix);
   var tube=new THREE.Mesh(new THREE.BoxGeometry(2.2,0.04,0.36),
-    new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffe9c4,emissiveIntensity:2.4}));
+    new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xffe9c4,emissiveIntensity:3.2}));
   tube.position.set(x,GAR.H-0.38,-2); scene.add(tube);
+  var tubeGlow=glowSprite(0xffd9a0,3.4,0.16); tubeGlow.position.set(x,GAR.H-0.52,-2); scene.add(tubeGlow);
 });
 /* Particles removed (v16): no dust/particle systems anywhere in
    the scene — one less per-frame cost on every renderer, and the
@@ -789,6 +902,10 @@ var neon=new THREE.Mesh(new THREE.PlaneGeometry(6.4,1.2),
   new THREE.MeshStandardMaterial({map:neonTex,emissive:0xffffff,emissiveMap:neonTex,emissiveIntensity:1.15,color:0x222222}));
 neon.position.set(0,3.6,-GAR.D/2+0.06); scene.add(neon);
 var neonLight=new THREE.PointLight(0xff7a3a,26,11,1.8); neonLight.position.set(0,3.4,-8.6); scene.add(neonLight);
+// halo plane behind the sign's tubes — flickers with the sign in the loop
+var neonGlowMat=new THREE.MeshBasicMaterial({map:glowTex,color:0xff7a3a,transparent:true,opacity:0.3,depthWrite:false,blending:THREE.AdditiveBlending});
+var neonGlow=new THREE.Mesh(new THREE.PlaneGeometry(8.4,2.7),neonGlowMat);
+neonGlow.position.set(0,3.6,-GAR.D/2+0.14); scene.add(neonGlow);
 // posters — full photo prints in black frames + two canvas prints
 function photoPoster(path,w,h){
   var grp=new THREE.Group();
@@ -1854,6 +1971,7 @@ function loadDancer(){
       // colour-fix maths from the doubled pass still holds — a
       // soft pink wash, no white blow-out on her skin or top
       var lamp=new THREE.PointLight(0xff5c8a,9,10,1.8); lamp.position.set(0,4.7,0); stage.add(lamp);
+      var lampGlow=glowSprite(0xff5c8a,2.4,0.5); lampGlow.position.set(0,4.7,0); stage.add(lampGlow);
       addCollider(10.4,1.6,1.45,1.45);
       loader.load('assets/pole.glb',function(pg){
         var pole=pg.scene;
@@ -1920,6 +2038,7 @@ function loadDancer2(){
         new THREE.MeshStandardMaterial({color:0x1a050c,emissive:0xff2e63,emissiveIntensity:2.2,roughness:0.4}));
       rim.rotation.x=Math.PI/2; rim.position.y=0.16; stage.add(rim);
       var lamp=new THREE.PointLight(0xff5c8a,9,10,1.8); lamp.position.set(0,4.7,0); stage.add(lamp);
+      var lampGlow=glowSprite(0xff5c8a,2.4,0.5); lampGlow.position.set(0,4.7,0); stage.add(lampGlow);
       addCollider(-10.55,1.6,1.45,1.45);
       loader.load('assets/pole.glb',function(pg){
         var pole=pg.scene;
@@ -1986,36 +2105,33 @@ function updatePeople(dt,t){
   if(dancer2){
     if(dancer2.mixer) dancer2.mixer.update(dt);
   }
-  // seated Annas: procedural idle over the static pose — breathing,
-  // slow anxious head turns, and one sitter's foot tap
-  for(var sai=0;sai<seatedAnnas.length;sai++){ var sa=seatedAnnas[sai];
-    if(sa.waist&&sa.baseWaist) sa.waist.quaternion.copy(sa.baseWaist)
-      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*1.15+sa.phase)*0.02));
-    if(sa.head&&sa.baseHead) sa.head.quaternion.copy(sa.baseHead)
-      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Y,Math.sin(t*0.27+sa.phase)*0.17))
-      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*0.83+sa.phase*2)*0.03));
-    if(sa.tap&&sa.calf&&sa.baseCalf) sa.calf.quaternion.copy(sa.baseCalf)
-      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*6.2+sa.phase)*0.05));
-  }
-  // Alina's clip and the standing guests' pose clips advance.
+  // The bench sitters need no procedural layer any more: their
+  // sitting idle is a real clip, advanced with the other guest
+  // mixers just below.
+  // Alina's clip and the standing guests' clips advance.
   // On a software renderer the guest mixers advance at half rate
   // (double dt every other step): the loop reads identically, and
   // the CPU saving keeps weak devices responsive.
   jpHalf=!jpHalf;
   if(!softwareGL||jpHalf){ var jdt=softwareGL?dt*2:dt;
     for(var jpi=0;jpi<jpMixers.length;jpi++) jpMixers[jpi].update(jdt); }
-  // standing Annas: the same quiet idle as the sitters, upright —
-  // a slow breath at the waist and unhurried head turns, phased
-  // per guest so the four of them never move in sync. This runs
-  // AFTER the pose mixers above on purpose: each guest's base
-  // quaternions were captured from her POSED bones, so the idle
-  // layers on top of the Mixamo pose instead of fighting it.
+  // standing Annas in a HELD pose (opts.pose guests — none are
+  // currently placed; the car-row pair play a looping clip and
+  // stay out of this list): a slow breath at the waist and
+  // unhurried head turns, phased per guest so they never move
+  // in sync. This runs AFTER the mixers above on purpose: each
+  // guest's base quaternions were captured from her POSED
+  // bones, so the idle layers on top of the Mixamo pose
+  // instead of fighting it.
   for(var sti=0;sti<standingAnnas.length;sti++){ var st=standingAnnas[sti];
     if(st.waist&&st.baseWaist) st.waist.quaternion.copy(st.baseWaist)
-      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*1.15+st.phase)*0.018));
+      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*1.15+st.phase)*0.02))
+      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Z,Math.sin(t*0.47+st.phase*1.3)*0.02))
+      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Y,Math.sin(t*0.19+st.phase)*0.035));
     if(st.head&&st.baseHead) st.head.quaternion.copy(st.baseHead)
       .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Y,Math.sin(t*0.23+st.phase*1.7)*0.22))
-      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*0.71+st.phase*2)*0.03));
+      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*0.71+st.phase*2)*0.03))
+      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Z,Math.sin(t*0.39+st.phase*2.6)*0.045));
   }
 }
 
@@ -2024,27 +2140,22 @@ function updatePeople(dt,t){
    capsule girl used to sit on a stool — is now a Japanese chill
    area. The guests are Alina Ip (Jungle Jim) and ANNA herself:
    the four identical guests who used to stand here are GONE
-   (files deleted), and in their places stand four clones of the
-   nude walker woman — see loadStandingAnna below. (florah's
+   (files deleted), and in their places stand clones of the
+   nude walker woman — two seated on the benches, two standing
+   by the cars; see loadSeatedAnna / loadStandingAnna below. (florah's
    brown-dress guest was REMOVED in v16: her clip holds her feet
    0.92 m off the floor for its entire loop — she floated,
    Collin spotted it, she's out, file and all.)
    All files verified in-file
    before shipping (skins, joint counts, clip names/durations) and
    meshopt + WebP optimised at build time.
-   · The bench sitters are ANNA (v16, Collin's call) — posed
-     seated bone-by-bone at load, per-bench heights measured;
-     see loadSeatedAnna below. The lookalike sitting guests they
-     replaced sank into the benches (their clip's hip height
-     matched neither bench's seat).
-   · Four standing ANNA clones: two by the benches with the
-     sitters, one flanking the S15, one flanking the Lambo —
-     each facing her car, each on Anna's Mixamo rig in her own
-     held standing pose, with the bench sitters' breathing /
-     head-turn idle layered over it, no walk cycle. (The two
-     car-row guests used to stand at the Civic's nose and in
-     the middle of the aisle, filling the spawn view; they were
-     moved out to the flanks.)
+   · The bench sitters are ANNA on her Mixamo rig, playing a
+     real sitting idle clip, placed per bench from the posed
+     figure's own measurements; see loadSeatedAnna below.
+   · Two standing ANNA clones flank the car row (S15 and
+     Lambo), each facing her car, playing the natural standing
+     idle clip — the two standing posers who used to flank the
+     benches are deleted, and nobody stands there now.
      Alina (22.6 s full-body clip) at the S15.
    Decor (all real CC BY files, measured and grounded from their
    own bounding boxes at load): chertpaderi garden bench +
@@ -2187,90 +2298,105 @@ function buildChillArea(){
     },undefined,function(){}); });
   }catch(e){ /* signs simply absent */ }
 }
-/* ---- the bench sitters (v16): Anna herself, seated ----
-   Collin's call: the bench sitters are the nude walker woman,
-   waiting / chilling on the benches. Anna's file carries no sit
-   clip, so she is posed bone-by-bone at load. Every angle was
-   SOLVED numerically against her real skeleton before shipping:
-   thigh +95° / calf −95° puts her knees forward and level with
-   her hips and her feet flat under them (the taller station
-   bench gets +72°/−72°, a high-stool sit so her feet still
-   reach the floor); upperarm +35° with a ∓30° inward roll lands
-   her hands on her thighs (measured: hand height = pelvis +
-   0.05 m, over the thigh). Placement is measured too: her
-   seated pelvis sits 0.929 m up in holder space, butt depth
-   0.10 m, and each holder drops by exactly (pelvis − butt −
-   seat + 1 cm press) for its bench's measured seat height —
-   garden bench 0.43 m, station bench 0.59 m — so she sits ON
-   the seat, not in it. Idle life is layered on in updatePeople:
-   breathing, slow anxious head turns, a foot tap on sitter 2. */
-var seatedAnnas=[];
+/* ---- the bench sitters: Anna on the Mixamo rig, playing a
+   real sitting idle ----
+   The bone-by-bone static sit these two used to hold (posed on
+   the walker's CC rig, with procedural breathing layered over
+   it) is REPLACED by Mixamo's Sitting Idle (idle-sit-clip.glb,
+   193 frames, hands resting on thighs), played rotation-only
+   on Anna's Mixamo mesh — the same shared clone source as the
+   standing guests — so the sitters genuinely move now: weight
+   shifts, breathing and small head motion, all in the clip,
+   looped, the two sitters desynced by timeOffset.
+   Placement is measured from the POSED figure at load, the way
+   the rest of this file works: in the clip her buttocks rest
+   0.549 m above her feet, pelvis joint 0.10 m above that (both
+   measured off her skinned mesh, steady to ±1 mm across the
+   whole loop, so a frame-0 placement holds for every frame).
+   The station bench's seat (0.59 m) sits just above the pose's
+   natural seat height, so that sitter is anchored butt-to-seat
+   with a 1 cm press; her feet hover ~3 cm, a natural perch on
+   a tall bench, and nothing clips. The garden bench's seat
+   (0.44 m) sits BELOW the pose's seat height, where
+   butt-to-seat would bury her feet 11 cm through the floor —
+   so that sitter is anchored feet-on-floor instead: soles
+   planted, nothing through the bench, at the price of
+   daylight under her on the low bench. Her hips are centred
+   over her spot directly, never by bounding box: the seated
+   box reaches ~0.6 m forward of the hips, so bbox centring
+   (groundFigure) would shove her back into the backrest. */
 var SEAT_AXIS_X=new THREE.Vector3(1,0,0), SEAT_AXIS_Y=new THREE.Vector3(0,1,0), SEAT_AXIS_Z=new THREE.Vector3(0,0,1);
 var seatTmpQ=new THREE.Quaternion();
-function poseSeatedAnna(model,variant){
-  var B={};
-  model.traverse(function(o){ if(o.isBone) B[o.name]=o; });
-  function rot(name,ax,deg){ var b=B[name]; if(!b) return;
-    b.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(ax,deg*Math.PI/180)); }
-  var thigh=variant===2?72:95, calf=variant===2?-72:-95, foot=variant===2?5:15;
-  rot('CC_Base_Waist_033',SEAT_AXIS_X,6);
-  rot('CC_Base_L_Thigh_04',SEAT_AXIS_X,thigh); rot('CC_Base_R_Thigh_018',SEAT_AXIS_X,thigh);
-  rot('CC_Base_L_Calf_05',SEAT_AXIS_X,calf); rot('CC_Base_R_Calf_019',SEAT_AXIS_X,calf);
-  rot('CC_Base_L_Foot_06',SEAT_AXIS_X,foot); rot('CC_Base_R_Foot_021',SEAT_AXIS_X,foot);
-  rot('CC_Base_L_Upperarm_050',SEAT_AXIS_X,35); rot('CC_Base_L_Upperarm_050',SEAT_AXIS_Z,-30);
-  rot('CC_Base_R_Upperarm_078',SEAT_AXIS_X,35); rot('CC_Base_R_Upperarm_078',SEAT_AXIS_Z,30);
-  return B;
-}
 function loadSeatedAnna(opts){
   try{
-    var loader=jpLoader();
-    jpStart(function(){ loader.load('assets/walker.glb',function(gltf){
-      var model=gltf.scene;
+    withSharedAnna(function(template){
+      var model=THREE.SkeletonUtils.clone(template);
       model.traverse(function(o){
         if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
         if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
       });
-      var holder=fitFigure(model,1.70);
-      var B=poseSeatedAnna(model,opts.variant);
-      holder.position.y+=opts.lift; // measured per bench — see above
       var grp=figureGroup();
+      var holder=fitFigureMixamo(model,1.70);
       grp.add(holder);
       grp.position.set(opts.x,0,opts.z);
-      grp.rotation.y=opts.ry;
-      seatedAnnas.push({ waist:B['CC_Base_Waist_033'], head:B['CC_Base_Head_038'], calf:B['CC_Base_L_Calf_05'],
-        phase:opts.phase||0, tap:!!opts.tap,
-        baseWaist:B['CC_Base_Waist_033']?B['CC_Base_Waist_033'].quaternion.clone():null,
-        baseHead:B['CC_Base_Head_038']?B['CC_Base_Head_038'].quaternion.clone():null,
-        baseCalf:B['CC_Base_L_Calf_05']?B['CC_Base_L_Calf_05'].quaternion.clone():null });
-    },undefined,function(){}); });
+      grp.rotation.y=opts.ry||0;
+      var loader=jpLoader();
+      jpStart(function(){ loader.load('assets/idle-sit-clip.glb',function(cg){
+        if(cg.animations&&cg.animations.length){
+          var mixer=new THREE.AnimationMixer(model);
+          var act=mixer.clipAction(prepClip(cg.animations[0],false,true)); // rotation-only
+          act.setLoop(THREE.LoopRepeat); act.play();
+          mixer.update(opts.timeOffset||0); // land a frame now, so she can be placed in the pose
+          jpMixers.push(mixer);
+        }
+        // place her from the posed figure herself (see above):
+        // hips over her spot, then the per-bench height anchor
+        grp.updateMatrixWorld(true);
+        var hips=null;
+        model.traverse(function(o){ if(!hips&&o.isBone&&o.name==='mixamorig:Hips') hips=o; });
+        var feetY=figureBBox(model).min.y; // model only — the group's blob shadow plane would floor this at 0.013
+        var dy=-feetY; // feet exactly on the floor
+        if(hips){
+          var hp=hips.getWorldPosition(new THREE.Vector3());
+          if(opts.anchor==='seat') dy=(opts.seatH-0.01)-(hp.y-0.10); // butt on the seat, 1 cm press
+          var dx=grp.position.x-hp.x, dz=grp.position.z-hp.z;
+          var cos=Math.cos(grp.rotation.y), sin=Math.sin(grp.rotation.y);
+          holder.position.x+=cos*dx-sin*dz;
+          holder.position.z+=sin*dx+cos*dz;
+        }
+        holder.position.y+=dy;
+      },undefined,function(){}); });
+    });
   }catch(e){ /* sitter simply absent */ }
 }
 /* ---- the standing guests: Anna again, cloned — on the
-   Mixamo rig, each in her own standing pose ----
-   Collin's call: the four identical guests are out and the nude
-   walker woman stands in their places — two by the benches, one
-   at the Civic's nose, one on the car row. They used to stand
-   in the walker file's bind pose (a T-pose — stiff and doll-
-   like). Now each is a CLONE of Anna's Mixamo-rigged mesh
-   (anna-mixamo.glb, fetched ONCE for all four — the first
-   caller starts the shared load below and the rest queue on
-   it; THREE.SkeletonUtils.clone remaps every clone's skeleton
-   onto its own bones, so each poses on her own rig), and each
-   plays a DIFFERENT Mixamo standing-pose clip natively on that
-   rig: a 2-frame held pose (legs crossed, arms down, arm
-   raised, one-leg stance) whose mixer sits on jpMixers like
-   the other guests'. The pose is applied once at load and the
-   waist/head quaternions are captured AFTER it lands, so the
-   bench sitters' procedural idle (breathing + slow head
-   turns, layered in updatePeople after the mixers) breathes
-   on top of the posed body — not the T-pose. No clip is ever
-   retargeted: model and poses are the same Mixamo rig.
+   Mixamo rig, playing a natural standing idle ----
+   Two clones of Anna's Mixamo-rigged mesh (anna-mixamo.glb,
+   fetched ONCE for every clone — the first caller starts the
+   shared load below and the rest queue on it;
+   THREE.SkeletonUtils.clone remaps every clone's skeleton
+   onto its own bones, so each moves on her own rig) flank the
+   car row, one by the S15, one by the Lambo. Both play
+   Mixamo's Female Standing Idle (idle-stand-clip.glb, 301
+   frames — the same relaxed standing idle family as Alina's
+   motion, which is why Collin picked it) natively on that
+   rig, rotation-only, looped, desynced by timeOffset so the
+   pair never sway in sync. The two standing guests who used
+   to pose by the benches (crossed arms, raised arm — held
+   2-frame poses) are DELETED, figures and colliders both;
+   nobody stands by the benches any more. A held pose can
+   still be passed as opts.pose instead of opts.clip: it lands
+   frame 0, captures its waist/head quaternions, and takes the
+   procedural breathing / head-turn layer in updatePeople —
+   a looping clip skips that layer on purpose, because the
+   layer resets those bones every frame and would freeze the
+   clip's own waist and head motion. No clip is ever
+   retargeted: model and clips are the same Mixamo rig.
    Every clone is scaled by fitFigureMixamo (her stature, not
    her lying bind pose's thickness — the old fit made her 7 m
-   tall) and the pose clips play rotation-only; once a pose
-   lands, groundFigure re-grounds her from the posed body, so
-   each guest stands exactly 1.70 m with her feet on the floor
-   on the spot she was placed. */
+   tall); once the clip lands, groundFigure re-grounds her
+   from the posed body, so each guest stands exactly 1.70 m
+   with her feet on the floor on the spot she was placed. */
 var standingAnnas=[];
 var annaShared=null, annaSharedQueue=null;
 function withSharedAnna(cb){
@@ -2312,19 +2438,26 @@ function loadStandingAnna(opts){
         entry.baseHead=entry.head?entry.head.quaternion.clone():null;
         standingAnnas.push(entry);
       }
-      if(opts.pose){
+      if(opts.pose||opts.clip){
         var loader=jpLoader();
-        jpStart(function(){ loader.load(opts.pose,function(pg){
+        jpStart(function(){ loader.load(opts.clip||opts.pose,function(pg){
           if(pg.animations&&pg.animations.length){
             var mixer=new THREE.AnimationMixer(model);
             var act=mixer.clipAction(prepClip(pg.animations[0],false,true)); // rotation-only
             act.setLoop(THREE.LoopRepeat); act.play();
-            mixer.update(0); // land the pose NOW, before the base capture
+            // a held pose lands frame 0; a looping clip lands at
+            // its desync offset — either way the pose is on her
+            // NOW, before grounding (and any base capture)
+            mixer.update(opts.clip?(opts.timeOffset||0):0);
             jpMixers.push(mixer);
           }
           groundFigure(holder,model,grp,0); // feet on the floor, centred on her spot
-          captureBase();
-        },undefined,function(){ captureBase(); }); });
+          // a looping clip animates the waist and head itself, so
+          // the guest stays OUT of standingAnnas: the procedural
+          // layer there resets those bones to a captured base
+          // every frame and would freeze the clip's best motion
+          if(!opts.clip) captureBase();
+        },undefined,function(){ if(!opts.clip) captureBase(); }); });
       } else captureBase();
     });
   }catch(e){ /* standing guest simply absent */ }
@@ -2333,12 +2466,10 @@ function loadStandingAnna(opts){
    Headings use the figure convention: rotation 0 faces +z, so
    ry = atan2(dx, dz) toward whatever she's looking at. */
 function loadAllGuests(){
-loadSeatedAnna({variant:1,x:-5.2,z:8.84,ry:Math.PI-0.10,lift:-0.399,phase:0});
-loadSeatedAnna({variant:2,x:5.35,z:8.84,ry:Math.PI+0.14,lift:-0.249,phase:2.1,tap:true});
-loadStandingAnna({x:-3.95,z:8.05,ry:-1.04,phase:0.6,collider:[0.3,0.3],pose:'assets/pose-crossed.glb'});
-loadStandingAnna({x:6.45,z:8.05,ry:-0.76,phase:2.4,collider:[0.3,0.3],pose:'assets/pose-raised.glb'});
-loadStandingAnna({x:-6.6,z:-1.2,ry:2.03,phase:4.1,collider:[0.3,0.3],pose:'assets/pose-armsdown.glb'});
-loadStandingAnna({x:6.6,z:-1.2,ry:-2.03,phase:5.3,collider:[0.3,0.3],pose:'assets/pose-oneleg.glb'});
+loadSeatedAnna({x:-5.2,z:8.84,ry:Math.PI-0.10,seatH:0.44,anchor:'floor',timeOffset:0});
+loadSeatedAnna({x:5.35,z:8.84,ry:Math.PI+0.14,seatH:0.59,anchor:'seat',timeOffset:2.3});
+loadStandingAnna({x:-6.6,z:-1.2,ry:2.03,collider:[0.3,0.3],clip:'assets/idle-stand-clip.glb',timeOffset:0});
+loadStandingAnna({x:6.6,z:-1.2,ry:-2.03,collider:[0.3,0.3],clip:'assets/idle-stand-clip.glb',timeOffset:3.7});
 loadGuest('assets/alina.glb',{h:1.68,x:-8.6,z:0.6,ry:1.76,pin:true,collider:[0.32,0.32]});
 }
 /* The v13 layer loads with everything else, behind the start
@@ -2407,6 +2538,36 @@ function buildPolish(){
   // rest of the particle systems — fixtures, LED strips, accent
   // lights and neon signs above all stay.)
 }
+/* ================= ATMOSPHERE (v17 refresh) =================
+   Cheap cinematic depth that costs almost nothing on a phone:
+   additive glow pools on the polished concrete under the neon
+   sign, the DTL cross, both stages and each bay's ceiling tubes —
+   they read as faint reflections in the floor — plus a small
+   cloud of dust motes drifting in the light for depth. No extra
+   post-processing anywhere; the motes are skipped entirely on
+   software renderers and for reduced-motion users. Called once
+   just before the render loop starts (below), when every flag it
+   reads exists. */
+var dustPts=null, dustBase=null;
+function buildAtmosphere(){
+  floorGlow(0,-8.3,7.5,3.2,0xff7a3a,0.10);       // main neon sign spill
+  floorGlow(11.5,-5.6,3.6,3.6,0xff2e63,0.08);    // DTL cross spill
+  floorGlow(10.4,1.6,3.2,3.2,0xff2e63,0.07);     // stage one
+  floorGlow(-10.55,1.6,3.2,3.2,0xff2e63,0.07);   // stage two
+  [-10,-5,0,5,10].forEach(function(x){ floorGlow(x,-2,4.8,3.6,0xffd9a0,0.045); }); // bay light pools
+  if(softwareGL||reduceMotion) return;
+  var N=240, pos=new Float32Array(N*3); dustBase=new Float32Array(N*3);
+  for(var i=0;i<N;i++){
+    var bx=(Math.random()*22-11), by=0.3+Math.random()*4.2, bz=-7+Math.random()*13;
+    dustBase[i*3]=bx; dustBase[i*3+1]=by; dustBase[i*3+2]=bz;
+    pos[i*3]=bx; pos[i*3+1]=by; pos[i*3+2]=bz;
+  }
+  var geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  dustPts=new THREE.Points(geo,new THREE.PointsMaterial({color:0xffe2b0,size:0.045,transparent:true,opacity:0.3,
+    depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true}));
+  scene.add(dustPts);
+}
 buildChillArea(); loadAllGuests(); buildPolish();
 
 /* ================= INTERACTABLES ================= */
@@ -2458,7 +2619,7 @@ function toggleInter(it){
     if(it.on){ it.car._audio=startEngineAudio(it.car.spec); }
     else { stopEngineAudio(it.car); clunk(.25,300); }
   } else if(it.kind==='lights'){ clickSnd(); }
-  else { clunk(.4,520); }
+  else { clunk(.4,520); if(it.kind==='hood'&&it.on) hoodBlip(it.car.spec); }
   if(it.on) markFound(it);
   refreshPlate();
 }
@@ -2649,6 +2810,19 @@ document.getElementById('enterBtn').addEventListener('click',function(){
   audio(); started=true; document.body.classList.add('playing');
   toast('Your Civic is in Bay 3 — start there.',2600);
 });
+PROX={cars:cars,player:player,isStarted:function(){return started;}};
+/* ---- sound mute: suspends the whole context, so every voice —
+   engines, proximity idles, clunks and clicks — goes quiet at
+   once, and resumes exactly where it was. ---- */
+var muteBtn=document.getElementById('muteBtn');
+muteBtn.addEventListener('click',function(e){
+  e.stopPropagation();
+  MUTED=!MUTED;
+  muteBtn.textContent=MUTED?'SOUND OFF':'SOUND ON';
+  muteBtn.setAttribute('aria-label',MUTED?'Unmute sound':'Mute sound');
+  if(AC){ if(MUTED) AC.suspend(); else AC.resume(); }
+});
+muteBtn.addEventListener('pointerdown',function(e){ e.stopPropagation(); });
 
 /* ================= MOVEMENT + COLLISION ================= */
 function collide(){
@@ -2728,6 +2902,15 @@ function step(dt,t){
   // atmosphere: a whisper of neon flicker (particles removed in v16)
   neonLight.intensity=26+Math.sin(t*29)*0.8+Math.sin(t*7.7)*1.1;
   neon.material.emissiveIntensity=1.15+Math.sin(t*29)*0.03+Math.sin(t*7.7)*0.04;
+  if(neonGlowMat) neonGlowMat.opacity=0.30+Math.sin(t*29)*0.012+Math.sin(t*7.7)*0.016;
+  // dust motes: a slow drift on two axes, phased per mote
+  if(dustPts){ var dp=dustPts.geometry.attributes.position;
+    for(var dmi=0;dmi<dp.count;dmi++){
+      dp.array[dmi*3]=dustBase[dmi*3]+Math.sin(t*0.12+dmi*1.7)*0.22;
+      dp.array[dmi*3+1]=dustBase[dmi*3+1]+Math.sin(t*0.22+dmi*1.3)*0.16;
+    }
+    dp.needsUpdate=true; }
+  updateProxAudio(t);
   // the DTL neon cross breathes on its own phase, with the odd dip
   if(neonCrossMat){
     var nf=0.92+Math.sin(t*23.7)*0.03+Math.sin(t*5.3)*0.05-(Math.sin(t*0.9)>0.996?0.35:0);
@@ -2750,10 +2933,23 @@ function step(dt,t){
   if(n.car!==currentCar){ currentCar=n.car; refreshPlate(); }
 }
 
+buildAtmosphere();
+
 /* ================= LOOP ================= */
 function resize(){
-  var w=window.innerWidth,h=window.innerHeight;
+  var w=window.innerWidth||document.documentElement.clientWidth||1;
+  var h=window.innerHeight||document.documentElement.clientHeight||1;
+  /* The canvas MUST be sized in CSS pixels as well as drawing-buffer
+     pixels. setSize(w,h,false) alone leaves the element's CSS size to
+     its intrinsic (attribute) size — the viewport times the pixel
+     ratio — so at any ratio other than exactly 1 the WebGL image
+     lands at the wrong CSS size: half the window at the software
+     path's 0.5 ratio (the top-left-quarter bug), cropped at 1.25.
+     Pinning the style to the viewport makes the canvas fill the
+     whole window at every ratio, desktop and phone, on load, on
+     resize and on orientation change. */
   renderer.setSize(w,h,false);
+  canvas.style.width=w+'px'; canvas.style.height=h+'px';
   camera.aspect=w/h; camera.updateProjectionMatrix();
   /* pmndrs EffectComposer has no setPixelRatio — its setSize() sizes the
      buffers from the renderer's drawing buffer, which already includes
@@ -2761,7 +2957,10 @@ function resize(){
      never take the whole game down: drop to a plain render instead. */
   if(composer){ try{ composer.setSize(w,h); }catch(e){ composer=null; } }
 }
-window.addEventListener('resize',resize); resize();
+window.addEventListener('resize',resize);
+window.addEventListener('orientationchange',function(){ resize(); setTimeout(resize,80); });
+if(window.visualViewport) window.visualViewport.addEventListener('resize',resize);
+resize();
 
 var last=performance.now(), acc=0;
 step(1/60,0); // position the camera before the first frame is ever drawn
@@ -2790,8 +2989,12 @@ function perfCheck(now){
   if(el<2500) return;
   var fps=perfFrames/(el/1000);
   if(perfWarm){ perfWarm=false; }
-  else if(quality==='lean'&&!softwareGL&&!touchDev){
-    if(fps>=25){ restoreTransmission(); buildComposer(); quality='full'; }
+  else if(quality==='lean'&&!softwareGL){
+    // v17: phones may earn the post chain too, but the bar is far
+    // higher (45 fps sustained) and the downgrade path below still
+    // pulls it the moment the frame rate sags — glow sprites carry
+    // the look everywhere else
+    if(fps>=(touchDev?45:25)){ restoreTransmission(); buildComposer(); quality='full'; }
     else if(fps<12){ leanMode=true; renderer.setPixelRatio(1); resize(); quality='minimal'; }
   }
   else if(quality==='full'&&fps<12){
