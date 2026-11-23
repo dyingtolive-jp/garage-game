@@ -1706,6 +1706,48 @@ function fitFigure(model,targetH){
   holder.position.set(-ctr.x,-bb.min.y,-ctr.z);
   return holder;
 }
+/* ---- the Mixamo figures need their own fit. Anna's Mixamo file
+   stores her BIND pose lying along z (the FBX armature rotation
+   was never baked upright): her 170 cm of stature runs down the
+   z axis and her y extent in bind is just her 0.40 m thickness.
+   fitFigure above read that thickness as her height and scaled
+   her ~4.25x too big — the moment a pose or dance clip's
+   rotations stood her upright she was 7 m tall, feet on the
+   floor, head through the ceiling. fitFigureMixamo scales from
+   her stature (the bbox's long axis) instead. The grounding it
+   sets is only provisional, though: a rotation-only clip leaves
+   her posed body offset from the bind-pose box, so once the clip
+   has landed, groundFigure re-measures the POSED figure and puts
+   her feet exactly on the floor and her centre exactly on her
+   spot. (The skinned bounding boxes are nulled before measuring:
+   three caches them per mesh, and a box cached from the bind
+   pose would otherwise be reused for the posed figure forever.) */
+function figureBBox(root){
+  root.traverse(function(o){ if(o.isSkinnedMesh) o.boundingBox=null; });
+  root.updateMatrixWorld(true);
+  return new THREE.Box3().setFromObject(root);
+}
+function fitFigureMixamo(model,targetH){
+  var holder=new THREE.Group(); holder.add(model);
+  var bb=figureBBox(model), sz=bb.getSize(new THREE.Vector3());
+  var s=targetH/Math.max(sz.y,sz.z,0.01); // stature = the long axis
+  holder.scale.setScalar(s);
+  // provisional grounding from the SAME measurement (uniform scale:
+  // the scaled box is the bind box times s) — a second full skinned
+  // re-measure here would be pure main-thread cost at load
+  var ctr=bb.getCenter(new THREE.Vector3());
+  holder.position.set(-ctr.x*s,-bb.min.y*s,-ctr.z*s);
+  return holder;
+}
+function groundFigure(holder,model,grp,floorY){
+  var b=figureBBox(grp);
+  holder.position.y+=(floorY-b.min.y);
+  var c=b.getCenter(new THREE.Vector3());
+  var dx=grp.position.x-c.x, dz=grp.position.z-c.z;
+  var cos=Math.cos(grp.rotation.y), sin=Math.sin(grp.rotation.y);
+  holder.position.x+=cos*dx-sin*dz;
+  holder.position.z+=sin*dx+cos*dz;
+}
 /* v14 colour guard for every figure material: keep the environment
    response low, and floor the skin materials' roughness — DAZ/CC
    skin ships near-glossy, so under a hard light its specular alone
@@ -1734,13 +1776,24 @@ function figureGroup(){
    dancer stays on her stage disc while the clip's height and
    rotation keep playing. Works on a clip from ANY file — the
    Mixamo figures below play clips loaded separately from their
-   models, always on the same rig the clip was authored for. */
-function prepClip(clip,pinRoot){
+   models, always on the same rig the clip was authored for.
+   rotOnly goes further and drops EVERY position track, leaving a
+   rotation-only clip: that is how all the Mixamo clips (the dance
+   and the four standing poses) are played. Their bone position
+   tracks only restate the bind pose — except the Hips track,
+   which the FBX converter wrote in its own root frame (roughly
+   (0,-1,-110) where the model's bind hips sit at (0,96.6,-0.7)),
+   so played raw it wrenches her hips a metre off her skeleton.
+   The rotations carry the whole pose on their own; with no
+   position track able to lift, sink or shift her, each figure
+   stays exactly where groundFigure placed her. */
+function prepClip(clip,pinRoot,rotOnly){
   var hasWeights=clip.tracks.some(function(tr){ return tr.name.slice(-8)==='.weights'; });
-  if(pinRoot||hasWeights){
+  if(pinRoot||hasWeights||rotOnly){
     clip=clip.clone();
     if(hasWeights) clip.tracks=clip.tracks.filter(function(tr){ return tr.name.slice(-8)!=='.weights'; });
-    if(pinRoot) clip.tracks.forEach(function(tr){
+    if(rotOnly) clip.tracks=clip.tracks.filter(function(tr){ return tr.name.slice(-9)!=='.position'; });
+    else if(pinRoot) clip.tracks.forEach(function(tr){
       if(tr.name.slice(-9)==='.position'&&/BoneRoot|Hip|Pelvis/.test(tr.name)){
         var v=tr.values, x0=v[0], z0=v[2];
         for(var i=0;i<v.length;i+=3){ v[i]=x0; v[i+2]=z0; }
@@ -1844,9 +1897,13 @@ loadDancer();
    rig (anna-mixamo.glb, no clip of its own), and she dances a
    real Mixamo hip-hop clip (dance-clip.glb, "Body Wave", 213
    frames) played NATIVELY on that rig — no retargeting anywhere.
-   Her hips are pinned in x/z (prepClip pinRoot) so the clip's
-   travel can't walk her off the stage disc; she stays at the
-   pole, close against it. Same honest limit as dancer one: she
+   The clip plays rotation-only (prepClip rotOnly) and she is
+   grounded from her posed first frame (groundFigure), so she
+   stays on the stage disc at the pole for the whole loop. Her
+   colour is real now too: the shipped model file is the
+   re-textured build (30 images, skin/hair/eye maps restored) —
+   the first Mixamo export carried no textures at all and she
+   rendered flat grey. Same honest limit as dancer one: she
    dances AT the pole, not on it. Adults only, per Collin. ---- */
 function loadDancer2(){
   try{
@@ -1879,21 +1936,28 @@ function loadDancer2(){
           if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
           if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
         });
+        // scaled from her bind-pose stature BEFORE any clip
+        // touches her (see fitFigureMixamo — the old fitFigure
+        // read her lying bind pose's thickness as her height and
+        // she came out 7 m tall)
+        var holder=fitFigureMixamo(model,1.70); // same height as the walker, as always
+        var grp=new THREE.Group(); grp.add(holder);
+        grp.position.set(-10.55,0,1.6);
+        grp.rotation.y=Math.PI/2-0.35; // mirrored: angled toward the room
         // her dance lives in its own file, authored on this exact
-        // Mixamo rig — load it and play it on her, hips pinned so
-        // she stays on the disc, dancing at the pole
+        // Mixamo rig — load it and play it on her rotation-only,
+        // then ground her posed first frame onto the disc so she
+        // stays on it, dancing at the pole
         loader.load('assets/dance-clip.glb',function(cg){
           var mixer=null;
           if(cg.animations&&cg.animations.length){
             mixer=new THREE.AnimationMixer(model);
-            var act=mixer.clipAction(prepClip(cg.animations[0],true));
+            var act=mixer.clipAction(prepClip(cg.animations[0],false,true));
             act.setLoop(THREE.LoopRepeat); act.play();
+            mixer.update(0); // land frame 0 so she can be grounded in the pose
           }
-          var holder=fitFigure(model,1.70); // same height as the walker, as always
-          holder.position.z+=0.45; holder.position.y+=0.16;
-          var grp=new THREE.Group(); grp.add(holder);
-          grp.position.set(-10.55,0,1.6);
-          grp.rotation.y=Math.PI/2-0.35; // mirrored: angled toward the room
+          groundFigure(holder,model,grp,0.16); // feet on the stage disc, centred on it
+          holder.position.z+=0.45; // close against the pole, dancing at it
           scene.add(grp);
           dancer2={grp:grp,mixer:mixer};
         },undefined,function(){ /* second dancer simply absent */ });
@@ -1974,10 +2038,13 @@ function updatePeople(dt,t){
      replaced sank into the benches (their clip's hip height
      matched neither bench's seat).
    · Four standing ANNA clones: two by the benches with the
-     sitters, one at the Civic's nose looking it over, one on
-     the car row facing the cars — each on Anna's Mixamo rig in
-     her own held standing pose, with the bench sitters'
-     breathing / head-turn idle layered over it, no walk cycle.
+     sitters, one flanking the S15, one flanking the Lambo —
+     each facing her car, each on Anna's Mixamo rig in her own
+     held standing pose, with the bench sitters' breathing /
+     head-turn idle layered over it, no walk cycle. (The two
+     car-row guests used to stand at the Civic's nose and in
+     the middle of the aisle, filling the spawn view; they were
+     moved out to the flanks.)
      Alina (22.6 s full-body clip) at the S15.
    Decor (all real CC BY files, measured and grounded from their
    own bounding boxes at load): chertpaderi garden bench +
@@ -2197,7 +2264,13 @@ function loadSeatedAnna(opts){
    bench sitters' procedural idle (breathing + slow head
    turns, layered in updatePeople after the mixers) breathes
    on top of the posed body — not the T-pose. No clip is ever
-   retargeted: model and poses are the same Mixamo rig. */
+   retargeted: model and poses are the same Mixamo rig.
+   Every clone is scaled by fitFigureMixamo (her stature, not
+   her lying bind pose's thickness — the old fit made her 7 m
+   tall) and the pose clips play rotation-only; once a pose
+   lands, groundFigure re-grounds her from the posed body, so
+   each guest stands exactly 1.70 m with her feet on the floor
+   on the spot she was placed. */
 var standingAnnas=[];
 var annaShared=null, annaSharedQueue=null;
 function withSharedAnna(cb){
@@ -2222,7 +2295,8 @@ function loadStandingAnna(opts){
         if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
       });
       var grp=figureGroup();
-      grp.add(fitFigure(model,1.70));
+      var holder=fitFigureMixamo(model,1.70);
+      grp.add(holder);
       grp.position.set(opts.x,0,opts.z);
       grp.rotation.y=opts.ry||0;
       if(opts.collider) addCollider(opts.x,opts.z,opts.collider[0],opts.collider[1]);
@@ -2243,11 +2317,12 @@ function loadStandingAnna(opts){
         jpStart(function(){ loader.load(opts.pose,function(pg){
           if(pg.animations&&pg.animations.length){
             var mixer=new THREE.AnimationMixer(model);
-            var act=mixer.clipAction(prepClip(pg.animations[0],false));
+            var act=mixer.clipAction(prepClip(pg.animations[0],false,true)); // rotation-only
             act.setLoop(THREE.LoopRepeat); act.play();
             mixer.update(0); // land the pose NOW, before the base capture
             jpMixers.push(mixer);
           }
+          groundFigure(holder,model,grp,0); // feet on the floor, centred on her spot
           captureBase();
         },undefined,function(){ captureBase(); }); });
       } else captureBase();
@@ -2262,8 +2337,8 @@ loadSeatedAnna({variant:1,x:-5.2,z:8.84,ry:Math.PI-0.10,lift:-0.399,phase:0});
 loadSeatedAnna({variant:2,x:5.35,z:8.84,ry:Math.PI+0.14,lift:-0.249,phase:2.1,tap:true});
 loadStandingAnna({x:-3.95,z:8.05,ry:-1.04,phase:0.6,collider:[0.3,0.3],pose:'assets/pose-crossed.glb'});
 loadStandingAnna({x:6.45,z:8.05,ry:-0.76,phase:2.4,collider:[0.3,0.3],pose:'assets/pose-raised.glb'});
-loadStandingAnna({x:2.3,z:0.15,ry:-1.92,phase:4.1,collider:[0.3,0.3],pose:'assets/pose-armsdown.glb'});
-loadStandingAnna({x:0,z:2.0,ry:Math.PI,phase:5.3,collider:[0.3,0.3],pose:'assets/pose-oneleg.glb'});
+loadStandingAnna({x:-6.6,z:-1.2,ry:2.03,phase:4.1,collider:[0.3,0.3],pose:'assets/pose-armsdown.glb'});
+loadStandingAnna({x:6.6,z:-1.2,ry:-2.03,phase:5.3,collider:[0.3,0.3],pose:'assets/pose-oneleg.glb'});
 loadGuest('assets/alina.glb',{h:1.68,x:-8.6,z:0.6,ry:1.76,pin:true,collider:[0.32,0.32]});
 }
 /* The v13 layer loads with everything else, behind the start
