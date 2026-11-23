@@ -2493,8 +2493,9 @@ function loadProp(file,opts){
       scene.add(grp);
       if(opts.collider) addCollider(opts.x,opts.z,opts.collider[0],opts.collider[1]);
       shadowTimer=performance.now(); // debounced in the frame loop
-    },undefined,function(){}); });
-  }catch(e){ /* prop simply absent */ }
+      if(opts.onDone) opts.onDone();
+    },undefined,function(){ if(opts.onDone) opts.onDone(); }); });
+  }catch(e){ if(opts.onDone) opts.onDone(); /* prop simply absent */ }
 }
 /* animated guest: real clip, blob shadow, optional outfit tint */
 function loadGuest(file,opts){
@@ -2953,16 +2954,69 @@ function buildAtmosphere(){
 var MANS={fireLight:null,fireMats:[],fireLevel:0,chandLight:null,bulbMat:null,chandGlow:null,
   tvMat:null,wineL:null,wineR:null,waterFall:null,waterDisc:null,fountainLevel:0,flames:null,lampLight:null};
 /* the real mansion models (~28 MB even after gltfpack) do NOT
-   load at boot: they queue here and stream in the first time
-   the player walks up to the garage door (step() checks), with
-   the door itself as a backstop trigger. Boot stays at the
-   garage-only weight that has always settled fast — on a phone
-   and in the audit renderer alike — and by the time the player
-   crosses the garage the room is furnished. */
-var mansionQueue=[], mansionLoaded=false;
+   load at boot: they queue here and stream in once the player
+   enters the garage (step() checks), with the door itself as a
+   backstop trigger. Boot stays at the garage-only weight that
+   has always settled fast — on a phone and in the audit
+   renderer alike — and by the time the player crosses the
+   garage the room is furnished.
+   v21 FIX — entering the mansion froze the game (Collin's
+   phone, on the v20 build). The queue used to fire ALL ~19
+   loads in a single forEach the moment the player neared the
+   door: ~34 MB of GLBs parsing, PNG textures decoding and GPU
+   uploads slamming the main thread in one burst, right at the
+   door, with the teleport and the room's first render landing
+   in the middle of it — on a phone that burst reads as a total
+   freeze and can get the tab killed outright. The drain below
+   is chained instead: two models at a time, the next pair only
+   once the current pair has settled (loadProp's onDone), plus
+   a short breather between pairs — and it starts the moment
+   the player enters the garage, not at the door, so the work
+   is spread over the whole walk across the shop. When the last
+   pair lands and the player is still in the garage, one tiny
+   offscreen render from the mansion doorway pre-warms the
+   room's textures and shader programs, so the first real frame
+   inside does not pay the whole upload spike at once either.
+   The doors never wait on any of this: the room shell is
+   in-engine, the teleport is instant, and any furniture still
+   in flight simply arrives a moment later. */
+var mansionQueue=[], mansionLoaded=false, mansionDraining=false;
 function loadMansionModels(){
-  if(mansionLoaded) return; mansionLoaded=true;
-  mansionQueue.forEach(function(q){ loadProp(q[0],q[1]); });
+  if(mansionLoaded||mansionDraining) return;
+  mansionDraining=true;
+  drainMansionQueue();
+}
+function drainMansionQueue(){
+  if(!mansionQueue.length){ mansionLoaded=true; mansionDraining=false; warmMansion(); return; }
+  var batch=mansionQueue.splice(0,2), pending=batch.length, settled=false;
+  function done(){
+    if(settled) return;
+    if(--pending<=0){ settled=true; setTimeout(drainMansionQueue,300); }
+  }
+  batch.forEach(function(q){
+    var o=q[1], prev=o.onDone;
+    o.onDone=function(){ if(prev) prev(); done(); };
+    loadProp(q[0],o);
+  });
+  // a lost callback must never stall the room half-furnished
+  setTimeout(function(){ if(!settled){ settled=true; drainMansionQueue(); } },15000);
+}
+function warmMansion(){
+  if(player.z<-20) return; // already inside — the room is rendering anyway
+  try{
+    var rt=new THREE.WebGLRenderTarget(64,64);
+    var pc=camera.position.clone(), pr=camera.rotation.clone(),
+        pf=camera.fov, pa=camera.aspect;
+    camera.position.set(0,1.6,-30.4); camera.rotation.order='YXZ';
+    camera.rotation.set(-0.02,0,0); camera.fov=105; camera.aspect=1.7;
+    camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
+    renderer.setRenderTarget(rt);
+    renderer.render(scene,camera);
+    renderer.setRenderTarget(null);
+    camera.position.copy(pc); camera.rotation.copy(pr);
+    camera.fov=pf; camera.aspect=pa; camera.updateProjectionMatrix();
+    rt.dispose();
+  }catch(e){ try{ renderer.setRenderTarget(null); }catch(e2){} }
 }
 var marbleTex=makeTex(1024,1024,function(g,w,h){
   g.fillStyle='#cfc8ba'; g.fillRect(0,0,w,h);
@@ -3735,8 +3789,10 @@ function step(dt,t){
   neonLight.intensity=26+Math.sin(t*29)*0.8+Math.sin(t*7.7)*1.1;
   neon.material.emissiveIntensity=1.15+Math.sin(t*29)*0.03+Math.sin(t*7.7)*0.04;
   if(neonGlowMat) neonGlowMat.opacity=0.30+Math.sin(t*29)*0.012+Math.sin(t*7.7)*0.016;
-  // mansion models stream in as the player first approaches the door
-  if(!mansionLoaded&&started&&player.z<-5&&Math.abs(player.x-10.6)<4.5) loadMansionModels();
+  // mansion models stream in gently from the moment the player
+  // enters the garage (see loadMansionModels — chained pairs,
+  // never the whole set in one burst at the door)
+  if(!mansionLoaded&&started) loadMansionModels();
   // mansion life: fire flicker, fountain water turning, a breath of chandelier sway
   if(MANS.fireLight) MANS.fireLight.intensity=MANS.fireLevel*(13+Math.sin(t*31)*2.6+Math.sin(t*13.7)*2.1);
   if(MANS.flames&&MANS.fireLevel>0.02){ MANS.flames.visible=true;
