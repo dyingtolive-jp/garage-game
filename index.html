@@ -179,7 +179,7 @@
   </div>
   <button id="enterBtn" disabled>LOADING&hellip;</button>
   <p class="controls"><b>WASD</b> walk &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>E</b> interact &nbsp;·&nbsp; <b>Shift</b> run &nbsp;—&nbsp; on touch, use the stick and buttons.</p>
-  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — People: Jungle Jim · BadutSaurus · reizibarrientos — Japan set: ydvisual · Bazylonator · abelGB · tokyo45otaku · Vermos · chertpaderi · ditovirnantio · seirogan · sa6 — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — Mansion: anandayokesh · bcfbox · farhad.Guli · MikhailKadilnikov · nrecord · mfb64 · Fenes.Octavian · Nymchee · ajnikstudio · AllQuad · ahmagh2e · joshuagoldenburgh · MaX3Dd · mtcollings · eltayerkebulan · modeneseinteriors · klava88 — all CC BY 4.0 · HDRI: Poly Haven CC0</p>
+  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — People: Jungle Jim · BadutSaurus · reizibarrientos — Japan set: ydvisual · Bazylonator · abelGB · tokyo45otaku · Vermos · chertpaderi · ditovirnantio · seirogan · sa6 — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — Mansion: anandayokesh · bcfbox · farhad.Guli · MikhailKadilnikov · nrecord · mfb64 · Fenes.Octavian · Nymchee · ajnikstudio · AllQuad · ahmagh2e · MaX3Dd · mtcollings · eltayerkebulan · modeneseinteriors · klava88 — all CC BY 4.0 · HDRI: Poly Haven CC0</p>
 </div>
 
 <div id="errBox"></div>
@@ -3042,7 +3042,22 @@ function buildDoor(x,z,ry,signText,slim){
 /* shared polish for the real mansion models: same env-response
    floor the garage's decor.glb loader applies, so the Sketchfab
    materials sit in the same light as everything else */
-function tuneMirror(model){ model.rotation.x=Math.PI/2; tuneMansion(model); }
+/* v20 FIX — there is deliberately NO tuneMirror any more. The
+   old one rotated the mirror model x=PI/2 before loadProp
+   measured it, on the belief the file "lies flat". It does not:
+   the file is authored upright (tall in y, thin in z — verified
+   from its own accessors and in the running scene). The
+   rotation laid it flat, so loadProp fitted h:1.9 to the
+   mirror's 5 cm thin axis and blew its footprint up to a
+   39 x 56 m plate at head height (y 0.85-2.75) spanning the
+   mansion AND the garage. Because the mansion models stream in
+   late, the room looked fine on entry and the plate then
+   appeared overhead as the player moved — Collin's "the
+   ceiling falls down as soon as I move". The mirror now loads
+   with plain tuneMansion and stands on the entry wall at its
+   real ~1.3 x 1.9 m. The room's actual ceiling was never the
+   problem: it is a static scene mesh at y 6.2, parented to
+   nothing, with no animation, physics or per-frame writer. */
 function tuneMansion(model){
   model.traverse(function(o){ if(o.isMesh&&o.material){
     (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
@@ -3244,17 +3259,28 @@ function buildMansion(){
   buildDoor(MX,-29.05,Math.PI,'GARAGE',true);
   mProp('assets/mansion-door.glb',{h:2.55,x:MX,z:-29.02,ry:Math.PI,tune:tuneMansion});
   addCollider(MX,-29.2,1.35,0.32);
-  /* the Titanic grand staircase (joshuagoldenburgh, CC BY)
-     along the north wall west of the fireplace, the Victorian
-     framed painting (mtcollings, CC BY — 41 MB of 4K textures
-     downscaled to a 384 KB file) east of it, and the royal
-     mirror (modeneseinteriors, CC BY) on the entry wall — the
-     mirror's file lies flat, so its tune stands it up before
-     loadProp measures it */
-  mProp('assets/mansion-staircase.glb',{h:3.2,x:-7.3,z:-46.15,ry:0,tune:tuneMansion});
-  addCollider(-7.3,-46.1,5.8,0.95);
+  /* the Victorian framed painting (mtcollings, CC BY — 41 MB
+     of 4K textures downscaled to a 384 KB file) east of the
+     fireplace, and the royal mirror (modeneseinteriors, CC BY)
+     on the entry wall, standing upright exactly as its file is
+     authored (see the tuneMirror note above).
+     v20 FIX — the Titanic grand staircase model is GONE. The
+     file (joshuagoldenburgh, CC BY) is not a staircase: it is
+     the whole staircase ROOM — walls, domed ceiling and
+     red-carpet stairs, 15.4 x 7.6 x 12.1 m in its own units,
+     472 nodes. Fitted by h:3.2 it landed in the north-west
+     corner as a 4.9 x 3.2 x 5.1 m miniature red ballroom poking
+     through the north wall — and the loveseat with Anna sitting
+     on it at (-6.5,-44.5) stood INSIDE its footprint, so she
+     rendered clipped and glitchy inside the little room
+     (Collin's phone report). A room inside the room does not
+     belong at any scale, so the model and its wall-long
+     collider are removed outright; the corner keeps the
+     fireplace, the real Chesterfield loveseat and Anna sitting
+     on it in the open, measured clean at 0.9 x 1.24 x 1.15 m
+     with her seat anchored to the sofa (see loadSeatedAnna). */
   mProp('assets/mansion-painting.glb',{x:5.2,z:-46.92,groundY:1.85,tune:tuneMansion});
-  mProp('assets/mansion-mirror.glb',{h:1.9,x:-5.5,z:-29.14,groundY:0.85,ry:Math.PI,tune:tuneMirror});
+  mProp('assets/mansion-mirror.glb',{h:1.9,x:-5.5,z:-29.14,groundY:0.85,ry:Math.PI,tune:tuneMansion});
   // Anna in the mansion: standing by the piano, sitting by the fire
   loadStandingAnna({x:6.1,z:-41.3,ry:-2.25,collider:[0.3,0.3],clip:'assets/idle-stand-clip.glb',timeOffset:1.3});
   loadSeatedAnna({x:-6.5,z:-44.5,ry:Math.PI+0.06,seatH:0.48,anchor:'seat',floorY:0,feetY:0,timeOffset:4.1});
@@ -3391,13 +3417,20 @@ var doorToGarage=addDecor('door',function(){ return 'Return to the garage'; },
     it.on=false; it.target=0; }, true);
 function toggleInter(it){
   it.on=!it.on; it.target=it.on?1:0;
-  if(it.onToggle){ it.onToggle(it); if(it.kind!=='door') clickSnd(); }
-  else if(it.kind==='engine'){
-    it.car.engineOn=it.on;
-    if(it.on){ it.car._audio=startEngineAudio(it.car.spec); }
-    else { stopEngineAudio(it.car); clunk(.25,300); }
-  } else if(it.kind==='lights'){ clickSnd(); }
-  else { clunk(.4,520); if(it.kind==='hood'&&it.on) hoodBlip(it.car.spec); }
+  // v20 FIX: the effect dispatch is guarded end to end — a sound
+  // or side-effect failing on a given device (an AudioContext
+  // quirk, a stopped loop) must never read as "interacting
+  // crashed the game". The toggle state, the found count and the
+  // car plate below always update, whatever an effect does.
+  try{
+    if(it.onToggle){ it.onToggle(it); if(it.kind!=='door') clickSnd(); }
+    else if(it.kind==='engine'){
+      it.car.engineOn=it.on;
+      if(it.on){ it.car._audio=startEngineAudio(it.car.spec); }
+      else { stopEngineAudio(it.car); clunk(.25,300); }
+    } else if(it.kind==='lights'){ clickSnd(); }
+    else { clunk(.4,520); if(it.kind==='hood'&&it.on) hoodBlip(it.car.spec); }
+  }catch(e){ /* effect failed; the toggle itself still counts */ }
   if(it.on) markFound(it);
   refreshPlate();
 }
@@ -3672,12 +3705,24 @@ function step(dt,t){
   camera.rotation.order='YXZ';
   camera.rotation.y=yaw; camera.rotation.x=pitch; camera.rotation.z=0;
   // interactable animations
+  // v20 FIX: apply() runs inside a guard. An interactable's effect
+  // (a light, a flame, the wine doors) throwing on some device
+  // used to propagate out of step(), skip that frame's render and
+  // re-fire on every frame until the value converged — on
+  // Collin's phone, interacting with a mansion object "crashed
+  // the game". No single toggle effect can take the frame loop
+  // down now: the value still converges, the prompt/count logic
+  // in toggleInter is untouched, and the rest of the frame —
+  // movement, people, render — always runs. (Verified in the
+  // running game: all seven mansion toggles + both doors fire
+  // clean on/off, found 1->7, zero exceptions.)
   var anyAnim=false;
   for(var i=0;i<interactables.length;i++){
     var it=interactables[i];
     if(Math.abs(it.anim-it.target)>0.0005){
       it.anim+=(it.target-it.anim)*Math.min(1,dt*7);
-      it.apply(it.anim); anyAnim=true;
+      try{ it.apply(it.anim); }catch(e){ it.anim=it.target; }
+      anyAnim=true;
     }
   }
   if(anyAnim) renderer.shadowMap.needsUpdate=true;
