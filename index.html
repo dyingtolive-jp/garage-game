@@ -1057,7 +1057,7 @@ var DECOR_COLLIDERS=[ // [centreX, centreZ, halfW, halfD] per prop
 });
 /* The old lounge corner (two stools, towels, a cooler) is gone: the
    front corner by the doors is now the Japanese chill area — benches,
-   tatami, torii, lanterns and neon — built further down with the
+   tatami, the two dance stages, lanterns and neon — built further down with the
    guests who sit there. */
 
 /* ================= CAR BUILDER ================= */
@@ -1525,7 +1525,13 @@ function partitionHood(car,model,region){
       }
       if(keep){
         e1.copy(vB).sub(vA); e2.copy(vC).sub(vA); nrm.copy(e1).cross(e2);
-        if(nrm.lengthSq()<1e-12||nrm.normalize().y<region.nMin) keep=false;
+        // region.absN (the Gallardo's rear deck): accept DOWN-facing
+        // triangles too — the cover's glass pane and the panel
+        // undersides are wound facing down, so the signed test left
+        // most of the glass floating over the open bay (v20)
+        var nl=nrm.lengthSq();
+        var ny=nl<1e-12?0:nrm.normalize().y;
+        if(nl<1e-12||(region.absN?Math.abs(ny):ny)<region.nMin) keep=false;
       }
       (keep?hoodTris:restTris).push(t);
     }
@@ -1591,18 +1597,22 @@ function partitionHood(car,model,region){
    engineGroup (revealed when the partitioned hood opens, exactly
    like the procedural car's bay): a dark tub so the opening never
    reads as a hollow shell, plus block, valve cover in the car's
-   colour and small hardware for the two front-engine cars. The
-   Gallardo already models its own V10 — it just gets the tub
-   under it. Positions are car space, measured from each car's
-   fitted profile and hood region. */
+   colour and small hardware. ONLY the S15 gets one (v20): its
+   file models no engine, so the dressed bay is all it has. The
+   Civic and the Gallardo ship with complete, detailed REAL
+   engine bays inside their model files (the Civic's BeamNG bay
+   fills the whole under-hood volume; the Gallardo models its
+   own V10) — the v19 dressed boxes sat ON TOP of the Civic's
+   real engine and buried it, and the Gallardo's deck-wide tub
+   slabbed over its bay, so both dressings are gone and opening
+   those hoods shows the real engines again, exactly as the
+   earlier builds did. Positions are car space, measured from
+   the S15's fitted profile and hood region. */
 function dressBay(car){
   var eg=car.engineGroup, id=car.spec.id;
+  if(id!=='s15') return; // Civic + Gallardo: the real modeled bay shows
   var valveMat=new THREE.MeshStandardMaterial({color:car.spec.valveColor,roughness:0.35,metalness:0.6});
-  if(id==='lambo'){
-    box(1.7,0.1,1.3,blackTrim,0,0.74,-1.5,eg,false);
-    return;
-  }
-  var cz=id==='civic'?1.43:1.3, fy=id==='civic'?0.68:0.52;
+  var cz=1.3, fy=0.52;
   box(1.3,0.03,1.46,new THREE.MeshStandardMaterial({color:0x0c0d10,roughness:1}),0,fy,cz,eg,false);
   box(0.58,0.15,0.62,darkMetal,0,fy+0.07,cz,eg,false);
   box(0.44,0.05,0.48,valveMat,0,fy+0.165,cz,eg,false);
@@ -1922,7 +1932,7 @@ function buildGLBCar(spec){
 var cars=CAR_SPECS.map(function(spec){
   if(spec.id==='lambo'){
     spec.glb='assets/lambo.glb'; spec.fitLen=spec.L; spec.hoodNode='b_hood';
-    spec.hoodRegion={zMin:-2.08,zMax:-0.92,yMin:0.78,yMax:1.10,xMax:0.80,nMin:0.25,hingeZ:-0.92,hingeY:1.02};
+    spec.hoodRegion={zMin:-2.08,zMax:-0.92,yMin:0.78,yMax:1.10,xMax:0.80,nMin:0.25,hingeZ:-0.92,hingeY:1.02,absN:true};
     return buildGLBCar(spec);
   }
   if(spec.id==='s15'){
@@ -1962,7 +1972,8 @@ var cars=CAR_SPECS.map(function(spec){
      woman in a pink sports bra and bikini bottoms with a real
      30-second Mixamo dance loop (verified in-file: 90 channels,
      66-joint rig), staged at the chrome pole on the neon-rimmed
-     stage by the right wall. v13 CORRECTION (Collin's call,
+     stage between the benches (v20: moved from the right wall —
+     both stages stand together in the chill corner now). v13 CORRECTION (Collin's call,
      superseding the earlier double-her instruction): she stays
      her normal 1.70 m — the same height as the walker, the v12
      height match. Only the POLE changed: taller (5.0 m, as tall
@@ -2166,17 +2177,22 @@ function loadDancer(){
     var loader=new THREE.GLTFLoader();
     if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
     var startLoad=function(){
-      // the stage: a low round platform with a neon-pink rim, set
-      // against the right wall, clear of the walker's aisle loop.
-      // v13 correction: the dancer is back at her normal size, so
-      // the stage disc is back to its v12 footprint too — only the
-      // pole grew: 5.0 m tall (ceiling is 5.2 m) and slimmed to
-      // just over half its file thickness below.
-      var stage=new THREE.Group(); stage.position.set(10.4,0,1.6); scene.add(stage);
-      var disc=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.42,0.16,40),
+      // the stage: a low round platform with a neon-pink rim.
+      // v20: the stage moved from the right wall to the chill
+      // corner — it stands between the two benches, side by side
+      // with Anna's stage where the torii gate used to be (see
+      // loadDancer2). The disc is a touch smaller than the old
+      // wall footprint (1.15/1.28 instead of 1.3/1.42) so the pair
+      // fits the gap between the benches clear of the walker's
+      // aisle loop, the tatami mats and the front wall; the disc
+      // top stays at 0.16, so her grounding is unchanged. The
+      // pole is still 5.0 m tall (ceiling is 5.2 m) and slimmed
+      // to just over half its file thickness below.
+      var stage=new THREE.Group(); stage.position.set(1.75,0,8.66); scene.add(stage);
+      var disc=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.28,0.16,40),
         new THREE.MeshStandardMaterial({color:0x17181c,roughness:0.35,metalness:0.5,envMapIntensity:1.1}));
       disc.position.y=0.08; disc.receiveShadow=true; stage.add(disc);
-      var rim=new THREE.Mesh(new THREE.TorusGeometry(1.31,0.03,10,56),
+      var rim=new THREE.Mesh(new THREE.TorusGeometry(1.16,0.03,10,56),
         new THREE.MeshStandardMaterial({color:0x1a050c,emissive:0xff2e63,emissiveIntensity:2.2,roughness:0.4}));
       rim.rotation.x=Math.PI/2; rim.position.y=0.16; stage.add(rim);
       // pink stage lamp, kept modest (9) and high (4.7 m): with the
@@ -2185,7 +2201,7 @@ function loadDancer(){
       // soft pink wash, no white blow-out on her skin or top
       var lamp=new THREE.PointLight(0xff5c8a,9,10,1.8); lamp.position.set(0,4.7,0); stage.add(lamp);
       var lampGlow=glowSprite(0xff5c8a,2.4,0.5); lampGlow.position.set(0,4.7,0); stage.add(lampGlow);
-      addCollider(10.4,1.6,1.45,1.45);
+      addCollider(1.75,8.66,0.95,0.95);
       loader.load('assets/pole.glb',function(pg){
         var pole=pg.scene;
         pole.traverse(function(o){ if(o.isMesh){ o.castShadow=false;
@@ -2207,8 +2223,8 @@ function loadDancer(){
         holder.position.y+=0.16;  // on the stage disc
         var grp=new THREE.Group();
         grp.add(holder);
-        grp.position.set(10.4,0,1.6);
-        grp.rotation.y=-Math.PI/2+0.35; // angled toward the room
+        grp.position.set(1.75,0,8.66);
+        grp.rotation.y=Math.PI-0.18; // facing the room, angled a touch toward the other stage
         scene.add(grp);
         dancer={grp:grp,mixer:mixer};
       },undefined,function(){ /* no fallback figure — the capsule people are deleted */ });
@@ -2220,39 +2236,65 @@ function loadDancer(){
 loadWalker();
 loadDancer();
 /* ---- the SECOND pole dancer: ANNA on the Mixamo rig, on a
-   second identical chrome pole on the OPPOSITE (left) wall.
+   second identical chrome pole beside the first dancer's —
+   since v20 the pair stand together between the benches (they
+   used to face each other from opposite walls).
    History: v15 retargeted a twerk clip onto Anna's CC4 rig and
    deformed her arms; v16 swapped in a clothed "Woman In Red"
    with a native clip. The Mixamo route replaces both: Anna's
    own mesh was re-rigged by Mixamo onto its standard 41-bone
-   rig (anna-mixamo.glb, no clip of its own), and she dances a
+   rig (anna-mixamo.glb, no clip of its own), and she danced a
    real Mixamo hip-hop clip (dance-clip.glb, "Body Wave", 213
-   frames) played NATIVELY on that rig — no retargeting anywhere.
-   The clip plays rotation-only (prepClip rotOnly) and she is
-   grounded from her posed first frame (groundFigure), so she
-   stays on the stage disc at the pole for the whole loop. Her
-   colour is real now too: the shipped model file is the
-   re-textured build (30 images, skin/hair/eye maps restored) —
-   the first Mixamo export carried no textures at all and she
-   rendered flat grey. Same honest limit as dancer one: she
-   dances AT the pole, not on it. Adults only, per Collin. ---- */
+   frames) played NATIVELY on that rig.
+   v20 — SAME DANCE AS DANCER ONE (Collin's call): the Body Wave
+   is out; Anna now dances the clothed dancer's twerk loop
+   itself. The two rigs are both Mixamo but different exports —
+   the twerk file's bones carry numeric suffixes and a standing
+   bind pose, Anna's rig carries neither and her bind lies along
+   the floor — so the clip can't just be re-pointed at her (a
+   name-stripped copy folds her into a crouch, verified offline).
+   Instead the twerk was transferred OFFLINE onto her rig and
+   baked into anna-twerk-clip.glb (30 fps, all 41 bones): each
+   frame's world-space motion delta from the twerk was applied
+   on top of Anna's own standing-idle base pose and solved back
+   to her local bone rotations, and her Hips carry a position
+   track with the twerk's vertical bounce (0.33 m of travel),
+   converted into her armature's frame — without it a
+   rotation-only playback leaves her sunk in a permanent crouch
+   with her feet through the disc. Playback below keeps every
+   rotation track plus that one Hips track, with the Hips'
+   local x/y frozen (in her armature frame those are the
+   horizontal axes; local z is world height) so she stays
+   centred on the disc while the bounce plays. She is grounded
+   from her posed first frame (groundFigure), so she stays on
+   the stage disc at the pole for the whole loop. Verified
+   offline against the shipped files: her figure top ranges
+   1.40-1.77 m across the loop against the clothed dancer's
+   own 1.43-1.85, feet within 5 cm of the disc throughout.
+   Her colour is real: the shipped model file is the
+   re-textured build (30 images, skin/hair/eye maps restored).
+   v20 also moved her stage: she and dancer one now stand side
+   by side between the benches, where the torii gate used to
+   be. Same honest limit as dancer one: she dances AT the
+   pole, not on it. Adults only, per Collin. ---- */
 function loadDancer2(){
   try{
     var loader=new THREE.GLTFLoader();
     if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
     var startLoad=function(){
-      // mirror of the first stage, on the left wall — same disc,
-      // same neon rim, same pink lamp, same tall skinny pole
-      var stage=new THREE.Group(); stage.position.set(-10.55,0,1.6); scene.add(stage);
-      var disc=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.42,0.16,40),
+      // mirror of the first stage, beside it between the benches
+      // — same disc, same neon rim, same pink lamp, same tall
+      // skinny pole
+      var stage=new THREE.Group(); stage.position.set(-1.75,0,8.66); scene.add(stage);
+      var disc=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.28,0.16,40),
         new THREE.MeshStandardMaterial({color:0x17181c,roughness:0.35,metalness:0.5,envMapIntensity:1.1}));
       disc.position.y=0.08; disc.receiveShadow=true; stage.add(disc);
-      var rim=new THREE.Mesh(new THREE.TorusGeometry(1.31,0.03,10,56),
+      var rim=new THREE.Mesh(new THREE.TorusGeometry(1.16,0.03,10,56),
         new THREE.MeshStandardMaterial({color:0x1a050c,emissive:0xff2e63,emissiveIntensity:2.2,roughness:0.4}));
       rim.rotation.x=Math.PI/2; rim.position.y=0.16; stage.add(rim);
       var lamp=new THREE.PointLight(0xff5c8a,9,10,1.8); lamp.position.set(0,4.7,0); stage.add(lamp);
       var lampGlow=glowSprite(0xff5c8a,2.4,0.5); lampGlow.position.set(0,4.7,0); stage.add(lampGlow);
-      addCollider(-10.55,1.6,1.45,1.45);
+      addCollider(-1.75,8.66,0.95,0.95);
       loader.load('assets/pole.glb',function(pg){
         var pole=pg.scene;
         pole.traverse(function(o){ if(o.isMesh){ o.castShadow=false;
@@ -2274,17 +2316,30 @@ function loadDancer2(){
         // she came out 7 m tall)
         var holder=fitFigureMixamo(model,1.70); // same height as the walker, as always
         var grp=new THREE.Group(); grp.add(holder);
-        grp.position.set(-10.55,0,1.6);
-        grp.rotation.y=Math.PI/2-0.35; // mirrored: angled toward the room
-        // her dance lives in its own file, authored on this exact
-        // Mixamo rig — load it and play it on her rotation-only,
-        // then ground her posed first frame onto the disc so she
-        // stays on it, dancing at the pole
-        loader.load('assets/dance-clip.glb',function(cg){
+        grp.position.set(-1.75,0,8.66);
+        grp.rotation.y=Math.PI+0.18; // facing the room, angled a touch toward the other stage
+        // her dance lives in its own file now — the twerk baked
+        // onto her rig (see the header above). Playback keeps
+        // every rotation track plus the single Hips position
+        // track (the bounce), with the Hips' local x/y frozen to
+        // frame 0 so she stays centred on the disc; then ground
+        // her posed first frame onto the disc so she stays on
+        // it, dancing at the pole
+        loader.load('assets/anna-twerk-clip.glb',function(cg){
           var mixer=null;
           if(cg.animations&&cg.animations.length){
             mixer=new THREE.AnimationMixer(model);
-            var act=mixer.clipAction(prepClip(cg.animations[0],false,true));
+            var clip=cg.animations[0].clone();
+            clip.tracks=clip.tracks.filter(function(tr){
+              return tr.name.slice(-9)!=='.position'||/Hips/.test(tr.name);
+            });
+            clip.tracks.forEach(function(tr){
+              if(tr.name.slice(-9)==='.position'){
+                var v=tr.values, x0=v[0], y0=v[1];
+                for(var i=0;i<v.length;i+=3){ v[i]=x0; v[i+1]=y0; }
+              }
+            });
+            var act=mixer.clipAction(clip);
             act.setLoop(THREE.LoopRepeat); act.play();
             mixer.update(0); // land frame 0 so she can be grounded in the pose
           }
@@ -2392,12 +2447,14 @@ function updatePeople(dt,t){
    Decor (all real CC BY files, measured and grounded from their
    own bounding boxes at load): chertpaderi garden bench +
    ditovirnantio station bench, seirogan tatami mats under them,
-   Bazylonator torii as the area's entrance, abelGB paper lanterns
-   overhead, tokyo45otaku's red Ueno Coca-Cola vending machine,
-   Vermos bonsai on a low stand, sa6 sign board, and four signs
-   from ydvisual's neon set hung individually (izakaya over the
-   garden bench, beer over the station bench, parking over the
-   torii, sushi on the right wall by the stage). ---- */
+   abelGB paper lanterns overhead, tokyo45otaku's red Ueno
+   Coca-Cola vending machine, Vermos bonsai on a low stand
+   between the two dance stages (v20: the Bazylonator torii
+   that stood between the benches is removed — the stages are
+   there now), sa6 sign board, and four signs from ydvisual's
+   neon set hung individually (izakaya over the garden bench,
+   beer over the station bench, parking over the stages, sushi
+   on the right wall). ---- */
 var shadowTimer=0;
 function jpLoader(){
   var loader=new THREE.GLTFLoader();
@@ -2467,31 +2524,35 @@ function buildChillArea(){
   loadProp('assets/jp-tatami.glb',{w:3.8,x:5.2,z:8.62});
   // benches — the garden bench's backrest is on its local -z side
   // (measured from the file), so both benches turn their backs to
-  // the front wall and face the cars. v19: both stand ON the
-  // tatami platform (its top is 0.11, measured from the file)
-  // instead of sinking their legs through it, and the garden
-  // bench is stretched 1.26x taller — its seat was 0.43 over its
-  // base, too low for the sitter's pose (0.549); stretched and
-  // on the platform its seat top lands at 0.65 absolute, 0.54
-  // over the mat her feet rest on.
-  loadProp('assets/jp-bench.glb',{w:1.9,x:-5.2,z:8.78,ry:Math.PI,groundY:0.11,sy:1.26,collider:[1.05,0.42]});
-  loadProp('assets/jp-bench2.glb',{w:2.0,x:5.2,z:8.78,ry:Math.PI,groundY:0.11,collider:[1.1,0.42]});
-  // torii gate as the chill area's entrance, behind the spawn point
-  loadProp('assets/jp-torii.glb',{h:3.05,x:0,z:9.05,ry:Math.PI});
-  addCollider(-1.45,9.05,0.2,0.35); addCollider(1.45,9.05,0.2,0.35);
+  // the front wall and face the cars. Both stand ON the tatami
+  // platform (its top is 0.11, measured from the file). v20: both
+  // benches are vertically scaled so their SEATS meet the sitting
+  // pose where it actually is — in the posed clip her buttocks
+  // rest 0.48 over her soles, so each seat top lands at 0.59
+  // absolute (0.48 over the mat her feet rest on): the garden
+  // bench at sy 1.16 (its seat measured 0.52 over the mat at the
+  // old 1.26 stretch — she sank 5 cm into it), the station bench
+  // at sy 0.82 (its seat measured 0.59 over the mat unstretched
+  // — she sank 10 cm into that one). See loadSeatedAnna.
+  loadProp('assets/jp-bench.glb',{w:1.9,x:-5.2,z:8.78,ry:Math.PI,groundY:0.11,sy:1.16,collider:[1.05,0.42]});
+  loadProp('assets/jp-bench2.glb',{w:2.0,x:5.2,z:8.78,ry:Math.PI,groundY:0.11,sy:0.82,collider:[1.1,0.42]});
+  // (v20: the red torii gate that stood between the benches is
+  // GONE — the two pole-dance stages stand there now, side by
+  // side; see loadDancer / loadDancer2.)
   // red Ueno Coca-Cola vending machine against the front wall
   // (its glass front faces local +z — measured from the file — so
   // it turns around to face the room)
   loadProp('assets/jp-vending.glb',{h:1.85,x:-10.7,z:9.3,ry:Math.PI,collider:[0.55,0.6]});
   // standing sign board by the right bench
   loadProp('assets/jp-sign.glb',{h:1.7,x:9.6,z:8.7,ry:Math.PI+0.3,collider:[0.6,0.25]});
-  // bonsai on a low dark-wood stand between torii and garden bench
-  var stand=box(0.56,0.5,0.56,new THREE.MeshStandardMaterial({color:0x2e2019,roughness:0.8}),-2.6,0.25,8.85);
+  // bonsai on a low dark-wood stand, centred behind the two
+  // stages in the notch between them, against the front wall
+  var stand=box(0.56,0.5,0.56,new THREE.MeshStandardMaterial({color:0x2e2019,roughness:0.8}),0,0.25,9.3);
   stand.castShadow=true;
-  addCollider(-2.6,8.85,0.34,0.34);
-  loadProp('assets/jp-bonsai.glb',{h:0.62,x:-2.6,z:8.85,groundY:0.5,ry:1.2});
-  // paper lanterns over the benches and the torii, warm light pooled
-  // over the whole corner
+  addCollider(0,9.3,0.34,0.34);
+  loadProp('assets/jp-bonsai.glb',{h:0.62,x:0,z:9.3,groundY:0.5,ry:1.2});
+  // paper lanterns over the benches and the stages, warm light
+  // pooled over the whole corner
   function lantern(x,z,cy){
     loadProp('assets/jp-lantern.glb',{h:0.55,x:x,z:z,center:true,groundY:cy,tune:function(model){
       model.traverse(function(o){ if(o.isMesh&&o.material){
@@ -2513,7 +2574,7 @@ function buildChillArea(){
       var picks=[
         {node:'sign.009',h:1.9,x:-5.2,y:2.75,z:9.93,ry:Math.PI},   // izakaya, over the garden bench
         {node:'sign.010',h:1.6,x:5.2,y:2.7,z:9.93,ry:Math.PI},     // beer, over the station bench
-        {node:'sign.014',h:1.9,x:0,y:2.85,z:9.93,ry:Math.PI},      // parking, over the torii
+        {node:'sign.014',h:1.9,x:0,y:2.85,z:9.93,ry:Math.PI},      // parking, over the stages
         {node:'sign.003',h:1.5,x:12.93,y:2.5,z:-1.5,ry:-Math.PI/2} // sushi, right wall by the stage
       ];
       picks.forEach(function(p){
@@ -2548,33 +2609,26 @@ function buildChillArea(){
    looped, the two sitters desynced by timeOffset.
    Placement is measured from the POSED figure at load, the way
    the rest of this file works: in the clip her buttocks rest
-   0.549 m above her feet, pelvis joint 0.10 m above that (both
-   measured off her skinned mesh, steady to ±1 mm across the
-   whole loop, so a frame-0 placement holds for every frame).
+   0.48 m above her soles and 0.17 m below her pelvis joint
+   (both measured off her skinned mesh, steady to ±1 mm across
+   the whole loop, so a frame-0 placement holds for every frame).
    Her hips are centred over her spot directly, never by
    bounding box: the seated box reaches ~0.6 m forward of the
    hips, so bbox centring (groundFigure) would shove her back
    into the backrest.
-   v19 — why the sitters looked messed up, and the fix. THREE
-   things were wrong at once: (1) GLTFLoader strips the colon
-   from node names, so the Hips lookup below ('mixamorig:Hips')
-   never matched the loaded bone ('mixamorigHips') — the seat
-   anchor and hip centring silently never ran, and both girls
-   were placed feet-first whatever the bench. (2) The benches
-   stood on the FLOOR (y=0) in the middle of the tatami
-   platform (top at 0.11), so their legs sank through it and
-   both girls' feet anchored a full mat-thickness under the
-   surface they were visibly standing on. (3) The garden
-   bench's seat (0.43 over its base) is simply too low for the
-   pose's 0.549 seat height. Now: both benches stand ON the
-   tatami (groundY 0.11), the garden bench is stretched 1.26x
-   taller so its seat sits 0.54 over the platform (0.65
-   absolute — the ~0.55 the pose wants), and both sitters are
-   anchored butt-to-seat from the (fixed) Hips lookup with
-   their group raised to the platform top. Verified offline
-   against the real files: garden girl's butt lands 2 mm into
-   the seat with her soles on the mat; station girl presses
-   ~1.5 cm into her contoured seat, feet 1 cm over the mat. */
+   v19 fixed the Hips lookup (GLTFLoader strips the colon from
+   'mixamorig:Hips', so the anchor silently never ran) and stood
+   the benches on the tatami instead of through it. v20 — why
+   they STILL looked messed up: the anchor's butt offset was
+   wrong (0.10 assumed, 0.17 real) and neither bench's seat
+   actually sat at the height the maths claimed, so both girls
+   sat sunk INTO the seat slabs — 5 cm on the garden bench,
+   10 cm on the station bench, thighs clipping through the
+   wood. Now both benches are vertically scaled to a true
+   0.59 seat (see buildChillArea) and the anchor uses the
+   measured 0.17 offset: butt on the seat with a 1 cm press,
+   soles flat on the mat, verified offline against the real
+   files across the whole loop. */
 var SEAT_AXIS_X=new THREE.Vector3(1,0,0), SEAT_AXIS_Y=new THREE.Vector3(0,1,0), SEAT_AXIS_Z=new THREE.Vector3(0,0,1);
 var seatTmpQ=new THREE.Quaternion();
 function loadSeatedAnna(opts){
@@ -2616,7 +2670,14 @@ function loadSeatedAnna(opts){
         var dy=-feetY; // feet exactly on the floor
         if(hips){
           var hp=hips.getWorldPosition(new THREE.Vector3());
-          if(opts.anchor==='seat') dy=(opts.seatH-0.01)-(hp.y-0.10); // butt on the seat, 1 cm press
+          // v20: the buttocks' lowest point in the posed clip is
+          // 0.17 below the Hips joint, NOT the 0.10 the v19 anchor
+          // assumed (measured off her skinned mesh, steady across
+          // the whole loop) — with 0.10 both girls sat sunk into
+          // their benches, 5 cm on the garden bench, 10 cm on the
+          // station bench. 0.17 puts the butt on the seat with a
+          // 1 cm press, soles flat on the mat.
+          if(opts.anchor==='seat') dy=(opts.seatH-0.01)-(hp.y-0.17); // butt on the seat, 1 cm press
           var dx=grp.position.x-hp.x, dz=grp.position.z-hp.z;
           var cos=Math.cos(grp.rotation.y), sin=Math.sin(grp.rotation.y);
           holder.position.x+=cos*dx-sin*dz;
@@ -2739,8 +2800,8 @@ function loadStandingAnna(opts){
    Headings use the figure convention: rotation 0 faces +z, so
    ry = atan2(dx, dz) toward whatever she's looking at. */
 function loadAllGuests(){
-loadSeatedAnna({x:-5.2,z:8.84,ry:Math.PI-0.10,seatH:0.66,anchor:'seat',floorY:0.11,timeOffset:0});
-loadSeatedAnna({x:5.35,z:8.84,ry:Math.PI+0.14,seatH:0.68,anchor:'seat',floorY:0.11,timeOffset:2.3});
+loadSeatedAnna({x:-5.2,z:8.84,ry:Math.PI-0.10,seatH:0.595,anchor:'seat',floorY:0.11,timeOffset:0});
+loadSeatedAnna({x:5.35,z:8.84,ry:Math.PI+0.14,seatH:0.595,anchor:'seat',floorY:0.11,timeOffset:2.3});
 loadStandingAnna({x:-6.6,z:-1.2,ry:2.03,collider:[0.3,0.3],clip:'assets/idle-stand-clip.glb',timeOffset:0});
 loadStandingAnna({x:6.6,z:-1.2,ry:-2.03,collider:[0.3,0.3],clip:'assets/idle-stand-clip.glb',timeOffset:3.7});
 loadGuest('assets/alina.glb',{h:1.68,x:-8.6,z:0.6,ry:1.76,pin:true,collider:[0.32,0.32]});
@@ -2825,8 +2886,8 @@ var dustPts=null, dustBase=null;
 function buildAtmosphere(){
   floorGlow(0,-8.3,7.5,3.2,0xff7a3a,0.10);       // main neon sign spill
   floorGlow(11.5,-5.6,3.6,3.6,0xff2e63,0.08);    // DTL cross spill
-  floorGlow(10.4,1.6,3.2,3.2,0xff2e63,0.07);     // stage one
-  floorGlow(-10.55,1.6,3.2,3.2,0xff2e63,0.07);   // stage two
+  floorGlow(1.75,8.66,3.2,3.2,0xff2e63,0.07);    // stage one
+  floorGlow(-1.75,8.66,3.2,3.2,0xff2e63,0.07);   // stage two
   [-10,-5,0,5,10].forEach(function(x){ floorGlow(x,-2,4.8,3.6,0xffd9a0,0.045); }); // bay light pools
   if(softwareGL||reduceMotion) return;
   var N=240, pos=new Float32Array(N*3); dustBase=new Float32Array(N*3);
