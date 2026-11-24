@@ -409,6 +409,174 @@ var SimulationSystem=(function(){
   return api;
 })();
 
+/* ---- FollowerSystem (v24): a casual companion follower.
+   ONE registered actor (Alina) walks WITH the player — never
+   chasing, never sprinting, never glued to his back. She holds
+   a comfortable anchor spot behind-and-beside him (computed
+   from a smoothed copy of his heading, so a camera flick never
+   whips her around him), matches his pace with smooth
+   acceleration, feed-forward from his own velocity so the pair
+   move together instead of oscillating, a short human reaction
+   lag before she sets off, and a full stop back into her idle
+   when he stops. Her animation is stepped through
+   SimulationSystem's LOD rules like every other NPC; the
+   movement maths itself is a handful of vector ops per step.
+   Zone changes (the apartment doors are teleports) are the one
+   hard relocation: after he has been in the other zone ~0.9 s
+   she comes through the same door, appearing at its landing —
+   she never pathfinds through walls and never teleports to
+   catch up mid-room. Content registers her once via attach();
+   this system knows nothing about her model, clips or home
+   spot beyond the registration. */
+var FollowerSystem=(function(){
+  var F=null; // {grp,mixer,idle,walk} — set by attach()
+  // the player, camera heading, run state and collider list are
+  // handed in per update() by the game loop — the same explicit
+  // interface SimulationSystem and WorldSystem use — because
+  // this system lives outside boot()'s scope and must never
+  // reach for game-state variables directly
+  var E={player:null,camYaw:0,started:false,colliders:[]};
+  var S={vx:0,vz:0,speed:0,face:0,side:1,noticeT:0,zoneT:0,walkBlend:0,
+         hx:0.4,hz:7.6,hInit:false,px:null,pz:0,pvx:0,pvz:0,pspeed:0,home:null};
+  function angLerp(a,b,k){ var d=((b-a+Math.PI*3)%(Math.PI*2))-Math.PI; return a+d*k; }
+  function blocked(x,z,r){
+    var cs=E.colliders;
+    for(var i=0;i<cs.length;i++){ var b=cs[i];
+      if(x>b.minX-r&&x<b.maxX+r&&z>b.minZ-r&&z<b.maxZ+r) return true; }
+    return false;
+  }
+  function bounds(zone,x,z){
+    if(zone==='apartment') return [Math.max(-4.95,Math.min(4.95,x)),Math.max(-32.3,Math.min(-25.5,z))];
+    return [Math.max(-12.4,Math.min(12.4,x)),Math.max(-9.3,Math.min(9.4,z))];
+  }
+  function zoneOf(z){ return z<-20?'apartment':'garage'; }
+  function anchorValid(x,z,zone){
+    var b=bounds(zone,x,z);
+    if(Math.abs(b[0]-x)>0.01||Math.abs(b[1]-z)>0.01) return false;
+    return !blocked(x,z,0.34);
+  }
+  function tick(dt){
+    var P=E.player, camYaw=E.camYaw; // game state arrives via update() — see E above
+    if(S.px===null){ S.px=P.x; S.pz=P.z; }
+    var grp=F.grp, pos=grp.position;
+    // player velocity, smoothed — she reads his pace, not his jitter
+    var ivx=(P.x-S.px)/Math.max(dt,0.001), ivz=(P.z-S.pz)/Math.max(dt,0.001);
+    S.px=P.x; S.pz=P.z;
+    var vk=1-Math.exp(-dt*7);
+    S.pvx+=(ivx-S.pvx)*vk; S.pvz+=(ivz-S.pvz)*vk;
+    S.pspeed=Math.sqrt(S.pvx*S.pvx+S.pvz*S.pvz);
+    var pz=zoneOf(P.z), hz=zoneOf(pos.z);
+    if(pz!==hz){
+      // he went through a door: she follows through it a beat
+      // later, appearing at the door landing on his side
+      S.zoneT+=dt;
+      if(S.zoneT>0.9){
+        S.zoneT=0;
+        if(pz==='apartment') pos.set(1.2,0,-26.1); else pos.set(9.5,0,-8.15);
+        S.vx=0; S.vz=0; S.speed=0;
+        S.face=Math.atan2(P.x-pos.x,P.z-pos.z);
+      }
+    } else S.zoneT=0;
+    // smoothed heading for the anchor: she positions herself
+    // relative to where he is broadly headed, so quick look-
+    // arounds don't swing her anchor from side to side
+    if(!S.hInit){ S.hx=P.x; S.hz=P.z; S.hInit=true; }
+    S.headYaw=(S.headYaw===undefined?camYaw:S.headYaw);
+    S.headYaw=angLerp(S.headYaw,camYaw,1-Math.exp(-dt*2.0));
+    var fx=-Math.sin(S.headYaw), fz=-Math.cos(S.headYaw); // his forward (movement frame)
+    var rx=-fz, rz=fx;                                    // his right
+    // anchor: a couple of steps behind, one step to the side —
+    // walking together, not trailing on a leash
+    var ax=P.x-fx*1.5+rx*0.95*S.side, az=P.z-fz*1.5+rz*0.95*S.side;
+    if(!anchorValid(ax,az,pz)){
+      if(anchorValid(P.x-fx*1.5-rx*0.95*S.side,P.z-fz*1.5-rz*0.95*S.side,pz)){
+        S.side=-S.side; ax=P.x-fx*1.5+rx*0.95*S.side; az=P.z-fz*1.5+rz*0.95*S.side;
+      } else { ax=P.x-fx*1.75; az=P.z-fz*1.75; }
+    }
+    var dx=ax-pos.x, dz=az-pos.z, dist=Math.sqrt(dx*dx+dz*dz);
+    // human reaction lag: he sets off, a beat passes, she
+    // notices and follows — unless she is already far behind
+    if(S.pspeed>0.35) S.noticeT+=dt; else S.noticeT=0;
+    var unlocked=S.noticeT>0.26||dist>1.9;
+    var dvx=0, dvz=0;
+    if(E.started&&hz===pz&&unlocked&&!(dist<0.32&&S.pspeed<0.2)){
+      var cap=F.walk?3.35:1.15;
+      if(dist>5) cap=F.walk?3.6:1.15; // far behind: a brisk walk, never a run
+      var sp=Math.min(cap,dist*1.35);
+      dvx=dx/(dist||1)*sp+S.pvx*0.82; dvz=dz/(dist||1)*sp+S.pvz*0.82;
+      var dl=Math.sqrt(dvx*dvx+dvz*dvz);
+      if(dl>cap){ dvx*=cap/dl; dvz*=cap/dl; }
+    }
+    // smooth acceleration / deceleration — no snapping, ever
+    var acc=(dvx||dvz)?3.0:3.4, mx=acc*dt;
+    var ddx=dvx-S.vx, ddz=dvz-S.vz, dd=Math.sqrt(ddx*ddx+ddz*ddz);
+    if(dd>mx){ ddx*=mx/dd; ddz*=mx/dd; }
+    S.vx+=ddx; S.vz+=ddz;
+    var nx=pos.x+S.vx*dt, nz=pos.z+S.vz*dt;
+    // collision, resolved the same way the player's own
+    // collide() resolves it: integrate, then push out of any
+    // collider along its shallowest axis. Entry-blocking alone
+    // would trap her — her home spot by Bay 2 overlaps the
+    // lift prop's collider footprint, so her first step out
+    // has to be a push-out, not a slide; push-out also means
+    // no anchor or doorway can ever pen her inside a prop.
+    var rr=0.30, cs2=E.colliders;
+    for(var ci=0;ci<cs2.length;ci++){ var b2=cs2[ci];
+      if(nx>b2.minX-rr&&nx<b2.maxX+rr&&nz>b2.minZ-rr&&nz<b2.maxZ+rr){
+        var pl=nx-(b2.minX-rr), pr=(b2.maxX+rr)-nx, pb=nz-(b2.minZ-rr), pf=(b2.maxZ+rr)-nz;
+        var m=Math.min(pl,pr,pb,pf);
+        if(m===pl)nx=b2.minX-rr; else if(m===pr)nx=b2.maxX+rr;
+        else if(m===pb)nz=b2.minZ-rr; else nz=b2.maxZ+rr;
+      }
+    }
+    var bd=bounds(hz,nx,nz); nx=bd[0]; nz=bd[1];
+    // personal space: she never crowds into him
+    var pdx=nx-P.x, pdz=nz-P.z, pd=Math.sqrt(pdx*pdx+pdz*pdz);
+    if(pd<0.78&&pd>0.001){
+      var qx=P.x+pdx/pd*0.78, qz=P.z+pdz/pd*0.78;
+      if(!blocked(qx,qz,0.30)){ nx=qx; nz=qz; } else { nx=pos.x; nz=pos.z; }
+    }
+    S.speed=Math.sqrt(S.vx*S.vx+S.vz*S.vz);
+    pos.x=nx; pos.z=nz;
+    // facing: the way she walks; at rest, the way he is looking —
+    // she stands WITH him, not staring at him
+    var ft=(S.speed>0.25)?Math.atan2(S.vx,S.vz):camYaw+Math.PI;
+    var fd=((ft-S.face+Math.PI*3)%(Math.PI*2))-Math.PI;
+    var mxTurn=2.4*dt;
+    S.face+=Math.max(-mxTurn,Math.min(mxTurn,fd));
+    grp.rotation.y=S.face;
+    // animation: idle <-> walk crossfade driven by her real
+    // speed; the walk cycle's rate follows her stride
+    var tb=F.walk?Math.max(0,Math.min(1,S.speed/0.85)):(S.speed>0.3?0.35:0);
+    S.walkBlend+=(tb-S.walkBlend)*(1-Math.exp(-dt*5));
+    if(F.idle) F.idle.setEffectiveWeight(1-S.walkBlend);
+    if(F.walk){
+      F.walk.setEffectiveWeight(S.walkBlend);
+      if(S.walkBlend>0.02) F.walk.timeScale=Math.max(0.72,Math.min(2.5,S.speed/1.05));
+    }
+    SimulationSystem.mixerStep(F.mixer,grp,P,dt,7);
+  }
+  return {
+    attach:function(cfg){
+      F=cfg; S.face=cfg.grp.rotation.y; S.home={x:cfg.grp.position.x,z:cfg.grp.position.z};
+      S.px=null; // seeded from the first update()'s player instead — attach() runs in a loader callback, outside the game loop
+    },
+    setWalk:function(act){ if(F) F.walk=act; },
+    update:function(dt,P,camYaw,started,colliders){
+      if(!F||!F.grp||!F.mixer||!P) return;
+      E.player=P; E.camYaw=camYaw; E.started=started; E.colliders=colliders||[];
+      SimulationSystem.guard('follower',function(){ tick(dt); });
+    },
+    state:function(){
+      if(!F) return {attached:false};
+      return {attached:true,speed:Math.round(S.speed*100)/100,blend:Math.round(S.walkBlend*100)/100,
+        x:Math.round(F.grp.position.x*100)/100,z:Math.round(F.grp.position.z*100)/100,
+        zone:zoneOf(F.grp.position.z),playerSpeed:Math.round(S.pspeed*100)/100,hasWalk:!!F.walk};
+    }
+  };
+})();
+window.__FOLLOWER__=FollowerSystem;
+
 /* ---- PerfSystem: rolling frame metrics with no per-frame
    allocation. Windows are 1.5 s; QualitySystem consumes them. */
 var PerfSystem=(function(){
@@ -2676,6 +2844,16 @@ function updatePeople(dt,t){
   if(!softwareGL||jpHalf){ var jdt=softwareGL?dt*2:dt;
     for(var jpi=0;jpi<jpMixers.length;jpi++)
       SimulationSystem.mixerStep(jpMixers[jpi],jpMixers[jpi].getRoot(),player,jdt,jpi); }
+  // v24: the bench sitters' mixers live in the seated pose
+  // layer (see loadSeatedAnna) — stepped under the same LOD
+  // rules, with the corrective pose applied in the same step
+  // so it can never double-apply or lag a frame behind
+  for(var sei=0;sei<seatedPose.length;sei++){ var se=seatedPose[sei];
+    SimulationSystem.guard('seated'+sei,function(){
+      if(!se.mixer) return;
+      if(SimulationSystem.mixerStep(se.mixer,se.grp,player,dt,8+sei)) applySitPose(se);
+    });
+  }
   // standing Annas in a HELD pose (opts.pose guests — none are
   // currently placed; the car-row pair play a looping clip and
   // stay out of this list): a slow breath at the waist and
@@ -2930,6 +3108,62 @@ function buildChillArea(){
    files across the whole loop. */
 var SEAT_AXIS_X=new THREE.Vector3(1,0,0), SEAT_AXIS_Y=new THREE.Vector3(0,1,0), SEAT_AXIS_Z=new THREE.Vector3(0,0,1);
 var seatTmpQ=new THREE.Quaternion();
+/* ---- v24: the seated pose layer ----
+   WHY THREE PLACEMENT FIXES IN A ROW STILL LOOKED WRONG ON
+   COLLIN'S PHONE: the placement maths was chasing constants
+   while the POSE ITSELF was the defect. Measured off the real
+   decoded clip files (meshopt-decoded, posed on Anna's own
+   skeleton in the lab): Mixamo's sitting idle sits WIDE —
+   knees 34 cm apart, feet 47 cm apart, hands hanging 19 cm
+   off the thighs beside the seat — and no anchor can make a
+   wide, hands-down sit read as a relaxed bench sit. So the
+   sitters now get a corrective pose layer in the codebase's
+   own standingAnnas pattern: constant local-space rotations
+   post-multiplied onto the clip's bones after every mixer
+   step (the mixers live HERE now, not in jpMixers, so the
+   correction lands in the same step as the pose it corrects
+   and can never double-apply). The angles were solved in the
+   lab against the real clip: knees 34->18 cm, feet 47->18 cm,
+   hands 19 cm off the thigh -> resting on it (~5 cm, mid-
+   thigh), thighs stay near-horizontal. All on the bones'
+   local Z (the rig's abduction / arm-swing axis; the X axis
+   is the sagittal pitch, used by the anchor's thigh trim).
+   The clip also plays UNamplified now: amplifyClip's gains
+   were tuned for the subtle standing idle and only ever
+   distorted this pose. The anchor below no longer trusts
+   offline constants either: the seat height is RAYCAST from
+   the real bench mesh in the scene, her butt is placed on
+   it, and whatever sole-height residual remains is absorbed
+   by a thigh-pitch trim (rotating the thighs down/up a few
+   degrees with the shins counter-rotated to stay vertical —
+   lab-measured at 0.81 cm of sole travel per degree) plus a
+   final nudge capped at 2.5 cm, so butt-on-seat AND feet-
+   flat hold on BOTH benches whatever their true seat heights
+   are. She also sits BACK now: hips over the rear of the
+   seat, 6 cm closer to the backrest than the old spot. */
+var seatedPose=[];
+var SIT_CORR=[
+  ['mixamorigLeftUpLeg',-10],['mixamorigRightUpLeg',10],   // thighs together
+  ['mixamorigLeftLeg',-6],['mixamorigRightLeg',6],        // feet under knees
+  ['mixamorigLeftArm',20],['mixamorigRightArm',-20],      // arms swing in/forward
+  ['mixamorigLeftForeArm',8],['mixamorigRightForeArm',-8] // hands settle on thighs
+];
+function sitQuat(axis,deg){ return new THREE.Quaternion().setFromAxisAngle(axis,deg*Math.PI/180); }
+function buildSitCorr(trimDeg){
+  var out=[];
+  for(var i=0;i<SIT_CORR.length;i++) out.push([SIT_CORR[i][0],sitQuat(SEAT_AXIS_Z,SIT_CORR[i][1])]);
+  if(trimDeg){ // thigh-pitch trim: thighs about X, shins counter — extends/shortens the butt-to-sole span
+    out.push(['mixamorigLeftUpLeg',sitQuat(SEAT_AXIS_X,-trimDeg)]);
+    out.push(['mixamorigRightUpLeg',sitQuat(SEAT_AXIS_X,-trimDeg)]);
+    out.push(['mixamorigLeftLeg',sitQuat(SEAT_AXIS_X,trimDeg)]);
+    out.push(['mixamorigRightLeg',sitQuat(SEAT_AXIS_X,trimDeg)]);
+  }
+  return out;
+}
+function applySitPose(entry){
+  var B=entry.bones; if(!B) return;
+  for(var i=0;i<entry.corr.length;i++){ var b=B[entry.corr[i][0]]; if(b) b.quaternion.multiply(entry.corr[i][1]); }
+}
 function loadSeatedAnna(opts){
   try{
     withSharedAnna(function(template){
@@ -2945,68 +3179,93 @@ function loadSeatedAnna(opts){
       grp.rotation.y=opts.ry||0;
       var loader=jpLoader();
       jpStart(function(){ loader.load('assets/idle-sit-clip.glb',function(cg){
+        var entry={grp:grp,holder:holder,mixer:null,bones:null,corr:buildSitCorr(0),opts:opts,anchored:false};
         if(cg.animations&&cg.animations.length){
           var mixer=new THREE.AnimationMixer(model);
-          // v21: amplification pulled back (1.9 -> 1.35 core).
-          // The sitting clip's pose IS the product here — at 1.9x
-          // the loop's later frames swung her thighs and shins
-          // degrees past frame 0, so feet lifted off the mat and
-          // knees drifted into the bench front as the loop played,
-          // even though frame 0 measured perfect. 1.35 still reads
-          // as breathing and weight shifts without breaking the seat.
-          var act=mixer.clipAction(amplifyClip(prepClip(cg.animations[0],false,true),1.35,1.25)); // rotation-only
+          // v24: the clip plays RAW (rotation-only prep, no
+          // amplification) — the pose layer above does the
+          // shaping now, deliberately and measurably.
+          var act=mixer.clipAction(prepClip(cg.animations[0],false,true)); // rotation-only
           act.setLoop(THREE.LoopRepeat); act.play();
           mixer.update(opts.timeOffset||0); // land a frame now, so she can be placed in the pose
-          jpMixers.push(mixer);
+          entry.mixer=mixer;
         }
-        // place her from the posed figure herself (see above):
-        // hips over her spot, then the per-bench height anchor.
-        // NOTE the bone's loaded name: GLTFLoader strips the
-        // colon out of 'mixamorig:Hips' — searching with the
-        // colon finds nothing and the anchor silently skips.
-        grp.updateMatrixWorld(true);
-        var hips=null;
-        model.traverse(function(o){ if(!hips&&o.isBone&&o.name==='mixamorigHips') hips=o; });
-        var feetY=figureBBox(model).min.y; // model only — the group's blob shadow plane would floor this at 0.013
-        var dy=-feetY; // feet exactly on the floor
-        if(hips){
-          var hp=hips.getWorldPosition(new THREE.Vector3());
-          // v20: the buttocks' lowest point in the posed clip is
-          // 0.17 below the Hips joint, NOT the 0.10 the v19 anchor
-          // assumed (measured off her skinned mesh, steady across
-          // the whole loop) — with 0.10 both girls sat sunk into
-          // their benches, 5 cm on the garden bench, 10 cm on the
-          // station bench. 0.17 puts the butt on the seat with a
-          // 1 cm press, soles flat on the mat.
-          if(opts.anchor==='seat') dy=(opts.seatH-0.01)-(hp.y-0.17); // butt on the seat, 1 cm press
-          var dx=grp.position.x-hp.x, dz=grp.position.z-hp.z;
-          var cos=Math.cos(grp.rotation.y), sin=Math.sin(grp.rotation.y);
-          holder.position.x+=cos*dx-sin*dz;
-          holder.position.z+=sin*dx+cos*dz;
-        }
-        holder.position.y+=dy;
-        /* v21 feet reconciliation — the seat anchor alone is how
-           the sitters kept looking wrong: it trusts ONE constant
-           (butt 0.17 below the hips) measured offline. Now the
-           POSED figure in the actual scene is measured again
-           after anchoring: if her soles float more than 3 cm over
-           the surface under her (opts.feetY — the tatami top in
-           the garage, the apartment floor in the house) or sink
-           into it, the height splits the difference between
-           butt-on-seat and soles-on-floor, so neither error can
-           exceed a centimetre or two in the worst case. She also
-           shifts 3 cm forward on the seat, off the backrest, so
-           her thighs rest on the seat front instead of her back
-           clipping the bench back. */
-        grp.updateMatrixWorld(true);
-        var floorUnder=(opts.feetY!==undefined?opts.feetY:(opts.floorY||0));
-        var solesY=figureBBox(model).min.y;
-        if(solesY>floorUnder+0.03) holder.position.y-=(solesY-floorUnder)*0.5;
-        else if(solesY<floorUnder-0.01) holder.position.y+=(floorUnder-solesY)*0.5;
-        holder.position.z+=0.03;
+        var B={};
+        model.traverse(function(o){ if(o.isBone) B[o.name]=o; });
+        entry.bones=B;
+        seatedPose.push(entry);
+        applySitPose(entry); // corrections ON before any measuring — the anchor fits the pose she actually holds
+        anchorSeated(entry,model);
+        // the bench mesh streams in on its own schedule; if it
+        // was not in the scene yet, the anchor used the fallback
+        // seat height — redo it once the room has settled
+        if(!entry.seatRaycast) setTimeout(function(){ anchorSeated(entry,model); },2500);
       },undefined,function(){}); });
     });
   }catch(e){ /* sitter simply absent */ }
+}
+function applySitTrim(entry,trimDeg){
+  var B=entry.bones; if(!B||!trimDeg) return;
+  var qu=sitQuat(SEAT_AXIS_X,-trimDeg), ql=sitQuat(SEAT_AXIS_X,trimDeg);
+  if(B['mixamorigLeftUpLeg']) B['mixamorigLeftUpLeg'].quaternion.multiply(qu);
+  if(B['mixamorigRightUpLeg']) B['mixamorigRightUpLeg'].quaternion.multiply(qu);
+  if(B['mixamorigLeftLeg']) B['mixamorigLeftLeg'].quaternion.multiply(ql);
+  if(B['mixamorigRightLeg']) B['mixamorigRightLeg'].quaternion.multiply(ql);
+}
+/* v24 anchor: fits the CORRECTED pose to the REAL bench in
+   the scene — hips centred over her spot, seat height found
+   by raycasting the bench mesh itself (the offline seat
+   constants disagreed with the shipped geometry often enough;
+   opts.seatH survives only as a fallback for the frames
+   before the bench lands), buttocks on the seat with a
+   1.2 cm press (butt = Hips joint − 0.135, lab-measured off
+   the full clip: hips-to-sole 61.5 cm, butt-to-sole 48 cm),
+   then the sole residual against the floor under her feet
+   is absorbed by the thigh trim and a ≤2.5 cm nudge. Runs
+   once at load and once more ~2.5 s later if the bench was
+   not in the scene for the first pass. */
+function anchorSeated(entry,model){
+  var opts=entry.opts, grp=entry.grp, holder=entry.holder;
+  var hips=entry.bones?entry.bones['mixamorigHips']:null;
+  if(!hips) return;
+  grp.updateMatrixWorld(true);
+  var hp=hips.getWorldPosition(new THREE.Vector3());
+  var dx=grp.position.x-hp.x, dz=grp.position.z-hp.z;
+  var cos=Math.cos(grp.rotation.y), sin=Math.sin(grp.rotation.y);
+  holder.position.x+=cos*dx-sin*dz;
+  holder.position.z+=sin*dx+cos*dz;
+  // seat height from the bench itself: highest surface under
+  // her hips in the seat band, cast against the props near her
+  var seatY=null;
+  try{
+    var targets=[];
+    for(var i=0;i<scene.children.length;i++){ var o=scene.children[i];
+      if(o!==grp&&Math.abs(o.position.x-opts.x)<1.6&&o.position.z>5) targets.push(o); }
+    var rc=new THREE.Raycaster(new THREE.Vector3(opts.x,1.3,opts.z),new THREE.Vector3(0,-1,0),0,1.3);
+    var hits=rc.intersectObjects(targets,true);
+    for(var h=0;h<hits.length;h++){
+      if(hits[h].point.y>=0.25&&hits[h].point.y<=1.05){ seatY=hits[h].point.y; break; }
+    }
+  }catch(e){ seatY=null; }
+  if(seatY!==null) entry.seatRaycast=true;
+  var seatTarget=(seatY!==null?seatY:(opts.seatH||0.595));
+  grp.updateMatrixWorld(true);
+  hp=hips.getWorldPosition(new THREE.Vector3());
+  holder.position.y+=(seatTarget-0.012)-(hp.y-0.135); // butt on the seat, 1.2 cm press
+  grp.updateMatrixWorld(true);
+  var floorUnder=(opts.feetY!==undefined?opts.feetY:(opts.floorY||0));
+  var resid=figureBBox(model).min.y-floorUnder; // + floating, − sunk
+  if(Math.abs(resid)>0.02){
+    var trimDeg=Math.max(-14,Math.min(14,resid*123)); // 0.81 cm of sole travel per degree (lab)
+    entry.trimDeg=(entry.trimDeg||0)+trimDeg;
+    entry.corr=buildSitCorr(entry.trimDeg);
+    applySitTrim(entry,trimDeg);
+    grp.updateMatrixWorld(true);
+    resid=figureBBox(model).min.y-floorUnder;
+  }
+  if(Math.abs(resid)>0.02) holder.position.y-=Math.max(-0.025,Math.min(0.025,resid*0.5));
+  entry.anchored=true;
+  entry.debug={seatY:seatY,seatTarget:seatTarget,resid:Math.round(resid*1000)/1000,trimDeg:entry.trimDeg||0};
 }
 /* ---- the standing guests: Anna again, cloned — on the
    Mixamo rig, playing a natural standing idle ----
@@ -3116,15 +3375,65 @@ function loadStandingAnna(opts){
     });
   }catch(e){ /* standing guest simply absent */ }
 }
+/* ---- Alina (v24): the white-top girl by Bay 2 is the
+   companion follower now. She keeps her own look, proportions
+   (fitFigure at 1.68, exactly as loadGuest placed her) and her
+   own 22.6 s natural idle clip for standing; for walking she
+   borrows the aisle walker's mocap cycle — the SAME CC_Base
+   rig family (both are Jungle Jim / Character Creator
+   figures), so the clip binds by bone name; the three tracks
+   aimed at calf-twist helper bones she doesn't have are
+   filtered out before the action is built. Her mixer is NOT
+   in jpMixers: FollowerSystem owns her stepping (through
+   SimulationSystem's LOD rules), her crossfades and all her
+   movement — this loader only builds the figure and hands
+   her over. No static collider any more: she moves, and the
+   FollowerSystem keeps her out of the player's space. ---- */
+function loadAlina(){
+  try{
+    var loader=jpLoader();
+    jpStart(function(){ loader.load('assets/alina.glb',function(gltf){
+      var model=gltf.scene;
+      model.traverse(function(o){
+        if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
+        if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
+      });
+      var grp=figureGroup();
+      grp.add(fitFigure(model,1.68));
+      grp.position.set(-8.6,0,0.6);
+      grp.rotation.y=1.76;
+      var mixer=new THREE.AnimationMixer(model);
+      var idleAct=null;
+      if(gltf.animations&&gltf.animations.length){
+        idleAct=mixer.clipAction(prepClip(gltf.animations[0],true)); // her own idle, root pinned as before
+        idleAct.setLoop(THREE.LoopRepeat); idleAct.play();
+      }
+      var entry={grp:grp,mixer:mixer,idle:idleAct,walk:null};
+      FollowerSystem.attach(entry);
+      loader.load('assets/walker.glb',function(wg){
+        try{
+          if(!wg.animations||!wg.animations.length) return;
+          var bones={};
+          model.traverse(function(o){ bones[o.name]=true; });
+          var clip=prepClip(wg.animations[0],true); // cloned by prep; hip x/z pinned — she walks in place, the system moves her
+          clip.tracks=clip.tracks.filter(function(tr){ return !!bones[tr.name.split('.')[0]]; });
+          var wAct=mixer.clipAction(clip);
+          wAct.setLoop(THREE.LoopRepeat); wAct.enabled=true; wAct.setEffectiveWeight(0); wAct.play();
+          entry.walk=wAct; FollowerSystem.setWalk(wAct);
+        }catch(e){ /* no walk cycle — she keeps to a slow companion drift on her idle */ }
+      },undefined,function(){});
+    },undefined,function(){}); });
+  }catch(e){ /* Alina simply absent */ }
+}
 /* the guests — adult women, real clips, placed as planned above.
    Headings use the figure convention: rotation 0 faces +z, so
    ry = atan2(dx, dz) toward whatever she's looking at. */
 function loadAllGuests(){
-loadSeatedAnna({x:-5.2,z:8.84,ry:Math.PI-0.10,seatH:0.595,anchor:'seat',floorY:0.11,timeOffset:0});
-loadSeatedAnna({x:5.35,z:8.84,ry:Math.PI+0.14,seatH:0.595,anchor:'seat',floorY:0.11,timeOffset:2.3});
+loadSeatedAnna({x:-5.2,z:8.91,ry:Math.PI-0.10,seatH:0.595,anchor:'seat',floorY:0.11,timeOffset:0});
+loadSeatedAnna({x:5.35,z:8.91,ry:Math.PI+0.14,seatH:0.595,anchor:'seat',floorY:0.11,timeOffset:2.3});
 loadStandingAnna({x:-6.6,z:-1.2,ry:2.03,collider:[0.3,0.3],clip:'assets/idle-stand-clip.glb',timeOffset:0});
 loadStandingAnna({x:6.6,z:-1.2,ry:-2.03,collider:[0.3,0.3],clip:'assets/idle-stand-clip.glb',timeOffset:3.7});
-loadGuest('assets/alina.glb',{h:1.68,x:-8.6,z:0.6,ry:1.76,pin:true,collider:[0.32,0.32]});
+loadAlina();
 }
 /* The v13 layer loads with everything else, behind the start
    menu: the menu's preload gate holds START until the load
@@ -3838,6 +4147,7 @@ function step(dt,t){
     car.group.position.y=(car.engineOn&&!reduceMotion)?Math.sin(t*46+idx*2)*0.0035:0;
   });
   updatePeople(dt,t);
+  FollowerSystem.update(dt,player,camYaw,started,colliders); // v24: Alina walks with the player (own module, LOD-stepped, game state passed in explicitly like every other system)
   // atmosphere: a whisper of neon flicker (particles removed in v16)
   neonLight.intensity=26+Math.sin(t*29)*0.8+Math.sin(t*7.7)*1.1;
   neon.material.emissiveIntensity=1.15+Math.sin(t*29)*0.03+Math.sin(t*7.7)*0.04;
@@ -4029,6 +4339,7 @@ function frame(now){
   }catch(err){ ErrorGuard.report(err,'render'); QualitySystem.stepDown('render-error'); }
 }
 requestAnimationFrame(frame);
+
 }
 })();
 </script>
