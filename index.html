@@ -2764,15 +2764,20 @@ function buildApartment(){
   // the garage wall is 5.2 m) and a normal single door in here
   buildDoor(10.6,-9.9,0,'APARTMENT',false);
   addCollider(10.6,-9.85,1.35,0.3);
-  // v27: the return door, rebuilt to be SEEN. The v25 door was a
-  // flat slab at z=-24.9 — north of the wall's inner face (-25.0),
-  // so it sat inside the wall box, and as a scene child at z>-20
-  // the zone culling filed it under "garage" and hid it whenever
-  // the player was in the apartment. This one is a framed group
-  // standing proud of the inner face at z=-25.02 (apartment zone),
-  // with raised panels, a brass knob, a lit GARAGE sign, a sconce
-  // bar and its own warm light pool.
-  var rDoor=new THREE.Group(); rDoor.position.set(0,0,-25.02); rDoor.rotation.y=Math.PI; scene.add(rDoor); // turned PI: local +z (panels, knob, sign) faces -z, into the room
+  // v28: the return door, rebuilt to be SEEN — for real this time.
+  // Measured root cause of the v27 miss: the north wall box is
+  // centred at z=-25.1 and 0.2 thick, so it spans z -25.2..-25.0
+  // and its APARTMENT-side face is at z=-25.2 (not -25.0 — that is
+  // the garage-side face). The v27 group sat at z=-25.02 with a PI
+  // turn, which pushed every solid part (frame -25.01, slab -25.04,
+  // panels -25.08, sign -25.07, knob -25.11) INSIDE that solid wall
+  // box; only the additive glow sprite at -25.47 escaped into the
+  // room, so on the phone there was a glow with no door under it.
+  // The group now stands at z=-25.21, flush on the apartment face:
+  // frame centre -25.20, slab front -25.265, panels -25.27, sign
+  // -25.26, knob -25.30 — all proud of the wall, all in the
+  // apartment zone (z<-20) so zone culling keeps it rendered here.
+  var rDoor=new THREE.Group(); rDoor.position.set(0,0,-25.21); rDoor.rotation.y=Math.PI; scene.add(rDoor); // turned PI: local +z (panels, knob, sign) faces -z, into the room
   var panelWood=new THREE.MeshStandardMaterial({color:0x6b4a2f,roughness:0.5,envMapIntensity:0.85});
   box(1.36,2.36,0.09,trimMat,0,1.18,-0.01,rDoor,false);       // frame
   box(1.16,2.22,0.07,darkWood,0,1.11,0.02,rDoor,false);       // slab
@@ -2785,7 +2790,7 @@ function buildApartment(){
     new THREE.MeshStandardMaterial({map:doorSignTex('GARAGE'),emissive:0xffffff,emissiveMap:doorSignTex('GARAGE'),emissiveIntensity:0.7,color:0x333333}));
   sign2.position.set(0,2.52,0.05); rDoor.add(sign2); // the group's PI turn aims it into the room
   box(0.56,0.045,0.05,new THREE.MeshStandardMaterial({color:0xfff1d6,emissive:0xffd9a0,emissiveIntensity:2.4,roughness:0.5}),0,2.68,0.05,rDoor,false); // sconce
-  var doorGlow=glowSprite(0xffc98a,2.2,0.3); doorGlow.position.set(0,2.5,0.45); rDoor.add(doorGlow);
+  var doorGlow=glowSprite(0xffc98a,2.2,0.3); doorGlow.position.set(0,2.5,0.32); rDoor.add(doorGlow); // world z -25.53: the halo hugs the door instead of floating mid-room
   var doorLight=new THREE.PointLight(0xffd9a8,4,5.5,1.8); doorLight.position.set(0,2.15,-25.9); scene.add(doorLight);
   // v27: framed canvas prints — the walls were bare. Four pieces,
   // procedural canvas art in dark-wood frames: a terracotta sun
@@ -2828,8 +2833,8 @@ function buildApartment(){
       new THREE.MeshStandardMaterial({map:artTex(kind),roughness:0.85}));
     cv.position.z=0.026; g2.add(cv);
   }
-  framedArt('sun',-2.9,1.62,-25.03,Math.PI,0.95,1.2);    // north wall, west of the door (PI: canvas faces -z, into the room)
-  framedArt('arch',2.7,1.62,-25.03,Math.PI,0.8,1.0);     // north wall, east of the door
+  framedArt('sun',-2.9,1.62,-25.24,Math.PI,0.95,1.2);    // north wall, west of the door (v28: was -25.03, inside the wall box like the door — now proud of the -25.2 face)
+  framedArt('arch',2.7,1.62,-25.24,Math.PI,0.8,1.0);     // north wall, east of the door
   framedArt('contour',-2.4,1.66,-32.77,0,1.1,0.85);      // south wall, west of the window (canvas faces +z, into the room)
   framedArt('arcs',5.47,1.66,-26.6,-Math.PI/2,0.95,1.15); // east wall, over the dresser
 }
@@ -3203,25 +3208,46 @@ var BongSystem={
 };
 window.__BONG_SYS__={bong:BongSystem,high:HighSystem};
 
-/* ================= v27: FollowerSystem (Alina) =================
-   The game's ONLY girl, back as a deliberately simple follower —
-   the anti-horror-crawl design Collin approved:
-   - NO borrowed clips, no idles, no blending, no crossfades. She
-     plays exactly one thing: her own clip
-     "5359960820992_TempMotion", filtered down to its rotation and
-     facial-morph tracks. Every translation track is dropped, so
-     the clip can never move her off the spot the follower picks,
-     and no walk cycle exists that could lay her flat.
+/* ================= v28: FollowerSystem (Alina) =================
+   The game's ONLY girl. v28 fixes the three v27 phone defects at
+   their measured root causes:
+   - SHE SLID, NEVER WALKED: her GLB ships exactly ONE clip, a
+     22.6 s standing motion — there is no walk cycle in the asset,
+     so v27 moved her root while her legs played a standing pose.
+     v28 adds a PROCEDURAL GAIT on her own CC_Base rig: thigh /
+     calf / foot / upperarm / forearm bones get a swing rotation
+     about their local X axis composed on top of the standing
+     clip's pose every step (the swing axis and sign were measured
+     in-game on this rig: thigh rotateX +0.6 moves the foot +0.47 m
+     forward in root space, rotateZ moves it sideways). The phase
+     advances by the distance she actually travels, so her feet
+     match the ground — no slide. Amplitude envelopes to zero when
+     she stops, leaving the pure standing clip: she idles only
+     when settled. NO borrowed clip is used (the v24 retarget laid
+     her flat); the gait is arithmetic on her own bones and the
+     hard upright lock below is untouched.
+   - SHE HID BEHIND THE CAMERA: the v27 target was the single
+     point 0.55 m dead behind the player's facing with a 0.48 m
+     minimum separation — measured in-game: settled offset was
+     0.554 m behind, 0.004 m to the side, i.e. exactly on the
+     first-person camera's blind spot. The v28 target is 1.35 m
+     behind and 0.85 m to the player's RIGHT (about 1.6 m out),
+     and the hard minimum separation is 0.95 m, so she walks at
+     his right shoulder — a glance right or any turn brings her
+     into frame, and she can never park on his spine again.
+   - SHE COULD NEVER KEEP UP: one constant 1.05 m/s against the
+     player's 3.1 m/s walk meant permanent trailing. Her pace now
+     scales with the gap: a 1.45 m/s walk nearby, rising to a
+     3.5 m/s hurry when she is far behind — still no teleporting
+     and no circling: she walks straight lines to the one target
+     point, and the gait phase follows her real speed.
    - UPRIGHT, ALWAYS: the wrapper root's rotation is written by
      this module only, every step, as (0, yaw, 0) — pitch and
      roll are forced to zero and nothing else ever touches them.
-   - SLOW: one constant pace (1.05 m/s), no catch-up sprint.
-   - CLOSE, NO CIRCLING: her target is always the single point
-     0.55 m behind the player's facing; she walks to it and stops.
-     A hard 0.48 m minimum separation means she can never touch
-     or crowd the player, even mid-turn.
+     The gait writes bone-local rotations and a small vertical
+     bob on the inner model only; it cannot tilt the root.
    - DOORS: the apartment doors teleport; when her zone differs
-     from the player's she is re-placed just behind the player in
+     from the player's she is re-placed at the follow target in
      his zone (she never paths through walls).
    - COLLISION: the same zone clamps + collider push-out the
      player gets, at her own radius.
@@ -3229,7 +3255,8 @@ window.__BONG_SYS__={bong:BongSystem,high:HighSystem};
 var FollowerSystem={
   ready:false, root:null, model:null, mixer:null,
   x:0.47, z:8.15, yaw:Math.PI,
-  SPEED:1.05, TRAIL:0.55, MINSEP:0.48,
+  TRAIL:1.35, SIDE:0.85, MINSEP:0.95,
+  bones:null, baseQ:null, baseY:0, gaitPhase:0, gaitAmp:0, moving:false, speedNow:0, tx:0, tz:0,
   load:function(){
     var self=this;
     try{
@@ -3276,6 +3303,26 @@ var FollowerSystem={
         act.setLoop(THREE.LoopRepeat); act.play();
       }
     }
+    /* v28 gait rig: find her limb bones by name prefix (the GLB
+       names carry numeric suffixes — CC_Base_L_Thigh_04 — and the
+       twist helpers share the stem, so the match demands the
+       trailing _<digits>). baseQ holds each bone's quaternion as
+       the standing clip leaves it, refreshed on every mixer step;
+       _applyGait composes the swing on top of it, so the gait can
+       never accumulate or fight the clip. baseY is her grounded
+       model offset, the anchor for the walk bob. */
+    this.bones={}; this.baseQ={};
+    var wanted={lThigh:/^CC_Base_L_Thigh_\d/,rThigh:/^CC_Base_R_Thigh_\d/,
+      lCalf:/^CC_Base_L_Calf_\d/,rCalf:/^CC_Base_R_Calf_\d/,
+      lFoot:/^CC_Base_L_Foot_\d/,rFoot:/^CC_Base_R_Foot_\d/,
+      lArm:/^CC_Base_L_Upperarm_\d/,rArm:/^CC_Base_R_Upperarm_\d/,
+      lFore:/^CC_Base_L_Forearm_\d/,rFore:/^CC_Base_R_Forearm_\d/};
+    var self=this;
+    model.traverse(function(o){
+      if(!o.isBone) return;
+      for(var k in wanted){ if(!self.bones[k]&&wanted[k].test(o.name)){ self.bones[k]=o; self.baseQ[k]=o.quaternion.clone(); } }
+    });
+    this.baseY=model.position.y;
     // soft blob shadow, same trick as the GLB cars (the shadow
     // map is static, so a real cast shadow would freeze mid-air)
     var blob=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.62),
@@ -3287,9 +3334,18 @@ var FollowerSystem={
     this.root=root; this.model=model; this.ready=true;
     renderer.shadowMap.needsUpdate=true;
   },
-  _snapBehind:function(px,pz){
+  _target:function(px,pz){
+    // behind-RIGHT of the player's facing: TRAIL back along the
+    // camera forward, SIDE along the camera right — the one spot
+    // that is near the player yet never on his blind spine line
     var fx=-Math.sin(camYaw), fz=-Math.cos(camYaw);
-    this.x=px-fx*this.TRAIL; this.z=pz-fz*this.TRAIL;
+    var rx=Math.cos(camYaw), rz=-Math.sin(camYaw);
+    this.tx=px-fx*this.TRAIL+rx*this.SIDE;
+    this.tz=pz-fz*this.TRAIL+rz*this.SIDE;
+  },
+  _snapBehind:function(px,pz){
+    this._target(px,pz);
+    this.x=this.tx; this.z=this.tz;
     this.yaw=Math.atan2(px-this.x,pz-this.z);
     this._collide();
   },
@@ -3319,28 +3375,79 @@ var FollowerSystem={
       }
     }
   },
+  _swingQ:new THREE.Quaternion(), _xAxis:new THREE.Vector3(1,0,0),
+  _applyGait:function(){
+    // compose the walk swing on top of the standing clip's pose:
+    // bone.quaternion = clipPose * rotX(angle). Local X is this
+    // rig's fore/aft axis (measured in-game, see the header), and
+    // +X pitches a limb FORWARD — so thighs/arms take the signed
+    // sine directly, calves take only the negative (a knee folds
+    // the foot backward, never forward), feet partly counter the
+    // leg so they stay near level. amp 0 => the pure clip pose.
+    if(!this.bones) return;
+    var amp=this.gaitAmp; if(amp<0.003) return;
+    var p=this.gaitPhase, B=this.bones, Q=this.baseQ, sq=this._swingQ, XA=this._xAxis;
+    var thighAmp=(0.50+0.14*Math.min(1,this.speedNow/3.2))*amp;
+    var sL=Math.sin(p), sR=Math.sin(p+Math.PI);
+    function set(k,ang){
+      var b=B[k]; if(!b||!Q[k]) return;
+      sq.setFromAxisAngle(XA,ang);
+      b.quaternion.copy(Q[k]).multiply(sq);
+    }
+    var bendL=Math.pow(Math.max(0,Math.cos(p)),1.4)*0.85*amp;
+    var bendR=Math.pow(Math.max(0,Math.cos(p+Math.PI)),1.4)*0.85*amp;
+    set('lThigh',sL*thighAmp); set('rThigh',sR*thighAmp);
+    set('lCalf',-bendL); set('rCalf',-bendR);
+    set('lFoot',-(sL*thighAmp-bendL)*0.5+Math.sin(p-0.6)*0.10*amp);
+    set('rFoot',-(sR*thighAmp-bendR)*0.5+Math.sin(p+Math.PI-0.6)*0.10*amp);
+    set('lArm',sR*0.34*amp); set('rArm',sL*0.34*amp); // arms counter-swing the legs
+    set('lFore',sR*0.13*amp); set('rFore',sL*0.13*amp);
+  },
   update:function(dt){
     if(!this.ready||!this.root) return;
     var px=player.x, pz=player.z;
     if((pz<-20)!==(this.z<-20)) this._snapBehind(px,pz); // she came through the door with him
-    var fx=-Math.sin(camYaw), fz=-Math.cos(camYaw);
-    var tx=px-fx*this.TRAIL, tz=pz-fz*this.TRAIL;
-    var dx=tx-this.x, dz=tz-this.z, dist=Math.sqrt(dx*dx+dz*dz);
-    if(dist>0.05){
-      var step=Math.min(dist,this.SPEED*dt);
+    this._target(px,pz);
+    var dx=this.tx-this.x, dz=this.tz-this.z, dist=Math.sqrt(dx*dx+dz*dz);
+    var moved=0;
+    if(dist>0.06){
+      // pace scales with the gap: an easy walk nearby, a hurry
+      // when she has real ground to make up — she still walks
+      // every metre of it, in a straight line to the one target
+      var spd=dist<1.2?1.45:Math.min(3.5,1.45+(dist-1.2)*1.1);
+      var step=Math.min(dist,spd*dt);
       var mx=dx/dist, mz=dz/dist;
-      this.x+=mx*step; this.z+=mz*step;
+      this.x+=mx*step; this.z+=mz*step; moved=step;
       this._turnToward(Math.atan2(mx,mz),dt); // face where she walks
     } else {
       this._turnToward(Math.atan2(px-this.x,pz-this.z),dt); // settled: face the player
     }
+    this.moving=moved>0.0005;
+    this.speedNow=dt>0?this.speedNow+(moved/dt-this.speedNow)*Math.min(1,dt*7):0;
     // never touch, never crowd: hard minimum separation
     var sx=this.x-px, sz=this.z-pz, sd=Math.sqrt(sx*sx+sz*sz);
     if(sd<this.MINSEP&&sd>0.0001){ this.x=px+sx/sd*this.MINSEP; this.z=pz+sz/sd*this.MINSEP; }
     this._collide();
     this.root.position.set(this.x,0,this.z);
     this.root.rotation.set(0,this.yaw,0); // HARD UPRIGHT LOCK — pitch/roll forced to zero, every step
-    if(this.mixer) SimulationSystem.mixerStep(this.mixer,this.root,player,dt,3);
+    var stepped=this.mixer?SimulationSystem.mixerStep(this.mixer,this.root,player,dt,3):0;
+    /* gait bookkeeping (v28): the phase advances by the distance
+       she really travelled this step — stride length grows with
+       speed, so her feet track the ground at a walk and at a
+       hurry. The amplitude envelope opens while she moves and
+       closes when she settles; when it is shut the standing clip
+       owns the pose outright. The base-pose snapshot refreshes on
+       every mixer step, before the gait is composed on top. */
+    if(moved>0){
+      var stride=Math.max(0.45,Math.min(0.95,0.38+0.16*this.speedNow));
+      this.gaitPhase+=moved/stride*Math.PI;
+    }
+    var ampT=this.moving?1:0;
+    this.gaitAmp+=(ampT-this.gaitAmp)*Math.min(1,dt*(ampT>this.gaitAmp?5:4));
+    if(this.gaitAmp<0.003&&!this.moving) this.gaitAmp=0;
+    if(stepped&&this.bones){ for(var k in this.bones){ if(this.bones[k]) this.baseQ[k].copy(this.bones[k].quaternion); } }
+    if(this.model) this.model.position.y=this.baseY+(this.gaitAmp>0?(0.5-0.5*Math.cos(this.gaitPhase*2))*0.035*this.gaitAmp:0);
+    this._applyGait();
   }
 };
 FollowerSystem.load();
@@ -3612,6 +3719,16 @@ function step(dt,t){
   player.x+=(-sin*f+cos*s)*sp*dt;
   player.z+=(-cos*f-sin*s)*sp*dt;
   collide();
+  /* v28: doorways work by walking into them, not only by prompt.
+     Stepping up to a door (within the last ~0.35 m the zone clamp
+     allows, centred on the doorway) fires the same toggleInter the
+     E key fires, so the round trip works hands-free on touch. The
+     landing spots sit outside both trigger bands, so a teleport
+     can never chain into the opposite door. */
+  if(started&&!BongSystem.active){
+    if(player.z<-20){ if(Math.abs(player.x)<0.62&&player.z>-25.72) toggleInter(doorToGarage); }
+    else if(Math.abs(player.x-10.6)<0.95&&player.z<-8.95) toggleInter(doorToApartment);
+  }
   // idle sway before entering
   var yaw=camYaw, pitch=camPitch;
   if(!started){ yaw+=Math.sin(t*0.16)*0.22; pitch+=-0.02+Math.sin(t*0.11)*0.02; }
