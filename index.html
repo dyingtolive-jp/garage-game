@@ -72,6 +72,21 @@
     backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
   #toast.show{opacity:1;transform:translate(-50%,0);}
 
+  /* high effect (v25): a warm, hazy full-screen wash + soft edge
+     vignette, driven by HighSystem. Pure DOM gradients — no
+     backdrop blur, so it costs nothing on the GPU. The layer is
+     oversized so its slow sway never shows an edge. */
+  #highFx{position:absolute;inset:-5%;pointer-events:none;opacity:0;display:none;will-change:transform,opacity;}
+  #highFx .hfWarm{position:absolute;inset:0;
+    background:radial-gradient(ellipse at 50% 46%,rgba(255,186,92,.10) 0%,rgba(255,140,70,.14) 55%,rgba(214,84,64,.20) 82%,rgba(122,44,96,.30) 100%);}
+  #highFx .hfVig{position:absolute;inset:0;
+    background:radial-gradient(ellipse at 50% 50%,transparent 46%,rgba(46,10,44,.42) 100%);}
+  #highChip{position:absolute;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+    background:var(--plate);border:1px solid rgba(255,176,58,.55);border-radius:6px;padding:6px 13px 7px;
+    font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:14px;font-weight:600;letter-spacing:.22em;
+    color:var(--amber);display:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+  #highChip b{color:var(--ink);letter-spacing:.08em;}
+
   /* ---------- touch controls ---------- */
   #touchUI{position:fixed;inset:0;z-index:6;pointer-events:none;display:none;}
   body.touch.playing #touchUI{display:block;}
@@ -144,7 +159,9 @@
 <div id="vignette"></div>
 
 <div id="hud">
+  <div id="highFx"><div class="hfWarm"></div><div class="hfVig"></div></div>
   <div id="crosshair"></div>
+  <div id="highChip">HIGH&nbsp; <b id="highTime">0:45</b></div>
   <div id="carPlate">
     <div class="bay" id="plateBay">BAY 3</div>
     <h2 id="plateName">Honda Civic</h2>
@@ -152,7 +169,7 @@
     <div class="note" id="plateNote"></div>
     <div class="states" id="plateStates"></div>
   </div>
-  <div id="foundChip"><span class="objLabel">OBJECTIVE · FIND ALL 12</span><span class="objCount">FOUND <b id="foundNum">0/12</b></span></div>
+  <div id="foundChip"><span class="objLabel">OBJECTIVE · FIND ALL 13</span><span class="objCount">FOUND <b id="foundNum">0/13</b></span></div>
   <button id="muteBtn" aria-label="Mute sound">SOUND ON</button>
   <div id="prompt"><span class="key">E</span><span class="txt" id="promptTxt">Pop the hood</span></div>
   <div id="toast"></div>
@@ -170,12 +187,12 @@
 
 <div id="startCard">
   <h1>THE <span>GARAGE</span></h1>
-  <p class="tagline">Three bays, twelve interactions hiding in plain sight — <b>pop the hoods, flip the lights, start the engines</b>, then take the back door into <b>the apartment</b> and make yourself at home.</p>
+  <p class="tagline">Three bays, thirteen interactions hiding in plain sight — <b>pop the hoods, flip the lights, start the engines</b>, then take the back door into <b>the apartment</b> and make yourself at home.</p>
   <div id="lineup">
     <div class="carRow"><span class="bayNo">BAY 2</span><span class="carName">Nissan Silvia S15</span><span class="carTag">drift build</span></div>
     <div class="carRow"><span class="bayNo">BAY 3</span><span class="carName">1998 Honda Civic</span><span class="carTag">your car</span></div>
     <div class="carRow"><span class="bayNo">BAY 4</span><span class="carName">Lamborghini Gallardo</span><span class="carTag">V10</span></div>
-    <div class="carRow"><span class="bayNo">DOOR</span><span class="carName">The Apartment</span><span class="carTag">back wall · 3 more finds</span></div>
+    <div class="carRow"><span class="bayNo">DOOR</span><span class="carName">The Apartment</span><span class="carTag">back wall · 4 more finds</span></div>
   </div>
   <button id="enterBtn" disabled>LOADING&hellip;</button>
   <p class="controls"><b>WASD</b> walk &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>E</b> interact &nbsp;·&nbsp; <b>Shift</b> run &nbsp;—&nbsp; on touch, use the stick and buttons.</p>
@@ -3543,25 +3560,131 @@ function buildAtmosphere(){
    run along the west wall, a bed corner, a dresser, a plant,
    a night-city window. Built entirely from in-engine boxes and
    canvas textures like the garage's own furniture — no
-   downloads, nothing to stream, nothing Victorian. Three of
-   its pieces are interactable (TV, stereo, bedside lamp) and
-   count toward the objective: 9 car finds + 3 = FIND ALL 12. */
+   downloads, nothing to stream, nothing Victorian. Four of
+   its pieces are interactable (TV, stereo, bedside lamp, and
+   — v25 — the bong on the new kitchen island) and count
+   toward the objective: 9 car finds + 4 = FIND ALL 13. */
 var APT={tvMat:null,lampLight:null,lampShadeMat:null};
 var woodTex=makeTex(1024,512,function(g,w,h){
-  g.fillStyle='#8a6844'; g.fillRect(0,0,w,h);
-  var rows=6;
+  /* v25 texture pass: wide-plank oak — per-plank tone jitter,
+     long grain streaks in two passes (dark + honey light), the
+     odd knot, staggered end seams and a soft sheen line under
+     each seam so the floor reads as boards, not wallpaper. */
+  g.fillStyle='#6e4f30'; g.fillRect(0,0,w,h);
+  var rows=5;
   for(var r2=0;r2<rows;r2++){
-    var y0=r2*h/rows, tone=118+Math.random()*36|0;
-    g.fillStyle='rgb('+(tone+22)+','+(tone-14)+','+(tone-58)+')';
-    g.fillRect(0,y0,w,h/rows-2);
-    g.strokeStyle='rgba(60,38,18,0.5)'; g.lineWidth=1;
-    for(var s3=0;s3<7;s3++){ g.beginPath(); var gy=y0+Math.random()*h/rows;
-      g.moveTo(0,gy); g.bezierCurveTo(w*0.3,gy+3,w*0.6,gy-3,w,gy); g.stroke(); }
-    g.fillStyle='rgba(40,24,10,0.85)'; g.fillRect(0,y0+h/rows-2,w,2);
-    g.fillRect(((r2*397)%w),y0,2,h/rows-2);
+    var y0=r2*h/rows, ph=h/rows, tone=104+Math.random()*44|0;
+    g.fillStyle='rgb('+(tone+30)+','+(tone-6)+','+(tone-52)+')';
+    g.fillRect(0,y0,w,ph-2);
+    for(var s3=0;s3<26;s3++){ // grain: thin wavy streaks, alternating dark / light
+      var gy=y0+4+Math.random()*(ph-10), dark=Math.random()<0.62;
+      g.strokeStyle=dark?'rgba(74,46,20,'+(0.10+Math.random()*0.16)+')':'rgba(226,182,120,'+(0.06+Math.random()*0.10)+')';
+      g.lineWidth=dark?1:1.6; g.beginPath(); g.moveTo(-6,gy);
+      g.bezierCurveTo(w*0.3,gy+(Math.random()*5-2.5),w*0.65,gy+(Math.random()*5-2.5),w+6,gy+(Math.random()*4-2)); g.stroke();
+    }
+    if(Math.random()<0.8){ // a knot: two dark arcs + a soft halo
+      var kx=60+Math.random()*(w-120), ky=y0+ph*(0.3+Math.random()*0.4);
+      var kg=g.createRadialGradient(kx,ky,1,kx,ky,13);
+      kg.addColorStop(0,'rgba(46,26,10,0.85)'); kg.addColorStop(0.55,'rgba(70,44,18,0.35)'); kg.addColorStop(1,'rgba(70,44,18,0)');
+      g.fillStyle=kg; g.beginPath(); g.arc(kx,ky,13,0,7); g.fill();
+    }
+    g.fillStyle='rgba(255,224,170,0.10)'; g.fillRect(0,y0+1,w,1); // top sheen edge
+    g.fillStyle='rgba(34,20,8,0.9)'; g.fillRect(0,y0+ph-2,w,2);   // seam shadow
+    var seamX=((r2*389+137)%w); g.fillRect(seamX,y0,2,ph-2);      // staggered end seam
+    g.fillStyle='rgba(255,224,170,0.08)'; g.fillRect(seamX+2,y0,1,ph-2);
   }
 });
 woodTex.wrapS=woodTex.wrapT=THREE.RepeatWrapping; woodTex.repeat.set(2,2); woodTex.anisotropy=8;
+/* v25 — the rest of the apartment texture pack. All procedural
+   canvas, all <= 512px, generated once at boot: zero downloads,
+   zero streaming, and the AssetSystem caps never see them. */
+/* warm plaster for the walls: fine speckle + faint vertical drag */
+var aptWallTex=makeTex(512,512,function(g,w,h){
+  g.fillStyle='#e9e2d4'; g.fillRect(0,0,w,h);
+  for(var i=0;i<9000;i++){ g.fillStyle='rgba('+(Math.random()<0.5?'120,105,84':'255,252,244')+','+(Math.random()*0.05)+')';
+    g.fillRect(Math.random()*w,Math.random()*h,2,2); }
+  for(var s=0;s<46;s++){ g.strokeStyle='rgba(150,134,108,'+(0.03+Math.random()*0.04)+')'; g.lineWidth=1+Math.random()*2;
+    var sx=Math.random()*w; g.beginPath(); g.moveTo(sx,0); g.lineTo(sx+(Math.random()*8-4),h); g.stroke(); }
+});
+aptWallTex.wrapS=aptWallTex.wrapT=THREE.RepeatWrapping; aptWallTex.repeat.set(3,1);
+/* quartz countertop: warm white stone, dense speckle, faint veins */
+var quartzTex=makeTex(512,512,function(g,w,h){
+  g.fillStyle='#ddd8cd'; g.fillRect(0,0,w,h);
+  var cols=['168,160,146','196,190,178','240,236,228','146,138,124'];
+  for(var i=0;i<15000;i++){ g.fillStyle='rgba('+cols[i%4]+','+(0.12+Math.random()*0.3)+')';
+    g.fillRect(Math.random()*w,Math.random()*h,1.6,1.6); }
+  for(var v=0;v<4;v++){ g.strokeStyle='rgba(150,142,128,0.16)'; g.lineWidth=1.2; g.beginPath();
+    var vx=Math.random()*w, vy=0; g.moveTo(vx,vy);
+    while(vy<h){ vx+=(Math.random()*36-18); vy+=34+Math.random()*30; g.lineTo(vx,vy); } g.stroke(); }
+});
+quartzTex.wrapS=quartzTex.wrapT=THREE.RepeatWrapping; quartzTex.repeat.set(2,1);
+/* flat-panel cabinet fronts: warm greige, shaker insets, slim bar
+   handles — drawn as a 2x2 front grid that tiles along the run */
+var cabinetTex=makeTex(512,512,function(g,w,h){
+  g.fillStyle='#83837c'; g.fillRect(0,0,w,h);
+  for(var i=0;i<5000;i++){ g.fillStyle='rgba(60,60,56,'+(Math.random()*0.05)+')';
+    g.fillRect(Math.random()*w,Math.random()*h,2,2); }
+  var cw=w/2, ch=h/2;
+  for(var py=0;py<2;py++) for(var px=0;px<2;px++){
+    var x0=px*cw, y0=py*ch;
+    g.strokeStyle='rgba(40,40,38,0.55)'; g.lineWidth=3; g.strokeRect(x0+16,y0+16,cw-32,ch-32);
+    g.strokeStyle='rgba(255,255,250,0.13)'; g.lineWidth=1; g.strokeRect(x0+20,y0+20,cw-40,ch-40);
+    g.fillStyle='#3c3f42'; g.fillRect(x0+cw/2-34,y0+26,68,5); // bar handle
+    g.fillStyle='rgba(255,255,255,0.18)'; g.fillRect(x0+cw/2-34,y0+26,68,1);
+  }
+  g.fillStyle='rgba(30,30,28,0.5)'; g.fillRect(0,0,w,2); g.fillRect(0,0,2,h);
+});
+cabinetTex.wrapS=cabinetTex.wrapT=THREE.RepeatWrapping; cabinetTex.repeat.set(3,1);
+/* subway-tile backsplash: soft sage-white tiles, offset rows */
+var tileTex=makeTex(512,256,function(g,w,h){
+  g.fillStyle='#98a29c'; g.fillRect(0,0,w,h); // grout
+  var tw=86, th=40;
+  for(var ry=0;ry<Math.ceil(h/th);ry++){
+    var off=(ry%2)?-tw/2:0;
+    for(var tx=-1;tx<Math.ceil(w/tw)+1;tx++){
+      var tone=196+Math.random()*22|0;
+      g.fillStyle='rgb('+(tone-14)+','+tone+','+(tone-6)+')';
+      g.fillRect(off+tx*tw+3,ry*th+3,tw-6,th-6);
+      g.fillStyle='rgba(255,255,255,0.20)'; g.fillRect(off+tx*tw+3,ry*th+3,tw-6,5);
+    }
+  }
+});
+tileTex.wrapS=tileTex.wrapT=THREE.RepeatWrapping; tileTex.repeat.set(4,1);
+/* woven fabric: a near-white crosshatch that takes the material
+   colour as a tint — one texture serves couch, cushions, curtains */
+var fabricTex=makeTex(256,256,function(g,w,h){
+  g.fillStyle='#d8d8d8'; g.fillRect(0,0,w,h);
+  for(var y=0;y<h;y+=3){ g.fillStyle='rgba(70,70,70,'+(0.05+((y/3)%2)*0.04)+')'; g.fillRect(0,y,w,1); }
+  for(var x=0;x<w;x+=3){ g.fillStyle='rgba(70,70,70,'+(0.04+((x/3)%2)*0.04)+')'; g.fillRect(x,0,1,h); }
+  for(var i=0;i<2600;i++){ g.fillStyle='rgba(90,90,90,'+(Math.random()*0.06)+')';
+    g.fillRect(Math.random()*w,Math.random()*h,1.5,1.5); }
+});
+fabricTex.wrapS=fabricTex.wrapT=THREE.RepeatWrapping; fabricTex.repeat.set(3,3);
+/* the rug: deep rust field, charcoal border bands, worn diamond lattice */
+var rugTex=makeTex(512,384,function(g,w,h){
+  g.fillStyle='#5d3427'; g.fillRect(0,0,w,h);
+  g.fillStyle='#2e2a28'; g.fillRect(0,0,w,18); g.fillRect(0,h-18,w,18); g.fillRect(0,0,18,h); g.fillRect(w-18,0,18,h);
+  g.strokeStyle='#c89a6a'; g.lineWidth=3; g.strokeRect(30,30,w-60,h-60);
+  g.strokeStyle='rgba(200,154,106,0.4)'; g.lineWidth=1.5;
+  for(var dx=-6;dx<13;dx++) for(var dy2=-4;dy2<9;dy2++){
+    var cx2=dx*48+(dy2%2?24:0), cy2=dy2*48;
+    g.beginPath(); g.moveTo(cx2,cy2-15); g.lineTo(cx2+15,cy2); g.lineTo(cx2,cy2+15); g.lineTo(cx2-15,cy2); g.closePath(); g.stroke();
+  }
+  for(var i=0;i<7000;i++){ g.fillStyle='rgba(20,12,8,'+(Math.random()*0.07)+')';
+    g.fillRect(Math.random()*w,Math.random()*h,2,2); }
+});
+rugTex.wrapS=rugTex.wrapT=THREE.ClampToEdgeWrapping;
+/* bedding: deep slate weave with soft horizontal bands + a fold line */
+var blanketTex=makeTex(512,512,function(g,w,h){
+  g.fillStyle='#39536e'; g.fillRect(0,0,w,h);
+  for(var y=0;y<h;y+=4){ g.fillStyle='rgba(16,26,38,'+(0.05+((y/4)%2)*0.05)+')'; g.fillRect(0,y,w,2); }
+  for(var x=0;x<w;x+=4){ g.fillStyle='rgba(220,232,244,'+(0.02+((x/4)%2)*0.02)+')'; g.fillRect(x,0,2,h); }
+  g.fillStyle='rgba(226,234,240,0.20)'; g.fillRect(0,h*0.16,w,10);
+  g.fillStyle='rgba(14,22,32,0.25)'; g.fillRect(0,h*0.16+12,w,4);
+  for(var i=0;i<5000;i++){ g.fillStyle='rgba(10,18,28,'+(Math.random()*0.05)+')';
+    g.fillRect(Math.random()*w,Math.random()*h,2,2); }
+});
+blanketTex.wrapS=blanketTex.wrapT=THREE.RepeatWrapping; blanketTex.repeat.set(1,1);
 var aptTvTex=makeTex(1024,576,function(g,w,h){
   var gr=g.createLinearGradient(0,0,0,h);
   gr.addColorStop(0,'#0d2036'); gr.addColorStop(0.55,'#274b6d'); gr.addColorStop(1,'#0a141f');
@@ -3624,17 +3747,18 @@ function buildDoor(x,z,ry,signText,slim){
    WorldSystem zone culling treats it exactly like it treated
    the old second zone — no streaming, no queue, no unload. */
 function buildApartment(){
-  var floorMat=new THREE.MeshStandardMaterial({map:woodTex,roughness:0.7,metalness:0.05,envMapIntensity:0.7});
-  var wallMat=new THREE.MeshStandardMaterial({color:0xe9e3d8,roughness:0.95});
+  var floorMat=new THREE.MeshStandardMaterial({map:woodTex,bumpMap:woodTex,bumpScale:0.25,roughness:0.5,metalness:0.05,envMapIntensity:0.85});
+  var wallMat=new THREE.MeshStandardMaterial({map:aptWallTex,color:0xf5efe4,roughness:0.95});
   var ceilMat=new THREE.MeshStandardMaterial({color:0xf4f1ec,roughness:0.95});
-  var fabric=new THREE.MeshStandardMaterial({color:0x878d94,roughness:1});
-  var fabricLight=new THREE.MeshStandardMaterial({color:0x9aa0a6,roughness:1});
-  var fabricDark=new THREE.MeshStandardMaterial({color:0x4c5157,roughness:1});
-  var rust=new THREE.MeshStandardMaterial({color:0xc05a2e,roughness:0.9});
+  var trimMat=new THREE.MeshStandardMaterial({color:0xf7f3ea,roughness:0.6});
+  var fabric=new THREE.MeshStandardMaterial({map:fabricTex,color:0x99a0a8,roughness:1});
+  var fabricLight=new THREE.MeshStandardMaterial({map:fabricTex,color:0xb4b9be,roughness:1});
+  var fabricDark=new THREE.MeshStandardMaterial({map:fabricTex,color:0x565b62,roughness:1});
+  var rust=new THREE.MeshStandardMaterial({map:fabricTex,color:0xd2691e,roughness:0.9});
   var darkWood=new THREE.MeshStandardMaterial({color:0x4a3421,roughness:0.6,envMapIntensity:0.7});
   var black=new THREE.MeshStandardMaterial({color:0x0c0c0e,roughness:0.4,metalness:0.3});
-  var cabinet=new THREE.MeshStandardMaterial({color:0xb7babe,roughness:0.55,metalness:0.1,envMapIntensity:0.8});
-  var counter=new THREE.MeshStandardMaterial({color:0xd9d5cc,roughness:0.3,envMapIntensity:0.9});
+  var cabinet=new THREE.MeshStandardMaterial({map:cabinetTex,roughness:0.6,metalness:0.05,envMapIntensity:0.7});
+  var counter=new THREE.MeshStandardMaterial({map:quartzTex,roughness:0.24,envMapIntensity:1.0});
   var steel=new THREE.MeshStandardMaterial({color:0xc9ccd0,roughness:0.32,metalness:0.75,envMapIntensity:1.1});
   // shell: wood floor, ceiling, four walls (2.7 m ceiling)
   var fl=box(11,0.1,8,floorMat,0,-0.05,-29); fl.receiveShadow=true;
@@ -3643,19 +3767,33 @@ function buildApartment(){
   box(11.4,2.7,0.2,wallMat,0,1.35,-32.9);
   box(0.2,2.7,8.2,wallMat,-5.6,1.35,-29);
   box(0.2,2.7,8.2,wallMat,5.6,1.35,-29);
+  // v25 trim: baseboards + crown strips — the two cheap lines that
+  // make a flat box room read as a finished apartment
+  box(10.9,0.11,0.03,trimMat,0,0.055,-25.22,false); box(10.9,0.11,0.03,trimMat,0,0.055,-32.78,false);
+  box(0.03,0.11,7.9,trimMat,-5.48,0.055,-29,false); box(0.03,0.11,7.9,trimMat,5.48,0.055,-29,false);
+  box(10.9,0.07,0.03,trimMat,0,2.66,-25.22,false); box(10.9,0.07,0.03,trimMat,0,2.66,-32.78,false);
+  box(0.03,0.07,7.9,trimMat,-5.48,2.66,-29,false); box(0.03,0.07,7.9,trimMat,5.48,2.66,-29,false);
   // ceiling light fixture + the room's one base light
   var fixMat=new THREE.MeshStandardMaterial({color:0xf8f4e8,emissive:0xffe9c4,emissiveIntensity:1.6,roughness:0.5});
   box(1.7,0.06,0.55,fixMat,0,2.68,-29);
   var aptLight=new THREE.PointLight(0xffd9b0,16,14,1.8); aptLight.position.set(0,2.4,-29); scene.add(aptLight);
   // night-city window on the south wall, curtains at its sides
   box(3.3,1.5,0.08,darkWood,1.6,1.65,-32.78);
-  var cityMat=new THREE.MeshStandardMaterial({map:cityTex,emissive:0xffffff,emissiveMap:cityTex,emissiveIntensity:0.8,color:0x222222,roughness:0.4});
+  var cityMat=new THREE.MeshStandardMaterial({map:cityTex,emissive:0xffffff,emissiveMap:cityTex,emissiveIntensity:0.95,color:0x222222,roughness:0.4});
   box(3.1,1.3,0.04,cityMat,1.6,1.65,-32.72);
-  var curtain=new THREE.MeshStandardMaterial({color:0x74584a,roughness:1});
+  var curtain=new THREE.MeshStandardMaterial({map:fabricTex,color:0x8a6a58,roughness:1});
   box(0.42,1.8,0.07,curtain,0.08,1.6,-32.7);
   box(0.42,1.8,0.07,curtain,3.12,1.6,-32.7);
+  // v25 window light: a cool city-glow spill pooled on the floor
+  // in front of the window + one dim point light to sell it. The
+  // light is a scene child at z < -20, so zone culling switches
+  // it off with the rest of the apartment.
+  var spill=new THREE.Mesh(new THREE.PlaneGeometry(3.4,2.4),
+    new THREE.MeshBasicMaterial({map:glowTex,color:0x7d9fc9,transparent:true,opacity:0.10,depthWrite:false,blending:THREE.AdditiveBlending}));
+  spill.rotation.x=-Math.PI/2; spill.position.set(1.6,0.02,-31.4); spill.renderOrder=3; scene.add(spill);
+  var winLight=new THREE.PointLight(0x9db8e8,3,6.5,1.8); winLight.position.set(1.6,1.8,-31.8); scene.add(winLight);
   // living area: rug, couch facing the TV on the east wall
-  box(3.4,0.02,2.6,new THREE.MeshStandardMaterial({color:0x7a4a3a,roughness:1}),3.55,0.011,-29);
+  box(3.4,0.02,2.6,new THREE.MeshStandardMaterial({map:rugTex,roughness:1}),3.55,0.011,-29);
   box(0.5,0.42,2.6,darkWood,5.18,0.21,-29); addCollider(5.18,-29,0.3,1.35); // TV stand
   box(0.07,1.1,2.0,black,5.44,1.3,-29); // TV body
   APT.tvMat=new THREE.MeshStandardMaterial({map:aptTvTex,emissive:0xffffff,emissiveMap:aptTvTex,emissiveIntensity:0.06,color:0x2a2a2a,roughness:0.25});
@@ -3689,11 +3827,33 @@ function buildApartment(){
   var faucet=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.3,10),steel);
   faucet.position.set(-5.38,1.05,-28.4); scene.add(faucet);
   box(0.16,0.2,0.16,steel,-5.2,1.01,-29.6); // kettle
+  // v25: subway-tile backsplash + a warm under-cabinet light strip
+  box(0.03,0.69,4.26,new THREE.MeshStandardMaterial({map:tileTex,roughness:0.35,envMapIntensity:0.7}),-5.485,1.255,-29.7);
+  var strip=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.018,3.2),
+    new THREE.MeshStandardMaterial({color:0xfff1d6,emissive:0xffd9a0,emissiveIntensity:2.2,roughness:0.5}));
+  strip.position.set(-5.02,1.585,-29.7); scene.add(strip);
+  // v25: the kitchen island — cabinet base, quartz top with an
+  // overhang, two stools on the living side. The bong lives on top.
+  box(0.5,0.1,1.58,darkWood,-3.55,0.05,-29.7); // toe kick
+  box(0.62,0.78,1.7,cabinet,-3.55,0.49,-29.7);
+  box(0.78,0.05,1.86,counter,-3.55,0.905,-29.7); // quartz top, surface at y=0.93
+  addCollider(-3.55,-29.7,0.37,0.9);
+  [-30.25,-29.15].forEach(function(sz){
+    var seat=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.17,0.05,18),
+      new THREE.MeshStandardMaterial({map:fabricTex,color:0x6e4a34,roughness:0.95}));
+    seat.position.set(-2.8,0.63,sz); scene.add(seat);
+    var pole=new THREE.Mesh(new THREE.CylinderGeometry(0.024,0.024,0.6,10),steel);
+    pole.position.set(-2.8,0.32,sz); scene.add(pole);
+    var foot=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.17,0.02,18),steel);
+    foot.position.set(-2.8,0.012,sz); scene.add(foot);
+    addCollider(-2.8,sz,0.19,0.19);
+  });
+  buildBong(-3.62,0.93,-30.35);
   // bed corner (south-west): frame, headboard, mattress, blanket, pillows
   box(1.7,0.28,2.2,darkWood,-3.3,0.14,-31.55);
   box(1.7,0.85,0.08,darkWood,-3.3,0.55,-32.68);
   box(1.6,0.2,2.1,new THREE.MeshStandardMaterial({color:0xf0ece2,roughness:0.95}),-3.3,0.38,-31.5);
-  box(1.64,0.07,1.35,new THREE.MeshStandardMaterial({color:0x37506b,roughness:0.95}),-3.3,0.5,-31.05);
+  box(1.64,0.07,1.35,new THREE.MeshStandardMaterial({map:blanketTex,roughness:0.95}),-3.3,0.5,-31.05);
   box(0.62,0.12,0.4,new THREE.MeshStandardMaterial({color:0xfaf7f0,roughness:0.95}),-3.72,0.53,-32.35);
   box(0.62,0.12,0.4,new THREE.MeshStandardMaterial({color:0xfaf7f0,roughness:0.95}),-2.88,0.53,-32.35);
   addCollider(-3.3,-31.55,0.9,1.15);
@@ -3730,11 +3890,47 @@ function buildApartment(){
     new THREE.MeshStandardMaterial({map:doorSignTex('GARAGE'),emissive:0xffffff,emissiveMap:doorSignTex('GARAGE'),emissiveIntensity:0.55,color:0x333333}));
   sign2.position.set(0,2.32,-24.93); sign2.rotation.y=Math.PI; scene.add(sign2);
 }
+/* v25 — the bong: clean beaker-style glass built from primitives
+   (no download, ~14 small meshes, no shadows). Sits on the island
+   top; BongSystem runs the POV hit. Parts BongSystem animates —
+   the milk chamber and the water bubbles — hang off APT. */
+function buildBong(bx,by,bz){
+  var grp=new THREE.Group(); grp.position.set(bx,by,bz); scene.add(grp);
+  var glass=new THREE.MeshPhysicalMaterial({color:0xd6ecec,transparent:true,opacity:0.30,roughness:0.06,metalness:0,envMapIntensity:1.5,depthWrite:false});
+  function part(geo,mat,x,y,z,rz){
+    var m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); if(rz)m.rotation.z=rz; grp.add(m); return m;
+  }
+  var flask=part(new THREE.SphereGeometry(0.052,20,14),glass,0,0.042,0); flask.scale.y=0.82;
+  part(new THREE.CylinderGeometry(0.046,0.048,0.008,20),glass,0,0.004,0); // base disc
+  var water=part(new THREE.SphereGeometry(0.045,16,12),
+    new THREE.MeshPhysicalMaterial({color:0x86b06a,transparent:true,opacity:0.5,roughness:0.15,depthWrite:false}),0,0.03,0);
+  water.scale.y=0.68;
+  part(new THREE.CylinderGeometry(0.0155,0.0175,0.175,14),glass,0,0.155,0); // straight tube
+  part(new THREE.CylinderGeometry(0.021,0.016,0.02,14),glass,0,0.25,0);     // mouthpiece flare
+  var ring=part(new THREE.TorusGeometry(0.0175,0.0035,8,20),
+    new THREE.MeshStandardMaterial({color:0xc9a24d,roughness:0.3,metalness:1,envMapIntensity:1.3}),0,0.195,0);
+  ring.rotation.x=Math.PI/2;
+  part(new THREE.CylinderGeometry(0.006,0.006,0.095,8),glass,0.032,0.07,0,0.5); // downstem
+  part(new THREE.CylinderGeometry(0.007,0.007,0.035,8),glass,0.052,0.115,0,0.5); // bowl stem
+  part(new THREE.CylinderGeometry(0.014,0.008,0.024,12),glass,0.062,0.128,0);    // bowl
+  part(new THREE.CylinderGeometry(0.0115,0.0115,0.005,12),
+    new THREE.MeshStandardMaterial({color:0x2e4423,roughness:1}),0.062,0.14,0); // packed herb
+  APT.bongMilk=part(new THREE.CylinderGeometry(0.0132,0.0132,0.15,10),
+    new THREE.MeshBasicMaterial({color:0xf4f1e6,transparent:true,opacity:0,depthWrite:false}),0,0.155,0);
+  APT.bongBubbles=[];
+  for(var bi=0;bi<5;bi++){
+    var bub=part(new THREE.SphereGeometry(0.0035,6,5),
+      new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0}),0,0.02,0);
+    bub.userData.ph=bi*1.37; APT.bongBubbles.push(bub);
+  }
+  APT.bongGroup=grp;
+  APT.bongMouth=new THREE.Vector3(bx,by+0.262,bz);
+}
 buildChillArea(); loadAllGuests(); buildPolish(); buildApartment();
 
 /* ================= INTERACTABLES ================= */
 var interactables=[];
-var foundCount=0, TOTAL=12;
+var foundCount=0, TOTAL=13;
 var foundEl=document.getElementById('foundNum');
 var chipEl=document.getElementById('foundChip');
 var toastEl=document.getElementById('toast'), toastTimer=null;
@@ -3807,7 +4003,7 @@ function setStereo(on){
     pianoTimer=setInterval(function(){ if(MUTED) return; pianoNote(seq[idx%seq.length],AC.currentTime+0.02); idx++; },430);
   } else if(pianoTimer){ clearInterval(pianoTimer); pianoTimer=null; }
 }
-/* ---- the apartment's three finds + the two doors ---- */
+/* ---- the apartment's four finds + the two doors ---- */
 addDecor('apt-tv',function(it){ return 'Turn the TV '+(it.on?'off':'on'); },
   new THREE.Vector3(4.9,1.3,-28.6),
   function(v){ if(APT.tvMat) APT.tvMat.emissiveIntensity=0.06+v*1.6; });
@@ -3818,6 +4014,13 @@ addDecor('apt-lamp',function(it){ return 'Turn the lamp '+(it.on?'off':'on'); },
   new THREE.Vector3(-1.95,0.8,-32.5),
   function(v){ if(APT.lampLight) APT.lampLight.intensity=v*10;
     if(APT.lampShadeMat) APT.lampShadeMat.emissiveIntensity=0.08+v*2.4; });
+/* v25: the bong — a repeatable find. The first hit counts toward
+   the objective (markFound guards repeats); every hit runs the
+   POV animation and stacks +45s on the high timer. BongSystem
+   resets it.on when the animation ends so it can be hit again. */
+var bongInter=addDecor('apt-bong',function(it){ return 'Take a hit from the bong'; },
+  new THREE.Vector3(-3.62,1.15,-30.35), null,
+  function(it){ BongSystem.startHit(it); });
 function teleport(x,z,yaw,msg){
   clunk(.4,300);
   player.x=x; player.z=z; player.yaw=yaw; player.pitch=-0.02;
@@ -3851,6 +4054,211 @@ function toggleInter(it){
   if(it.on) markFound(it);
   refreshPlate();
 }
+
+/* ================= v25: HighSystem =================
+   The screen-high effect, its own module like every other
+   system: BongSystem (or anything else) calls addHit(), and
+   this owns the timer, the DOM wash and the camera sway.
+   Every hit adds 45 s, capped at 4:30 so a determined player
+   can't park the effect forever. The timer is the single
+   source of truth — intensity is derived from it every frame,
+   so the effect CANNOT get stuck on: when the seconds run
+   out the wash fades, the chip hides and the FOV is restored
+   exactly. Visuals are DOM gradients + a whisper of camera
+   roll/FOV breathing: no post chain, no backdrop blur, so it
+   costs the same on every quality tier. */
+var HighSystem={
+  remaining:0, intensity:0, _lastShown:-1, _fovApplied:false,
+  chip:document.getElementById('highChip'), timeEl:document.getElementById('highTime'),
+  fx:document.getElementById('highFx'),
+  addHit:function(){
+    this.remaining=Math.min(this.remaining+45,270);
+    this.fx.style.display='block'; this.chip.style.display='block';
+  },
+  update:function(dt,t){
+    if(this.remaining>0){ this.remaining-=dt; if(this.remaining<0)this.remaining=0; }
+    if(this.remaining<=0) this.chip.style.display='none';
+    var target=this.remaining>0?(this.remaining<5?this.remaining/5:1):0;
+    this.intensity+=(target-this.intensity)*Math.min(1,dt*1.6);
+    if(this.remaining<=0&&this.intensity<0.02){
+      this.intensity=0;
+      if(this.fx.style.display!=='none') this.fx.style.display='none';
+      if(this._fovApplied){ camera.fov=72; camera.updateProjectionMatrix(); this._fovApplied=false; }
+      return;
+    }
+    var I=this.intensity;
+    this.fx.style.opacity=(I*0.92).toFixed(3);
+    this.fx.style.transform='scale(1.05) rotate('+(Math.sin(t*0.21)*0.7*I).toFixed(3)+'deg) translate('
+      +(Math.sin(t*0.13)*6*I).toFixed(1)+'px,'+(Math.cos(t*0.17)*5*I).toFixed(1)+'px)';
+    var secs=Math.ceil(this.remaining);
+    if(secs!==this._lastShown){ this._lastShown=secs;
+      this.timeEl.textContent=Math.floor(secs/60)+':'+('0'+(secs%60)).slice(-2); }
+    if(!BongSystem.active){ // the POV camera owns the frame during a hit
+      var sway=reduceMotion?0.3:1;
+      camera.rotation.z+=Math.sin(t*0.45)*0.011*I*sway+Math.sin(t*0.83)*0.004*I*sway;
+      camera.fov=72+Math.sin(t*0.6)*1.7*I*sway;
+      camera.updateProjectionMatrix(); this._fovApplied=true;
+    }
+  }
+};
+
+/* ================= v25: BongSystem =================
+   The POV bong hit, its own module. startHit() freezes the
+   player (step() checks .active: no walk, no look, no second
+   interact) and flies the camera through four poses — lean in,
+   mouth on the piece while the water bubbles and the chamber
+   milks up, tip back and exhale a little smoke, then settle
+   back to exactly where the player was standing. At the
+   exhale it calls HighSystem.addHit(). All state is local;
+   the only writes out are the camera (restored at the end),
+   the interactable's on flag (reset so it can be hit again)
+   and the high timer. Audio is two small synth voices —
+   a bubbling loop for the inhale, a soft noise breath out —
+   both guarded like every other effect in this game. */
+var BongSystem={
+  active:false, t:0, it:null, poses:[], bounds:[0,1.0,2.4,3.3,5.2],
+  smoke:[], _smokeReady:false, _bub:null, _hitDone:false,
+  startHit:function(it){
+    if(this.active||!APT.bongMouth) return;
+    this.active=true; this.t=0; this.it=it; this._hitDone=false;
+    if(!this._smokeReady) this._buildSmoke();
+    var M=APT.bongMouth, up=new THREE.Vector3(0,1,0);
+    var dir=new THREE.Vector3(player.x-M.x,0,player.z-M.z);
+    if(dir.lengthSq()<0.0001) dir.set(1,0,0); dir.normalize();
+    function pose(px,py,pz,tx,ty,tz){
+      var p=new THREE.Vector3(px,py,pz);
+      var m=new THREE.Matrix4().lookAt(p,new THREE.Vector3(tx,ty,tz),up);
+      return {pos:p,quat:new THREE.Quaternion().setFromRotationMatrix(m)};
+    }
+    var start={pos:camera.position.clone(),quat:camera.quaternion.clone()};
+    this.poses=[
+      start,
+      pose(M.x+dir.x*0.34,M.y+0.05,M.z+dir.z*0.34, M.x,M.y-0.01,M.z),          // lean in
+      pose(M.x+dir.x*0.155,M.y+0.008,M.z+dir.z*0.155, M.x,M.y-0.03,M.z),      // on the mouthpiece
+      pose(M.x+dir.x*0.45,M.y+0.17,M.z+dir.z*0.45, M.x,M.y+0.13,M.z),         // tip back, exhale
+      start                                                                          // settle back
+    ];
+    promptEl.classList.remove('show');
+  },
+  _buildSmoke:function(){
+    this._smokeReady=true;
+    for(var i=0;i<14;i++){
+      var sm=new THREE.SpriteMaterial({map:glowTex,color:0xe9e5db,transparent:true,opacity:0,depthWrite:false});
+      var spr=new THREE.Sprite(sm); spr.visible=false; scene.add(spr);
+      this.smoke.push({spr:spr,vel:new THREE.Vector3(),life:1,max:1}); // starts dead; _spawnSmoke revives
+    }
+  },
+  _spawnSmoke:function(){
+    var fwd=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+    for(var i=0;i<this.smoke.length;i++){
+      var p=this.smoke[i]; if(p.life<p.max) continue;
+      p.max=1.3+Math.random()*0.9; p.life=0.0001;
+      p.spr.position.copy(camera.position).addScaledVector(fwd,0.22);
+      p.spr.position.y-=0.03;
+      p.vel.copy(fwd).multiplyScalar(0.32);
+      p.vel.x+=(Math.random()-0.5)*0.07; p.vel.z+=(Math.random()-0.5)*0.07; p.vel.y=0.20+Math.random()*0.08;
+      p.spr.visible=true;
+      if(i>5) break; // one breath = a soft cloud, not a fog bank
+    }
+  },
+  _bubbleStart:function(){
+    try{
+      var ac=audio(); if(!ac) return; var t=ac.currentTime;
+      var src=ac.createBufferSource(); src.buffer=noiseBuffer(ac,1); src.loop=true;
+      var bp=ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=460; bp.Q.value=5;
+      var g=ac.createGain(); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.075,t+0.25);
+      var lfo=ac.createOscillator(), lg=ac.createGain(); lfo.frequency.value=8.5; lg.gain.value=0.045;
+      lfo.connect(lg); lg.connect(g.gain);
+      src.connect(bp); bp.connect(g); g.connect(ac.destination);
+      src.start(t); lfo.start(t);
+      this._bub={src:src,g:g,lfo:lfo};
+    }catch(e){ this._bub=null; }
+  },
+  _bubbleStop:function(){
+    if(!this._bub) return; var b=this._bub; this._bub=null;
+    try{
+      var t=AC?AC.currentTime:0;
+      b.g.gain.cancelScheduledValues(t); b.g.gain.setValueAtTime(b.g.gain.value,t);
+      b.g.gain.linearRampToValueAtTime(0,t+0.15);
+      setTimeout(function(){ try{b.src.stop(); b.lfo.stop();}catch(e){} },220);
+    }catch(e){}
+  },
+  _exhaleSnd:function(){
+    try{
+      var ac=audio(); if(!ac) return; var t=ac.currentTime;
+      var src=ac.createBufferSource(); src.buffer=noiseBuffer(ac,1.2);
+      var lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=680;
+      var g=ac.createGain(); g.gain.setValueAtTime(0,t);
+      g.gain.linearRampToValueAtTime(0.13,t+0.22); g.gain.exponentialRampToValueAtTime(0.001,t+1.15);
+      src.connect(lp); lp.connect(g); g.connect(ac.destination); src.start(t); src.stop(t+1.25);
+    }catch(e){}
+  },
+  _finish:function(){
+    this.active=false;
+    this._bubbleStop();
+    if(APT.bongMilk) APT.bongMilk.material.opacity=0;
+    if(APT.bongBubbles) APT.bongBubbles.forEach(function(b){ b.material.opacity=0; });
+    if(this.it){ this.it.on=false; this.it.target=0; }
+    if(currentInter===this.it) promptEl.classList.add('show');
+    toast('High +45s — every hit stacks more time.',2400);
+  },
+  update:function(dt,t){
+    // smoke drifts on even after control returns, until it thins out
+    for(var i=0;i<this.smoke.length;i++){
+      var p=this.smoke[i];
+      if(p.life>=p.max){ if(p.spr.visible)p.spr.visible=false; continue; }
+      p.life+=dt;
+      p.spr.position.addScaledVector(p.vel,dt);
+      p.vel.y+=0.05*dt; p.vel.multiplyScalar(Math.max(0,1-0.55*dt));
+      var u=Math.min(1,p.life/p.max);
+      p.spr.material.opacity=0.30*Math.sin(Math.PI*u);
+      var sc=0.13+0.55*u; p.spr.scale.set(sc,sc,1);
+    }
+    if(!this.active) return;
+    this.t+=dt; var T=this.t, B=this.bounds;
+    if(T>=B[4]){ // settle the camera exactly home, then hand control back
+      camera.position.copy(this.poses[4].pos); camera.quaternion.copy(this.poses[4].quat);
+      if(HighSystem.intensity<0.02){ camera.fov=72; camera.updateProjectionMatrix(); }
+      this._finish(); return;
+    }
+    var seg=0; while(seg<3&&T>=B[seg+1]) seg++;
+    var u=(T-B[seg])/(B[seg+1]-B[seg]); u=u*u*(3-2*u); // smoothstep per segment
+    camera.position.lerpVectors(this.poses[seg].pos,this.poses[seg+1].pos,u);
+    camera.quaternion.slerpQuaternions(this.poses[seg].quat,this.poses[seg+1].quat,u);
+    // inhale (segment 1): bubbles rise, the chamber milks, FOV
+    // pulls in a touch, and the camera trembles just slightly
+    var inhaling=(seg===1);
+    if(APT.bongBubbles) APT.bongBubbles.forEach(function(b){
+      b.material.opacity=inhaling?0.8:0;
+      if(inhaling){ var ph=(T*0.55+b.userData.ph)%0.038;
+        b.position.y=0.012+ph; b.position.x=Math.sin(T*22+b.userData.ph*7)*0.012; b.position.z=Math.cos(T*19+b.userData.ph*5)*0.012; }
+    });
+    if(APT.bongMilk){
+      var milk=0;
+      if(T>B[1]&&T<B[2]) milk=0.55*(T-B[1])/(B[2]-B[1]);
+      else if(T>=B[2]&&T<B[3]) milk=0.55;
+      else if(T>=B[3]&&T<B[3]+0.3) milk=0.55*(1-(T-B[3])/0.3);
+      APT.bongMilk.material.opacity=milk;
+    }
+    if(inhaling){
+      camera.position.y+=Math.sin(T*47)*0.0012;
+      camera.fov=72-3.5*Math.sin(u*Math.PI*0.5); camera.updateProjectionMatrix();
+      if(!this._bub) this._bubbleStart();
+    } else {
+      if(this._bub) this._bubbleStop();
+      if(seg>=2){ camera.fov=68.5+(72-68.5)*Math.min(1,(T-B[2])/(B[4]-B[2])); camera.updateProjectionMatrix(); }
+    }
+    // the exhale moment: stack the high, breathe the smoke out
+    if(!this._hitDone&&T>=B[3]){
+      this._hitDone=true;
+      HighSystem.addHit();
+      this._exhaleSnd();
+      this._spawnSmoke();
+    }
+    promptEl.classList.remove('show');
+  }
+};
+window.__BONG_SYS__={bong:BongSystem,high:HighSystem};
 
 /* ================= PLAYER ================= */
 var player={x:0.4,z:7.6,yaw:0.12,pitch:-0.04};
@@ -3898,7 +4306,7 @@ function nearest(){
   });
   return {inter:best,car:bc};
 }
-function doInteract(){ if(currentInter){ audio(); toggleInter(currentInter); } }
+function doInteract(){ if(BongSystem.active) return; if(currentInter){ audio(); toggleInter(currentInter); } }
 
 /* ---- input: keyboard ---- */
 window.addEventListener('keydown',function(e){
@@ -4080,6 +4488,7 @@ function collide(){
 function step(dt,t){
   // drain the look queue: hard cap per frame, excess is dropped — this
   // is the guarantee that no single glitchy move can whip the view
+  if(BongSystem.active){ lookQueueX=0; lookQueueY=0; } // v25: the POV hit owns the camera
   if(lookQueueX||lookQueueY){
     var qx=Math.max(-52,Math.min(52,lookQueueX)), qy=Math.max(-52,Math.min(52,lookQueueY));
     lookQueueX=0; lookQueueY=0;
@@ -4087,8 +4496,8 @@ function step(dt,t){
     player.yaw-=qx*sens; player.pitch-=qy*sens;
     player.pitch=Math.max(-1.15,Math.min(1.15,player.pitch));
   }
-  if(turnL)player.yaw+=1.7*dt;
-  if(turnR)player.yaw-=1.7*dt;
+  if(turnL&&!BongSystem.active)player.yaw+=1.7*dt;
+  if(turnR&&!BongSystem.active)player.yaw-=1.7*dt;
   // ease the rendered heading toward the target: on touch this absorbs
   // any surviving nudge over ~3 frames; mouse-lock and desktop stay 1:1
   if(locked||!isTouch||!started){ camYaw=player.yaw; camPitch=player.pitch; }
@@ -4106,6 +4515,7 @@ function step(dt,t){
     f+=-joy.y; s+=joy.x;
   }
   var len=Math.sqrt(f*f+s*s); if(len>1){ f/=len; s/=len; }
+  if(BongSystem.active){ f=0; s=0; } // v25: rooted while hitting the bong
   var run=(keys['ShiftLeft']||keys['ShiftRight']||runBtn)?1.65:1;
   var sp=3.1*run;
   // walk relative to what you actually see (the smoothed heading), so
@@ -4184,6 +4594,8 @@ function step(dt,t){
     promptTxt.textContent=currentInter.labelFn(currentInter);
   }
   if(n.car!==currentCar){ currentCar=n.car; refreshPlate(); }
+  BongSystem.update(dt,t); // v25: POV hit camera + smoke (no-op unless a hit is playing)
+  HighSystem.update(dt,t); // v25: high timer, screen wash + camera sway (no-op at zero)
 }
 
 buildAtmosphere();
