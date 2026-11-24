@@ -196,7 +196,7 @@
   </div>
   <button id="enterBtn" disabled>LOADING&hellip;</button>
   <p class="controls"><b>WASD</b> walk &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>E</b> interact &nbsp;·&nbsp; <b>Shift</b> run &nbsp;—&nbsp; on touch, use the stick and buttons.</p>
-  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — People: Jungle Jim · BadutSaurus · reizibarrientos — Japan set: ydvisual · Bazylonator · abelGB · tokyo45otaku · Vermos · chertpaderi · ditovirnantio · seirogan · sa6 — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — all CC BY 4.0 · HDRI: Poly Haven CC0</p>
+  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — all CC BY 4.0 · HDRI: Poly Haven CC0</p>
 </div>
 
 <div id="errBox"></div>
@@ -255,7 +255,7 @@ window.addEventListener('unhandledrejection',function(e){ ErrorGuard.report(e.re
 var AssetSystem=(function(){
   var MAXC=(('ontouchstart' in window)||navigator.maxTouchPoints>0)?2:3;
   var active=0, queue=[], cache={}, pending={}, done=0, failed=0, deduped=0, capsApplied=0, installed=false, rawLoad=null;
-  function capFor(url){ return /jp-|decor\.glb/.test(url)?512:1024; }
+  function capFor(url){ return /decor\.glb/.test(url)?512:1024; }
   function resizeTex(tex,cap,seen){
     var img=tex&&tex.image; if(!img||!img.width||!img.height) return;
     if(Math.max(img.width,img.height)<=cap){ if(tex.anisotropy>4) tex.anisotropy=4; return; }
@@ -425,174 +425,6 @@ var SimulationSystem=(function(){
   };
   return api;
 })();
-
-/* ---- FollowerSystem (v24): a casual companion follower.
-   ONE registered actor (Alina) walks WITH the player — never
-   chasing, never sprinting, never glued to his back. She holds
-   a comfortable anchor spot behind-and-beside him (computed
-   from a smoothed copy of his heading, so a camera flick never
-   whips her around him), matches his pace with smooth
-   acceleration, feed-forward from his own velocity so the pair
-   move together instead of oscillating, a short human reaction
-   lag before she sets off, and a full stop back into her idle
-   when he stops. Her animation is stepped through
-   SimulationSystem's LOD rules like every other NPC; the
-   movement maths itself is a handful of vector ops per step.
-   Zone changes (the apartment doors are teleports) are the one
-   hard relocation: after he has been in the other zone ~0.9 s
-   she comes through the same door, appearing at its landing —
-   she never pathfinds through walls and never teleports to
-   catch up mid-room. Content registers her once via attach();
-   this system knows nothing about her model, clips or home
-   spot beyond the registration. */
-var FollowerSystem=(function(){
-  var F=null; // {grp,mixer,idle,walk} — set by attach()
-  // the player, camera heading, run state and collider list are
-  // handed in per update() by the game loop — the same explicit
-  // interface SimulationSystem and WorldSystem use — because
-  // this system lives outside boot()'s scope and must never
-  // reach for game-state variables directly
-  var E={player:null,camYaw:0,started:false,colliders:[]};
-  var S={vx:0,vz:0,speed:0,face:0,side:1,noticeT:0,zoneT:0,walkBlend:0,
-         hx:0.4,hz:7.6,hInit:false,px:null,pz:0,pvx:0,pvz:0,pspeed:0,home:null};
-  function angLerp(a,b,k){ var d=((b-a+Math.PI*3)%(Math.PI*2))-Math.PI; return a+d*k; }
-  function blocked(x,z,r){
-    var cs=E.colliders;
-    for(var i=0;i<cs.length;i++){ var b=cs[i];
-      if(x>b.minX-r&&x<b.maxX+r&&z>b.minZ-r&&z<b.maxZ+r) return true; }
-    return false;
-  }
-  function bounds(zone,x,z){
-    if(zone==='apartment') return [Math.max(-4.95,Math.min(4.95,x)),Math.max(-32.3,Math.min(-25.5,z))];
-    return [Math.max(-12.4,Math.min(12.4,x)),Math.max(-9.3,Math.min(9.4,z))];
-  }
-  function zoneOf(z){ return z<-20?'apartment':'garage'; }
-  function anchorValid(x,z,zone){
-    var b=bounds(zone,x,z);
-    if(Math.abs(b[0]-x)>0.01||Math.abs(b[1]-z)>0.01) return false;
-    return !blocked(x,z,0.34);
-  }
-  function tick(dt){
-    var P=E.player, camYaw=E.camYaw; // game state arrives via update() — see E above
-    if(S.px===null){ S.px=P.x; S.pz=P.z; }
-    var grp=F.grp, pos=grp.position;
-    // player velocity, smoothed — she reads his pace, not his jitter
-    var ivx=(P.x-S.px)/Math.max(dt,0.001), ivz=(P.z-S.pz)/Math.max(dt,0.001);
-    S.px=P.x; S.pz=P.z;
-    var vk=1-Math.exp(-dt*7);
-    S.pvx+=(ivx-S.pvx)*vk; S.pvz+=(ivz-S.pvz)*vk;
-    S.pspeed=Math.sqrt(S.pvx*S.pvx+S.pvz*S.pvz);
-    var pz=zoneOf(P.z), hz=zoneOf(pos.z);
-    if(pz!==hz){
-      // he went through a door: she follows through it a beat
-      // later, appearing at the door landing on his side
-      S.zoneT+=dt;
-      if(S.zoneT>0.9){
-        S.zoneT=0;
-        if(pz==='apartment') pos.set(1.2,0,-26.1); else pos.set(9.5,0,-8.15);
-        S.vx=0; S.vz=0; S.speed=0;
-        S.face=Math.atan2(P.x-pos.x,P.z-pos.z);
-      }
-    } else S.zoneT=0;
-    // smoothed heading for the anchor: she positions herself
-    // relative to where he is broadly headed, so quick look-
-    // arounds don't swing her anchor from side to side
-    if(!S.hInit){ S.hx=P.x; S.hz=P.z; S.hInit=true; }
-    S.headYaw=(S.headYaw===undefined?camYaw:S.headYaw);
-    S.headYaw=angLerp(S.headYaw,camYaw,1-Math.exp(-dt*2.0));
-    var fx=-Math.sin(S.headYaw), fz=-Math.cos(S.headYaw); // his forward (movement frame)
-    var rx=-fz, rz=fx;                                    // his right
-    // anchor: a couple of steps behind, one step to the side —
-    // walking together, not trailing on a leash
-    var ax=P.x-fx*1.5+rx*0.95*S.side, az=P.z-fz*1.5+rz*0.95*S.side;
-    if(!anchorValid(ax,az,pz)){
-      if(anchorValid(P.x-fx*1.5-rx*0.95*S.side,P.z-fz*1.5-rz*0.95*S.side,pz)){
-        S.side=-S.side; ax=P.x-fx*1.5+rx*0.95*S.side; az=P.z-fz*1.5+rz*0.95*S.side;
-      } else { ax=P.x-fx*1.75; az=P.z-fz*1.75; }
-    }
-    var dx=ax-pos.x, dz=az-pos.z, dist=Math.sqrt(dx*dx+dz*dz);
-    // human reaction lag: he sets off, a beat passes, she
-    // notices and follows — unless she is already far behind
-    if(S.pspeed>0.35) S.noticeT+=dt; else S.noticeT=0;
-    var unlocked=S.noticeT>0.26||dist>1.9;
-    var dvx=0, dvz=0;
-    if(E.started&&hz===pz&&unlocked&&!(dist<0.32&&S.pspeed<0.2)){
-      var cap=F.walk?3.35:1.15;
-      if(dist>5) cap=F.walk?3.6:1.15; // far behind: a brisk walk, never a run
-      var sp=Math.min(cap,dist*1.35);
-      dvx=dx/(dist||1)*sp+S.pvx*0.82; dvz=dz/(dist||1)*sp+S.pvz*0.82;
-      var dl=Math.sqrt(dvx*dvx+dvz*dvz);
-      if(dl>cap){ dvx*=cap/dl; dvz*=cap/dl; }
-    }
-    // smooth acceleration / deceleration — no snapping, ever
-    var acc=(dvx||dvz)?3.0:3.4, mx=acc*dt;
-    var ddx=dvx-S.vx, ddz=dvz-S.vz, dd=Math.sqrt(ddx*ddx+ddz*ddz);
-    if(dd>mx){ ddx*=mx/dd; ddz*=mx/dd; }
-    S.vx+=ddx; S.vz+=ddz;
-    var nx=pos.x+S.vx*dt, nz=pos.z+S.vz*dt;
-    // collision, resolved the same way the player's own
-    // collide() resolves it: integrate, then push out of any
-    // collider along its shallowest axis. Entry-blocking alone
-    // would trap her — her home spot by Bay 2 overlaps the
-    // lift prop's collider footprint, so her first step out
-    // has to be a push-out, not a slide; push-out also means
-    // no anchor or doorway can ever pen her inside a prop.
-    var rr=0.30, cs2=E.colliders;
-    for(var ci=0;ci<cs2.length;ci++){ var b2=cs2[ci];
-      if(nx>b2.minX-rr&&nx<b2.maxX+rr&&nz>b2.minZ-rr&&nz<b2.maxZ+rr){
-        var pl=nx-(b2.minX-rr), pr=(b2.maxX+rr)-nx, pb=nz-(b2.minZ-rr), pf=(b2.maxZ+rr)-nz;
-        var m=Math.min(pl,pr,pb,pf);
-        if(m===pl)nx=b2.minX-rr; else if(m===pr)nx=b2.maxX+rr;
-        else if(m===pb)nz=b2.minZ-rr; else nz=b2.maxZ+rr;
-      }
-    }
-    var bd=bounds(hz,nx,nz); nx=bd[0]; nz=bd[1];
-    // personal space: she never crowds into him
-    var pdx=nx-P.x, pdz=nz-P.z, pd=Math.sqrt(pdx*pdx+pdz*pdz);
-    if(pd<0.78&&pd>0.001){
-      var qx=P.x+pdx/pd*0.78, qz=P.z+pdz/pd*0.78;
-      if(!blocked(qx,qz,0.30)){ nx=qx; nz=qz; } else { nx=pos.x; nz=pos.z; }
-    }
-    S.speed=Math.sqrt(S.vx*S.vx+S.vz*S.vz);
-    pos.x=nx; pos.z=nz;
-    // facing: the way she walks; at rest, the way he is looking —
-    // she stands WITH him, not staring at him
-    var ft=(S.speed>0.25)?Math.atan2(S.vx,S.vz):camYaw+Math.PI;
-    var fd=((ft-S.face+Math.PI*3)%(Math.PI*2))-Math.PI;
-    var mxTurn=2.4*dt;
-    S.face+=Math.max(-mxTurn,Math.min(mxTurn,fd));
-    grp.rotation.y=S.face;
-    // animation: idle <-> walk crossfade driven by her real
-    // speed; the walk cycle's rate follows her stride
-    var tb=F.walk?Math.max(0,Math.min(1,S.speed/0.85)):(S.speed>0.3?0.35:0);
-    S.walkBlend+=(tb-S.walkBlend)*(1-Math.exp(-dt*5));
-    if(F.idle) F.idle.setEffectiveWeight(1-S.walkBlend);
-    if(F.walk){
-      F.walk.setEffectiveWeight(S.walkBlend);
-      if(S.walkBlend>0.02) F.walk.timeScale=Math.max(0.72,Math.min(2.5,S.speed/1.05));
-    }
-    SimulationSystem.mixerStep(F.mixer,grp,P,dt,7);
-  }
-  return {
-    attach:function(cfg){
-      F=cfg; S.face=cfg.grp.rotation.y; S.home={x:cfg.grp.position.x,z:cfg.grp.position.z};
-      S.px=null; // seeded from the first update()'s player instead — attach() runs in a loader callback, outside the game loop
-    },
-    setWalk:function(act){ if(F) F.walk=act; },
-    update:function(dt,P,camYaw,started,colliders){
-      if(!F||!F.grp||!F.mixer||!P) return;
-      E.player=P; E.camYaw=camYaw; E.started=started; E.colliders=colliders||[];
-      SimulationSystem.guard('follower',function(){ tick(dt); });
-    },
-    state:function(){
-      if(!F) return {attached:false};
-      return {attached:true,speed:Math.round(S.speed*100)/100,blend:Math.round(S.walkBlend*100)/100,
-        x:Math.round(F.grp.position.x*100)/100,z:Math.round(F.grp.position.z*100)/100,
-        zone:zoneOf(F.grp.position.z),playerSpeed:Math.round(S.pspeed*100)/100,hasWalk:!!F.walk};
-    }
-  };
-})();
-window.__FOLLOWER__=FollowerSystem;
 
 /* ---- PerfSystem: rolling frame metrics with no per-frame
    allocation. Windows are 1.5 s; QualitySystem consumes them. */
@@ -909,11 +741,11 @@ renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate=false;
 renderer.shadowMap.needsUpdate=true;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
-/* Exposure pulled down (1.18 -> 1.0) in v14: pale skin and light
-   outfits were the first thing this scene clipped to white under
-   the key spot — the cars' darker, saturated paint survived, the
-   girls didn't. The whole light rig below is rebalanced with it. */
-renderer.toneMappingExposure=1.12; /* v21 polish: a touch more exposure again — v20's real engine bays and the apartment's warm wood both read richer, skin still holds */
+/* Exposure pulled down (1.18 -> 1.0) in v14: light surfaces were
+   the first thing this scene clipped to white under the key spot,
+   while the cars' darker, saturated paint survived. The whole
+   light rig below is rebalanced with it. */
+renderer.toneMappingExposure=1.12; /* v21 polish: a touch more exposure again — v20's real engine bays and the apartment's warm wood both read richer, highlights still hold */
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 /* Software renderers (SwiftShader / llvmpipe — CI rigs, VMs, ancient
    laptops) can't carry the post chain or transmissive glass at any
@@ -1001,13 +833,10 @@ if(!softwareGL) fetch('assets/garage_1k.hdr').then(function(r){ if(!r.ok) throw 
 scene.add(new THREE.HemisphereLight(0x9db4d6,0x2a2019,0.55));
 var amb=new THREE.AmbientLight(0xfff1dd,0.15); scene.add(amb);
 /* v14, second pass — the key spot is CUT HARD (820 -> 50), and it
-   has to be: it hangs ~4.8 m from the aisle where the girls walk,
-   and at any intensity that visibly pools light on the floor it
-   delivers 8-10x more irradiance than skin can hold — the girls
-   clip to white no matter what the exposure is, while the cars
-   (dark, metallic, clearcoat) shrug it off. Verified against the
-   audit captures: at 820 the walker's skin still sampled at
-   (254,253,251). The bay points below are now the practical keys;
+   has to be: at any intensity that visibly pools light on the floor
+   it blows light surfaces out to white no matter what the exposure
+   is, while the cars (dark, metallic, clearcoat) shrug it off.
+   The bay points below are now the practical keys;
    the spot remains as the shadow-caster and a soft top fill, and
    the cars keep their shine from the HDRI reflections, which do
    not depend on this light at all. */
@@ -1024,10 +853,9 @@ keySpot.shadow.mapSize.set(2048,2048); keySpot.shadow.bias=-0.00015; keySpot.sha
 keySpot.shadow.camera.near=1.5; keySpot.shadow.camera.far=22;
 keySpot.target.position.set(0,0,-2); scene.add(keySpot); scene.add(keySpot.target);
 [-5,5].forEach(function(x){
-  // 85 -> 55 in v14 pass 3: these hang ~4.5 m over the bays, 2-3 m
-  // from where Alina and the guest at the Civic stand — at 85 they
-  // were the last source still pushing skin over the top. The cars
-  // keep their shine from the HDRI, not from these.
+  // 85 -> 55 in v14 pass 3: these hang ~4.5 m over the bays — at
+  // 85 they were the last source still blowing highlights out over
+  // the cars. The cars keep their shine from the HDRI, not these.
   var p=new THREE.PointLight(0xffd9a0,55,20,1.7); p.position.set(x,4.5,-2); scene.add(p);
 });
 
@@ -1203,7 +1031,7 @@ var shaftTex=makeTex(64,256,function(g,w,h){
 /* soft radial glow sprite/plane texture — the cheap half of the
    v17 lighting pass. Bloom (desktop, and phones that prove they
    can carry it) makes emissives glow in the framebuffer; these
-   additive glows make the neon, tubes and stage lamps read as
+   additive glows make the neon, tubes and lamps read as
    glowing on EVERY device, including the lean path, for the cost
    of a handful of transparent planes. */
 var glowTex=makeTex(128,128,function(g,w,h){
@@ -1438,17 +1266,16 @@ ppHero.position.set(GAR.W/2-0.06,2.55,4.6); ppHero.rotation.y=-Math.PI/2;
 var ppRX7=photoPoster('assets/poster-rx7.webp',2.9,1.94);
 ppRX7.position.set(-GAR.W/2+0.06,2.55,-4.2); ppRX7.rotation.y=Math.PI/2;
 /* ---- real art files as textures: framed photo portraits of the
-   three cars hanging over their own bays, a Tokyo night mural down
-   the left wall, the Dying to Live chrome cross as a wall emblem and
-   a floor medallion in the aisle ---- */
+   three cars hanging over their own bays, the Dying to Live chrome
+   cross as a wall emblem and a floor medallion in the aisle.
+   (v26: the Tokyo night mural that hung down the left wall is
+   deleted with the rest of the Japanese decor.) ---- */
 var ppS15=photoPoster('assets/poster-s15.webp',2.9,1.63);
 ppS15.position.set(-4.6,2.8,-GAR.D/2+0.06);
 var ppCivic=photoPoster('assets/poster-civic.webp',2.2,1.54);
 ppCivic.position.set(0,1.98,-GAR.D/2+0.06);
 var ppGal=photoPoster('assets/poster-gallardo.webp',2.6,1.95);
 ppGal.position.set(4.6,2.85,-GAR.D/2+0.06);
-var ppMural=photoPoster('assets/mural-tokyo.webp',5.6,3.54);
-ppMural.position.set(-GAR.W/2+0.06,2.75,1.6); ppMural.rotation.y=Math.PI/2;
 /* ---- the DTL cross as a NEON SIGN on the right wall: the chrome
    emblem's own luminance becomes the tube mask — bright chrome turns
    into glowing pink-white neon tube, the black backing stays dark.
@@ -1569,10 +1396,10 @@ var DECOR_COLLIDERS=[ // [centreX, centreZ, halfW, halfD] per prop
   box(0.3,0.03,0.3,blackTrim,p[0],0.015,p[1]);
   addCollider(p[0],p[1],0.2,0.2);
 });
-/* The old lounge corner (two stools, towels, a cooler) is gone: the
-   front corner by the doors is now the Japanese chill area — benches,
-   tatami, the dance stage, lanterns and neon — built further down with the
-   guests who sit there. */
+/* The old lounge corner (two stools, towels, a cooler) is gone,
+   and so is the Japanese chill corner that replaced it in v13 —
+   benches, tatami, the dance stage, lanterns and neon all deleted
+   in v26. The front corner by the doors is open floor now. */
 
 /* ================= CAR BUILDER ================= */
 function extrudeProfile(shape,depth,mat){
@@ -2538,935 +2365,15 @@ var cars=CAR_SPECS.map(function(spec){
   return buildRealCar(spec);
 });
 
-/* ================= PEOPLE =================
-   The old procedural capsule figures that sat on the lounge stools
-   (the blocky "Roblox-looking" pair) are DELETED — code, stools and
-   all. The garage's people are now all real animated GLB files:
-   Anna the walker and the pole dancer below, plus the Japanese
-   guests in the chill-area section further down. */
-/* ---- the ladies, take four: REAL skeletal animation, no shader
-   tricks. Two verified CC BY files with real embedded clips, both
-   meshopt + WebP optimised at build time:
-   · THE WALKER — "Anna Ipati (animated)" by Jungle Jim: a realistic
-     DAZ/CC4 woman with textured skin in full colour and long wavy
-     hair (real hair-card meshes, not a painted cap). Her one clip
-     was verified in-file before shipping: thighs swing ~34°, calves
-     flex ~77°, arms counter-swing — a genuine walk, not a bounce.
-     Her bra and underwear meshes were removed in prep, so she
-     walks the aisle nude as asked. The 3,262 facial morph targets
-     and the finger/face micro-channels were stripped (invisible at
-     garage distance, most of the file's weight); the body
-     animation is untouched. Root drift is pinned at load exactly
-     like the previous walker, and the group carries her around
-     the aisle ellipse.
-   · THE DANCER — "Dancing Twerk (1)" by BadutSaurus: an adult
-     woman in a pink sports bra and bikini bottoms with a real
-     30-second Mixamo dance loop (verified in-file: 90 channels,
-     66-joint rig), staged at the chrome pole on the neon-rimmed
-     stage between the benches (v20: moved from the right wall —
-     her stage stands in the chill corner now; v23: the second stage that stood beside it is deleted). v13 CORRECTION (Collin's call,
-     superseding the earlier double-her instruction): she stays
-     her normal 1.70 m — the same height as the walker, the v12
-     height match. Only the POLE changed: taller (5.0 m, as tall
-     as the room allows under the 5.2 m ceiling) and skinnier.
-     Honest limit, same as
-     before: no clip anywhere shows a dancer actually working a
-     pole — she dances at it, body close, which is the best the
-     free model ecosystem has.
-   Anna is the aisle walker; cloned Annas stand in the chill
-   area and by the cars in the section below. ---- */
-var walker=null, dancer=null;
-var jpMixers=[], jpHalf=false;
-var carSway=[]; // v18: whole-body sway entries for the car-row pair (see updatePeople)
-function fitFigure(model,targetH){
-  // measure, scale to a real height, ground her, centre her on the
-  // group origin — all from her own bounding box, like the cars
-  var holder=new THREE.Group(); holder.add(model);
-  holder.updateMatrixWorld(true);
-  var bb=new THREE.Box3().setFromObject(model), sz=bb.getSize(new THREE.Vector3());
-  var s=targetH/Math.max(sz.y,0.01);
-  holder.scale.setScalar(s);
-  holder.updateMatrixWorld(true);
-  bb=new THREE.Box3().setFromObject(model);
-  var ctr=bb.getCenter(new THREE.Vector3());
-  holder.position.set(-ctr.x,-bb.min.y,-ctr.z);
-  return holder;
-}
-/* ---- the Mixamo figures need their own fit. Anna's Mixamo file
-   stores her BIND pose lying along z (the FBX armature rotation
-   was never baked upright): her 170 cm of stature runs down the
-   z axis and her y extent in bind is just her 0.40 m thickness.
-   fitFigure above read that thickness as her height and scaled
-   her ~4.25x too big — the moment a pose or dance clip's
-   rotations stood her upright she was 7 m tall, feet on the
-   floor, head through the ceiling. fitFigureMixamo scales from
-   her stature (the bbox's long axis) instead. The grounding it
-   sets is only provisional, though: a rotation-only clip leaves
-   her posed body offset from the bind-pose box, so once the clip
-   has landed, groundFigure re-measures the POSED figure and puts
-   her feet exactly on the floor and her centre exactly on her
-   spot. (The skinned bounding boxes are nulled before measuring:
-   three caches them per mesh, and a box cached from the bind
-   pose would otherwise be reused for the posed figure forever.) */
-function figureBBox(root){
-  root.traverse(function(o){ if(o.isSkinnedMesh) o.boundingBox=null; });
-  root.updateMatrixWorld(true);
-  return new THREE.Box3().setFromObject(root);
-}
-function fitFigureMixamo(model,targetH){
-  var holder=new THREE.Group(); holder.add(model);
-  var bb=figureBBox(model), sz=bb.getSize(new THREE.Vector3());
-  var s=targetH/Math.max(sz.y,sz.z,0.01); // stature = the long axis
-  holder.scale.setScalar(s);
-  // provisional grounding from the SAME measurement (uniform scale:
-  // the scaled box is the bind box times s) — a second full skinned
-  // re-measure here would be pure main-thread cost at load
-  var ctr=bb.getCenter(new THREE.Vector3());
-  holder.position.set(-ctr.x*s,-bb.min.y*s,-ctr.z*s);
-  return holder;
-}
-function groundFigure(holder,model,grp,floorY){
-  var b=figureBBox(grp);
-  holder.position.y+=(floorY-b.min.y);
-  var c=b.getCenter(new THREE.Vector3());
-  var dx=grp.position.x-c.x, dz=grp.position.z-c.z;
-  var cos=Math.cos(grp.rotation.y), sin=Math.sin(grp.rotation.y);
-  holder.position.x+=cos*dx-sin*dz;
-  holder.position.z+=sin*dx+cos*dz;
-}
-/* v14 colour guard for every figure material: keep the environment
-   response low, and floor the skin materials' roughness — DAZ/CC
-   skin ships near-glossy, so under a hard light its specular alone
-   reads as a white sheen over the face and shoulders even when the
-   diffuse colour is fine. Skin is matched by material name
-   (Std_Skin_* on the Jungle Jim figures); single-material figures
-   just get the env cap. */
-function toneFigureMaterial(m){
-  m.envMapIntensity=0.38;
-  if(/skin/i.test(m.name||'')&&m.roughness!==undefined&&m.roughness<0.55) m.roughness=0.55;
-}
-function figureGroup(){
-  var grp=new THREE.Group();
-  var shadow=new THREE.Mesh(new THREE.PlaneGeometry(0.85,0.85),
-    new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false}));
-  shadow.rotation.x=-Math.PI/2; shadow.position.y=0.013; shadow.renderOrder=1; grp.add(shadow);
-  scene.add(grp);
-  return grp;
-}
-/* clip prep shared by every figure: facial morph-weight tracks
-   are dropped (invisible at garage distance, but a DAZ/CC clip
-   carries hundreds of them and evaluating them all every step is
-   pure CPU — on a software renderer that cost is the difference
-   between a page that settles and one that never does), and with
-   pinRoot the hips' x/z travel is frozen to the first frame so a
-   dancer stays on her stage disc while the clip's height and
-   rotation keep playing. Works on a clip from ANY file — the
-   Mixamo figures below play clips loaded separately from their
-   models, always on the same rig the clip was authored for.
-   rotOnly goes further and drops EVERY position track, leaving a
-   rotation-only clip: that is how all the Mixamo clips (the dance
-   and the four standing poses) are played. Their bone position
-   tracks only restate the bind pose — except the Hips track,
-   which the FBX converter wrote in its own root frame (roughly
-   (0,-1,-110) where the model's bind hips sit at (0,96.6,-0.7)),
-   so played raw it wrenches her hips a metre off her skeleton.
-   The rotations carry the whole pose on their own; with no
-   position track able to lift, sink or shift her, each figure
-   stays exactly where groundFigure placed her. */
-function prepClip(clip,pinRoot,rotOnly){
-  var hasWeights=clip.tracks.some(function(tr){ return tr.name.slice(-8)==='.weights'; });
-  if(pinRoot||hasWeights||rotOnly){
-    clip=clip.clone();
-    if(hasWeights) clip.tracks=clip.tracks.filter(function(tr){ return tr.name.slice(-8)!=='.weights'; });
-    if(rotOnly) clip.tracks=clip.tracks.filter(function(tr){ return tr.name.slice(-9)!=='.position'; });
-    else if(pinRoot) clip.tracks.forEach(function(tr){
-      if(tr.name.slice(-9)==='.position'&&/BoneRoot|Hip|Pelvis/.test(tr.name)){
-        var v=tr.values, x0=v[0], z0=v[2];
-        for(var i=0;i<v.length;i+=3){ v[i]=x0; v[i+2]=z0; }
-      }
-    });
-  }
-  return clip;
-}
-function playClip(gltf,model,pinRoot){
-  if(!gltf.animations||!gltf.animations.length) return null;
-  var mixer=new THREE.AnimationMixer(model);
-  var act=mixer.clipAction(prepClip(gltf.animations[0],pinRoot));
-  act.setLoop(THREE.LoopRepeat); act.play();
-  return mixer;
-}
-/* ---- idle amplification (v18) ----
-   Diagnosis, measured from the shipped clip files: the standing
-   idle's mixers were wired fine all along (they sit in jpMixers
-   and advance with every other guest's) — the CLIP is the frozen
-   part. Across its whole 10 s loop the hips rotate 4.8°, the
-   spine 1.8°, the arms under 3°; only the head reaches 13.7°,
-   and the hips translation channel is constant, so the
-   rotation-only prep above loses nothing — there is almost no
-   body motion in the file to play. From the spawn point the
-   car-row pair stand ~11 m away, part-hidden by their cars, so
-   a sub-5° sway spread over 10 s is sub-pixel: screenshots
-   seconds apart read as frozen even though the clip is running.
-   amplifyClip scales every rotation track's deviation from its
-   own first keyframe — frame 0 itself is untouched, so the
-   load-time grounding/seating maths, which measures a posed
-   frame of this same clip, stays exact — with a bigger gain on
-   the body core than on the head/neck (she reads as shifting
-   her weight, not nodding) and none on fingers/toes (invisible
-   at distance, odd up close). Runs on the cloned clip prepClip
-   returns, never on the shared file data. The car-row pair
-   additionally get the whole-body sway layer in updatePeople
-   (carSway), which moves the entire silhouette and so registers
-   at any distance. */
-function amplifyClip(clip,gainCore,gainHead){
-  var q0=new THREE.Quaternion(), q=new THREE.Quaternion(), out=new THREE.Quaternion();
-  clip.tracks.forEach(function(tr){
-    // v19 FIX: '.quaternion' is ELEVEN characters — this test used
-    // slice(-10), which never equals '.quaternion', so every track
-    // was skipped and the amplification silently never happened.
-    // That, not the mixers, is why the car-row pair read as frozen.
-    if(tr.name.slice(-11)!=='.quaternion') return;
-    var bone=tr.name.slice(0,-11);
-    if(/Hand|Toe/.test(bone)) return;
-    var gain=/Head|Neck/.test(bone)?gainHead:gainCore;
-    if(gain===1) return;
-    var v=tr.values;
-    q0.set(v[0],v[1],v[2],v[3]).normalize();
-    for(var i=0;i<v.length;i+=4){
-      q.set(v[i],v[i+1],v[i+2],v[i+3]);
-      if(q0.dot(q)<0) q.set(-q.x,-q.y,-q.z,-q.w); // same rotation, near hemisphere
-      out.copy(q0).slerp(q,gain); // extrapolating past q by (gain-1) = amplified deviation
-      v[i]=out.x; v[i+1]=out.y; v[i+2]=out.z; v[i+3]=out.w;
-    }
-  });
-  return clip;
-}
-function loadWalker(){
-  try{
-    var loader=new THREE.GLTFLoader();
-    if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
-    var startLoad=function(){ loader.load('assets/walker.glb',function(gltf){
-      var model=gltf.scene;
-      model.traverse(function(o){
-        // her real shadow is the blob under her feet: the shadow map
-        // is baked for the static room, so a moving figure in it
-        // would drag a frozen shadow behind her
-        if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
-        if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
-      });
-      var mixer=playClip(gltf,model,true);
-      var grp=figureGroup();
-      grp.add(fitFigure(model,1.70));
-      walker={grp:grp,mixer:mixer,ang:0.9,dir:1,speed:0.085};
-    },undefined,function(){ /* no fallback figure — the capsule people are deleted */ }); };
-    if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(startLoad,startLoad);
-    else startLoad();
-  }catch(e){ /* walker simply absent */ }
-}
-function loadDancer(){
-  try{
-    var loader=new THREE.GLTFLoader();
-    if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
-    var startLoad=function(){
-      // the stage: a low round platform with a neon-pink rim.
-      // v20: the stage moved from the right wall to the chill
-      // corner — it stands between the two benches, where the
-      // torii gate used to be. v23: it is the ONLY stage now —
-      // the second pole and its dancer (Anna, whose baked clip
-      // left her arms glitched) are deleted outright, per
-      // Collin; the clothed dancer below is untouched. The disc
-      // is a touch smaller than the old wall footprint
-      // (1.15/1.28 instead of 1.3/1.42) so it fits the gap
-      // between the benches clear of the walker's aisle loop,
-      // the tatami mats and the front wall; the disc top stays
-      // at 0.16, so her grounding is unchanged. The pole is
-      // still 5.0 m tall (ceiling is 5.2 m) and slimmed to just
-      // over half its file thickness below.
-      var stage=new THREE.Group(); stage.position.set(1.75,0,8.66); scene.add(stage);
-      var disc=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.28,0.16,40),
-        new THREE.MeshStandardMaterial({color:0x17181c,roughness:0.35,metalness:0.5,envMapIntensity:1.1}));
-      disc.position.y=0.08; disc.receiveShadow=true; stage.add(disc);
-      var rim=new THREE.Mesh(new THREE.TorusGeometry(1.16,0.03,10,56),
-        new THREE.MeshStandardMaterial({color:0x1a050c,emissive:0xff2e63,emissiveIntensity:2.2,roughness:0.4}));
-      rim.rotation.x=Math.PI/2; rim.position.y=0.16; stage.add(rim);
-      // pink stage lamp, kept modest (9) and high (4.7 m): with the
-      // dancer back at 1.70 m her head is ~2.8 m below it, so the
-      // colour-fix maths from the doubled pass still holds — a
-      // soft pink wash, no white blow-out on her skin or top
-      var lamp=new THREE.PointLight(0xff5c8a,9,10,1.8); lamp.position.set(0,4.7,0); stage.add(lamp);
-      var lampGlow=glowSprite(0xff5c8a,2.4,0.5); lampGlow.position.set(0,4.7,0); stage.add(lampGlow);
-      addCollider(1.75,8.66,0.95,0.95);
-      loader.load('assets/pole.glb',function(pg){
-        var pole=pg.scene;
-        pole.traverse(function(o){ if(o.isMesh){ o.castShadow=false;
-          if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
-            m.metalness=1.0; m.roughness=0.12; m.envMapIntensity=2.2; }); } } });
-        var holder=fitFigure(pole,5.0); // TALLER — full height to just under the ceiling
-        holder.scale.x*=0.55; holder.scale.z*=0.55; // SKINNIER — slimmed in plan, height untouched
-        stage.add(holder);
-      },undefined,function(){});
-      loader.load('assets/dancer.glb',function(gltf){
-        var model=gltf.scene;
-        model.traverse(function(o){
-          if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
-          if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
-        });
-        var mixer=playClip(gltf,model,false);
-        var holder=fitFigure(model,1.70); // NORMAL size — same height as the walker (v12 match, kept per Collin's correction)
-        holder.position.z+=0.45; // close against the pole, dancing at it
-        holder.position.y+=0.16;  // on the stage disc
-        var grp=new THREE.Group();
-        grp.add(holder);
-        grp.position.set(1.75,0,8.66);
-        grp.rotation.y=Math.PI-0.18; // facing the room, angled a touch
-        scene.add(grp);
-        dancer={grp:grp,mixer:mixer};
-      },undefined,function(){ /* no fallback figure — the capsule people are deleted */ });
-    };
-    if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(startLoad,startLoad);
-    else startLoad();
-  }catch(e){ /* dancer simply absent */ }
-}
-loadWalker();
-loadDancer();
-function updatePeople(dt,t){
-  /* v22 LOD (SimulationSystem): nobody simulates at full detail
-     just because she exists. An actor in the other zone is not
-     advanced at all; near actors advance every step; mid/far
-     actors advance at 1/2 / 1/4 rate with scaled dt, staggered
-     per actor. Each actor is guarded, so one bad mixer can
-     never take the frame — or the game — down with it. */
-  SimulationSystem.guard('walker',function(){
-    if(!walker) return;
-    if(SimulationSystem.lodFor(walker.grp,player).skip) return; // player is in the apartment
-    // the same slow ellipse down the front aisle as before — but the
-    // stride, knee bends and arm swing are her real mocap clip now;
-    // the group just carries her, facing the way she travels
-    walker.ang+=walker.dir*walker.speed*dt;
-    var px=Math.cos(walker.ang)*7.4, pz=5.9+Math.sin(walker.ang)*1.45;
-    var vx=-Math.sin(walker.ang)*walker.dir, vz=Math.cos(walker.ang)*walker.dir;
-    walker.grp.position.set(px,0,pz);
-    walker.grp.rotation.y=Math.atan2(vx,vz);
-    SimulationSystem.mixerStep(walker.mixer,walker.grp,player,dt,0);
-  });
-  SimulationSystem.guard('dancer',function(){
-    if(dancer) SimulationSystem.mixerStep(dancer.mixer,dancer.grp,player,dt,1);
-  });
-  // The bench sitters need no procedural layer any more: their
-  // sitting idle is a real clip, advanced with the other guest
-  // mixers just below — each at its own LOD rate. On a software
-  // renderer the guest mixers additionally advance at half rate
-  // (double dt every other step), as before.
-  jpHalf=!jpHalf;
-  if(!softwareGL||jpHalf){ var jdt=softwareGL?dt*2:dt;
-    for(var jpi=0;jpi<jpMixers.length;jpi++)
-      SimulationSystem.mixerStep(jpMixers[jpi],jpMixers[jpi].getRoot(),player,jdt,jpi); }
-  // v24: the bench sitters' mixers live in the seated pose
-  // layer (see loadSeatedAnna) — stepped under the same LOD
-  // rules, with the corrective pose applied in the same step
-  // so it can never double-apply or lag a frame behind
-  for(var sei=0;sei<seatedPose.length;sei++){ var se=seatedPose[sei];
-    SimulationSystem.guard('seated'+sei,function(){
-      if(!se.mixer) return;
-      if(SimulationSystem.mixerStep(se.mixer,se.grp,player,dt,8+sei)) applySitPose(se);
-    });
-  }
-  // standing Annas in a HELD pose (opts.pose guests — none are
-  // currently placed; the car-row pair play a looping clip and
-  // stay out of this list): a slow breath at the waist and
-  // unhurried head turns, phased per guest so they never move
-  // in sync. This runs AFTER the mixers above on purpose: each
-  // guest's base quaternions were captured from her POSED
-  // bones, so the idle layers on top of the Mixamo pose
-  // instead of fighting it.
-  for(var sti=0;sti<standingAnnas.length;sti++){ var st=standingAnnas[sti];
-    var stLod=SimulationSystem.lodFor(st.grp,player); // LOD: other zone / far held poses update rarely
-    if(stLod.skip||!SimulationSystem.every(stLod.rate,sti)) continue;
-    if(st.waist&&st.baseWaist) st.waist.quaternion.copy(st.baseWaist)
-      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*1.15+st.phase)*0.02))
-      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Z,Math.sin(t*0.47+st.phase*1.3)*0.02))
-      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Y,Math.sin(t*0.19+st.phase)*0.035));
-    if(st.head&&st.baseHead) st.head.quaternion.copy(st.baseHead)
-      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Y,Math.sin(t*0.23+st.phase*1.7)*0.22))
-      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_X,Math.sin(t*0.71+st.phase*2)*0.03))
-      .multiply(seatTmpQ.setFromAxisAngle(SEAT_AXIS_Z,Math.sin(t*0.39+st.phase*2.6)*0.045));
-  }
-  // car-row sway layer (v18): the two standing guests by the cars
-  // play a LOOPING clip, so the bone layer above can't touch them
-  // (it would reset the clip's own waist/head motion every frame).
-  // Instead their whole group leans and settles around their feet
-  // — a slow weight shift hip-to-hip, a smaller fore-aft rock, a
-  // breath bob and a centimetres-wide lateral settle, phased per
-  // guest. It composes with the (now amplified) clip instead of
-  // fighting it, moves the entire silhouette by centimetres at
-  // the head, and so is plainly visible from the spawn point
-  // ~11 m away, where the clip alone was sub-pixel. Angles are
-  // small enough that her feet stay planted (the group origin is
-  // at floor level on her spot) and the blob shadow tilts with
-  // her, unnoticeably.
-  for(var cwi=0;cwi<carSway.length;cwi++){ var cw=carSway[cwi], cph=cw.phase;
-    var cwLod=SimulationSystem.lodFor(cw.grp,player); // LOD: sway is absolute-time, so skipped steps cost nothing
-    if(cwLod.skip||!SimulationSystem.every(cwLod.rate,cwi)) continue;
-    cw.grp.rotation.z=Math.sin(t*0.85+cph)*0.038;                    // ~2.2° lean, hip to hip
-    cw.grp.rotation.x=Math.sin(t*0.57+cph*1.7)*0.018;                // gentle fore-aft rock
-    cw.holder.position.y=cw.baseY+Math.sin(t*1.7+cph)*0.007;         // breath bob
-    cw.holder.position.x=cw.baseX+Math.sin(t*0.42+cph)*0.028;        // slow weight shift
-  }
-}
-
-/* ================= THE JAPANESE CHILL AREA + GUESTS =================
-   v13. The front corner by the garage doors — where the deleted
-   capsule girl used to sit on a stool — is now a Japanese chill
-   area. The guests are Alina Ip (Jungle Jim) and ANNA herself:
-   the four identical guests who used to stand here are GONE
-   (files deleted), and in their places stand clones of the
-   nude walker woman — two seated on the benches, two standing
-   by the cars; see loadSeatedAnna / loadStandingAnna below. (florah's
-   brown-dress guest was REMOVED in v16: her clip holds her feet
-   0.92 m off the floor for its entire loop — she floated,
-   Collin spotted it, she's out, file and all.)
-   All files verified in-file
-   before shipping (skins, joint counts, clip names/durations) and
-   meshopt + WebP optimised at build time.
-   · The bench sitters are ANNA on her Mixamo rig, playing a
-     real sitting idle clip, placed per bench from the posed
-     figure's own measurements; see loadSeatedAnna below.
-   · Two standing ANNA clones flank the car row (S15 and
-     Lambo), each facing her car, playing the natural standing
-     idle clip — the two standing posers who used to flank the
-     benches are deleted, and nobody stands there now.
-     Alina (22.6 s full-body clip) at the S15.
-   Decor (all real CC BY files, measured and grounded from their
-   own bounding boxes at load): chertpaderi garden bench +
-   ditovirnantio station bench, seirogan tatami mats under them,
-   abelGB paper lanterns overhead, tokyo45otaku's red Ueno
-   Coca-Cola vending machine, Vermos bonsai on a low stand
-   beside the dance stage (v20: the Bazylonator torii
-   that stood between the benches is removed — the stage is
-   there now), sa6 sign board, and four signs from ydvisual's
-   neon set hung individually (izakaya over the garden bench,
-   beer over the station bench, parking over the stage, sushi
-   on the right wall). ---- */
-var shadowTimer=0;
-function jpLoader(){
-  var loader=new THREE.GLTFLoader();
-  if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
-  return loader;
-}
-function jpStart(fn){
-  if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(fn,fn);
-  else fn();
-}
-/* static prop: measure the file's own bbox, scale to a real size,
-   ground it (or centre it, for hanging pieces), place it */
-function loadProp(file,opts){
-  try{
-    var loader=jpLoader();
-    jpStart(function(){ loader.load(file,function(gltf){
-      var model=gltf.scene;
-      model.traverse(function(o){ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
-      if(opts.tune) opts.tune(model);
-      var holder=new THREE.Group(); holder.add(model);
-      holder.updateMatrixWorld(true);
-      var bb=new THREE.Box3().setFromObject(model), sz=bb.getSize(new THREE.Vector3());
-      var s=1;
-      if(opts.h) s=opts.h/Math.max(sz.y,0.01);
-      else if(opts.w) s=opts.w/Math.max(sz.x,0.01);
-      holder.scale.set(s,s*(opts.sy||1),s); // sy: optional vertical stretch, applied before grounding so the fit stays honest
-      holder.updateMatrixWorld(true);
-      bb=new THREE.Box3().setFromObject(model);
-      var ctr=bb.getCenter(new THREE.Vector3());
-      if(opts.center) holder.position.set(-ctr.x,-ctr.y,-ctr.z);
-      else holder.position.set(-ctr.x,-bb.min.y,-ctr.z);
-      var grp=new THREE.Group(); grp.add(holder);
-      grp.position.set(opts.x,opts.groundY||0,opts.z);
-      grp.rotation.y=opts.ry||0;
-      scene.add(grp);
-      if(opts.collider) addCollider(opts.x,opts.z,opts.collider[0],opts.collider[1]);
-      shadowTimer=performance.now(); // debounced in the frame loop
-      if(opts.onDone) opts.onDone();
-    },undefined,function(){ if(opts.onDone) opts.onDone(); }); });
-  }catch(e){ if(opts.onDone) opts.onDone(); /* prop simply absent */ }
-}
-/* animated guest: real clip, blob shadow, optional outfit tint */
-function loadGuest(file,opts){
-  try{
-    var loader=jpLoader();
-    jpStart(function(){ loader.load(file,function(gltf){
-      var model=gltf.scene;
-      model.traverse(function(o){
-        if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
-        if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
-          toneFigureMaterial(m);
-          if(opts.tint){ m=m.clone(); m.color.setHex(opts.tint); o.material=m; }
-        }); }
-      });
-      var mixer=playClip(gltf,model,!!opts.pin);
-      var grp=figureGroup();
-      grp.add(fitFigure(model,opts.h));
-      grp.position.set(opts.x,0,opts.z);
-      grp.rotation.y=opts.ry||0;
-      if(opts.collider) addCollider(opts.x,opts.z,opts.collider[0],opts.collider[1]);
-      if(mixer) jpMixers.push(mixer);
-    },undefined,function(){}); });
-  }catch(e){ /* guest simply absent */ }
-}
-function buildChillArea(){
-  // tatami platforms under the two benches
-  loadProp('assets/jp-tatami.glb',{w:3.8,x:-5.2,z:8.62});
-  loadProp('assets/jp-tatami.glb',{w:3.8,x:5.2,z:8.62});
-  // benches — the garden bench's backrest is on its local -z side
-  // (measured from the file), so both benches turn their backs to
-  // the front wall and face the cars. Both stand ON the tatami
-  // platform (its top is 0.11, measured from the file). v20: both
-  // benches are vertically scaled so their SEATS meet the sitting
-  // pose where it actually is — in the posed clip her buttocks
-  // rest 0.48 over her soles, so each seat top lands at 0.59
-  // absolute (0.48 over the mat her feet rest on): the garden
-  // bench at sy 1.16 (its seat measured 0.52 over the mat at the
-  // old 1.26 stretch — she sank 5 cm into it), the station bench
-  // at sy 0.82 (its seat measured 0.59 over the mat unstretched
-  // — she sank 10 cm into that one). See loadSeatedAnna.
-  loadProp('assets/jp-bench.glb',{w:1.9,x:-5.2,z:8.78,ry:Math.PI,groundY:0.11,sy:1.16,collider:[1.05,0.42]});
-  loadProp('assets/jp-bench2.glb',{w:2.0,x:5.2,z:8.78,ry:Math.PI,groundY:0.11,sy:0.82,collider:[1.1,0.42]});
-  // (v20: the red torii gate that stood between the benches is
-  // GONE — the pole-dance stage stands there now; v23 removed
-  // the second stage that used to stand beside it, see
-  // loadDancer.)
-  // red Ueno Coca-Cola vending machine against the front wall
-  // (its glass front faces local +z — measured from the file — so
-  // it turns around to face the room)
-  loadProp('assets/jp-vending.glb',{h:1.85,x:-10.7,z:9.3,ry:Math.PI,collider:[0.55,0.6]});
-  // standing sign board by the right bench
-  loadProp('assets/jp-sign.glb',{h:1.7,x:9.6,z:8.7,ry:Math.PI+0.3,collider:[0.6,0.25]});
-  // bonsai on a low dark-wood stand, centred behind the
-  // stage, against the front wall
-  var stand=box(0.56,0.5,0.56,new THREE.MeshStandardMaterial({color:0x2e2019,roughness:0.8}),0,0.25,9.3);
-  stand.castShadow=true;
-  addCollider(0,9.3,0.34,0.34);
-  loadProp('assets/jp-bonsai.glb',{h:0.62,x:0,z:9.3,groundY:0.5,ry:1.2});
-  // paper lanterns over the benches and the stage, warm light
-  // pooled over the whole corner
-  function lantern(x,z,cy){
-    loadProp('assets/jp-lantern.glb',{h:0.55,x:x,z:z,center:true,groundY:cy,tune:function(model){
-      model.traverse(function(o){ if(o.isMesh&&o.material){
-        (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
-          if(m.map){ m.emissive=new THREE.Color(0xff9a3c); m.emissiveMap=m.map; m.emissiveIntensity=0.85; }
-        }); } });
-    }});
-    var str=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,GAR.H-(cy+0.3),6),blackTrim);
-    str.position.set(x,(GAR.H+cy+0.3)/2,z); scene.add(str);
-  }
-  lantern(-5.2,8.3,2.5); lantern(5.2,8.3,2.5); lantern(0,8.95,2.85);
-  var chillLight=new THREE.PointLight(0xffa050,7,9,1.8); // 11 -> 7, same blow-out fix at bench range
-  chillLight.position.set(0,2.6,8.4); scene.add(chillLight);
-  // four neon signs from ydvisual's set, extracted by node name and
-  // hung one by one — real Japanese text, emissive in the file
-  try{
-    var loader=jpLoader();
-    jpStart(function(){ loader.load('assets/jp-neon.glb',function(gltf){
-      var picks=[
-        {node:'sign.009',h:1.9,x:-5.2,y:2.75,z:9.93,ry:Math.PI},   // izakaya, over the garden bench
-        {node:'sign.010',h:1.6,x:5.2,y:2.7,z:9.93,ry:Math.PI},     // beer, over the station bench
-        {node:'sign.014',h:1.9,x:0,y:2.85,z:9.93,ry:Math.PI},      // parking, over the stage
-        {node:'sign.003',h:1.5,x:12.93,y:2.5,z:-1.5,ry:-Math.PI/2} // sushi, right wall by the stage
-      ];
-      picks.forEach(function(p){
-        var node=gltf.scene.getObjectByName(p.node);
-        if(!node) return;
-        node.traverse(function(o){ if(o.isMesh&&o.material){
-          (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ m.emissiveIntensity=1.8; }); } });
-        var holder=new THREE.Group(); holder.add(node);
-        holder.updateMatrixWorld(true);
-        var bb=new THREE.Box3().setFromObject(node), sz=bb.getSize(new THREE.Vector3());
-        holder.scale.setScalar(p.h/Math.max(sz.y,0.01));
-        holder.updateMatrixWorld(true);
-        bb=new THREE.Box3().setFromObject(node);
-        var ctr=bb.getCenter(new THREE.Vector3());
-        holder.position.set(-ctr.x,-ctr.y,-ctr.z);
-        var grp=new THREE.Group(); grp.add(holder);
-        grp.position.set(p.x,p.y,p.z); grp.rotation.y=p.ry;
-        scene.add(grp);
-      });
-    },undefined,function(){}); });
-  }catch(e){ /* signs simply absent */ }
-}
-/* ---- the bench sitters: Anna on the Mixamo rig, playing a
-   real sitting idle ----
-   The bone-by-bone static sit these two used to hold (posed on
-   the walker's CC rig, with procedural breathing layered over
-   it) is REPLACED by Mixamo's Sitting Idle (idle-sit-clip.glb,
-   193 frames, hands resting on thighs), played rotation-only
-   on Anna's Mixamo mesh — the same shared clone source as the
-   standing guests — so the sitters genuinely move now: weight
-   shifts, breathing and small head motion, all in the clip,
-   looped, the two sitters desynced by timeOffset.
-   Placement is measured from the POSED figure at load, the way
-   the rest of this file works: in the clip her buttocks rest
-   0.48 m above her soles and 0.17 m below her pelvis joint
-   (both measured off her skinned mesh, steady to ±1 mm across
-   the whole loop, so a frame-0 placement holds for every frame).
-   Her hips are centred over her spot directly, never by
-   bounding box: the seated box reaches ~0.6 m forward of the
-   hips, so bbox centring (groundFigure) would shove her back
-   into the backrest.
-   v19 fixed the Hips lookup (GLTFLoader strips the colon from
-   'mixamorig:Hips', so the anchor silently never ran) and stood
-   the benches on the tatami instead of through it. v20 — why
-   they STILL looked messed up: the anchor's butt offset was
-   wrong (0.10 assumed, 0.17 real) and neither bench's seat
-   actually sat at the height the maths claimed, so both girls
-   sat sunk INTO the seat slabs — 5 cm on the garden bench,
-   10 cm on the station bench, thighs clipping through the
-   wood. Now both benches are vertically scaled to a true
-   0.59 seat (see buildChillArea) and the anchor uses the
-   measured 0.17 offset: butt on the seat with a 1 cm press,
-   soles flat on the mat, verified offline against the real
-   files across the whole loop. */
-var SEAT_AXIS_X=new THREE.Vector3(1,0,0), SEAT_AXIS_Y=new THREE.Vector3(0,1,0), SEAT_AXIS_Z=new THREE.Vector3(0,0,1);
-var seatTmpQ=new THREE.Quaternion();
-/* ---- v24: the seated pose layer ----
-   WHY THREE PLACEMENT FIXES IN A ROW STILL LOOKED WRONG ON
-   COLLIN'S PHONE: the placement maths was chasing constants
-   while the POSE ITSELF was the defect. Measured off the real
-   decoded clip files (meshopt-decoded, posed on Anna's own
-   skeleton in the lab): Mixamo's sitting idle sits WIDE —
-   knees 34 cm apart, feet 47 cm apart, hands hanging 19 cm
-   off the thighs beside the seat — and no anchor can make a
-   wide, hands-down sit read as a relaxed bench sit. So the
-   sitters now get a corrective pose layer in the codebase's
-   own standingAnnas pattern: constant local-space rotations
-   post-multiplied onto the clip's bones after every mixer
-   step (the mixers live HERE now, not in jpMixers, so the
-   correction lands in the same step as the pose it corrects
-   and can never double-apply). The angles were solved in the
-   lab against the real clip: knees 34->18 cm, feet 47->18 cm,
-   hands 19 cm off the thigh -> resting on it (~5 cm, mid-
-   thigh), thighs stay near-horizontal. All on the bones'
-   local Z (the rig's abduction / arm-swing axis; the X axis
-   is the sagittal pitch, used by the anchor's thigh trim).
-   The clip also plays UNamplified now: amplifyClip's gains
-   were tuned for the subtle standing idle and only ever
-   distorted this pose. The anchor below no longer trusts
-   offline constants either: the seat height is RAYCAST from
-   the real bench mesh in the scene, her butt is placed on
-   it, and whatever sole-height residual remains is absorbed
-   by a thigh-pitch trim (rotating the thighs down/up a few
-   degrees with the shins counter-rotated to stay vertical —
-   lab-measured at 0.81 cm of sole travel per degree) plus a
-   final nudge capped at 2.5 cm, so butt-on-seat AND feet-
-   flat hold on BOTH benches whatever their true seat heights
-   are. She also sits BACK now: hips over the rear of the
-   seat, 6 cm closer to the backrest than the old spot. */
-var seatedPose=[];
-var SIT_CORR=[
-  ['mixamorigLeftUpLeg',-10],['mixamorigRightUpLeg',10],   // thighs together
-  ['mixamorigLeftLeg',-6],['mixamorigRightLeg',6],        // feet under knees
-  ['mixamorigLeftArm',20],['mixamorigRightArm',-20],      // arms swing in/forward
-  ['mixamorigLeftForeArm',8],['mixamorigRightForeArm',-8] // hands settle on thighs
-];
-function sitQuat(axis,deg){ return new THREE.Quaternion().setFromAxisAngle(axis,deg*Math.PI/180); }
-function buildSitCorr(trimDeg){
-  var out=[];
-  for(var i=0;i<SIT_CORR.length;i++) out.push([SIT_CORR[i][0],sitQuat(SEAT_AXIS_Z,SIT_CORR[i][1])]);
-  if(trimDeg){ // thigh-pitch trim: thighs about X, shins counter — extends/shortens the butt-to-sole span
-    out.push(['mixamorigLeftUpLeg',sitQuat(SEAT_AXIS_X,-trimDeg)]);
-    out.push(['mixamorigRightUpLeg',sitQuat(SEAT_AXIS_X,-trimDeg)]);
-    out.push(['mixamorigLeftLeg',sitQuat(SEAT_AXIS_X,trimDeg)]);
-    out.push(['mixamorigRightLeg',sitQuat(SEAT_AXIS_X,trimDeg)]);
-  }
-  return out;
-}
-function applySitPose(entry){
-  var B=entry.bones; if(!B) return;
-  for(var i=0;i<entry.corr.length;i++){ var b=B[entry.corr[i][0]]; if(b) b.quaternion.multiply(entry.corr[i][1]); }
-}
-function loadSeatedAnna(opts){
-  try{
-    withSharedAnna(function(template){
-      var model=THREE.SkeletonUtils.clone(template);
-      model.traverse(function(o){
-        if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
-        if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
-      });
-      var grp=figureGroup();
-      var holder=fitFigureMixamo(model,1.70);
-      grp.add(holder);
-      grp.position.set(opts.x,opts.floorY||0,opts.z);
-      grp.rotation.y=opts.ry||0;
-      var loader=jpLoader();
-      jpStart(function(){ loader.load('assets/idle-sit-clip.glb',function(cg){
-        var entry={grp:grp,holder:holder,mixer:null,bones:null,corr:buildSitCorr(0),opts:opts,anchored:false};
-        if(cg.animations&&cg.animations.length){
-          var mixer=new THREE.AnimationMixer(model);
-          // v24: the clip plays RAW (rotation-only prep, no
-          // amplification) — the pose layer above does the
-          // shaping now, deliberately and measurably.
-          var act=mixer.clipAction(prepClip(cg.animations[0],false,true)); // rotation-only
-          act.setLoop(THREE.LoopRepeat); act.play();
-          mixer.update(opts.timeOffset||0); // land a frame now, so she can be placed in the pose
-          entry.mixer=mixer;
-        }
-        var B={};
-        model.traverse(function(o){ if(o.isBone) B[o.name]=o; });
-        entry.bones=B;
-        seatedPose.push(entry);
-        applySitPose(entry); // corrections ON before any measuring — the anchor fits the pose she actually holds
-        anchorSeated(entry,model);
-        // the bench mesh streams in on its own schedule; if it
-        // was not in the scene yet, the anchor used the fallback
-        // seat height — redo it once the room has settled
-        if(!entry.seatRaycast) setTimeout(function(){ anchorSeated(entry,model); },2500);
-      },undefined,function(){}); });
-    });
-  }catch(e){ /* sitter simply absent */ }
-}
-function applySitTrim(entry,trimDeg){
-  var B=entry.bones; if(!B||!trimDeg) return;
-  var qu=sitQuat(SEAT_AXIS_X,-trimDeg), ql=sitQuat(SEAT_AXIS_X,trimDeg);
-  if(B['mixamorigLeftUpLeg']) B['mixamorigLeftUpLeg'].quaternion.multiply(qu);
-  if(B['mixamorigRightUpLeg']) B['mixamorigRightUpLeg'].quaternion.multiply(qu);
-  if(B['mixamorigLeftLeg']) B['mixamorigLeftLeg'].quaternion.multiply(ql);
-  if(B['mixamorigRightLeg']) B['mixamorigRightLeg'].quaternion.multiply(ql);
-}
-/* v24 anchor: fits the CORRECTED pose to the REAL bench in
-   the scene — hips centred over her spot, seat height found
-   by raycasting the bench mesh itself (the offline seat
-   constants disagreed with the shipped geometry often enough;
-   opts.seatH survives only as a fallback for the frames
-   before the bench lands), buttocks on the seat with a
-   1.2 cm press (butt = Hips joint − 0.135, lab-measured off
-   the full clip: hips-to-sole 61.5 cm, butt-to-sole 48 cm),
-   then the sole residual against the floor under her feet
-   is absorbed by the thigh trim and a ≤2.5 cm nudge. Runs
-   once at load and once more ~2.5 s later if the bench was
-   not in the scene for the first pass. */
-function anchorSeated(entry,model){
-  var opts=entry.opts, grp=entry.grp, holder=entry.holder;
-  var hips=entry.bones?entry.bones['mixamorigHips']:null;
-  if(!hips) return;
-  grp.updateMatrixWorld(true);
-  var hp=hips.getWorldPosition(new THREE.Vector3());
-  var dx=grp.position.x-hp.x, dz=grp.position.z-hp.z;
-  var cos=Math.cos(grp.rotation.y), sin=Math.sin(grp.rotation.y);
-  holder.position.x+=cos*dx-sin*dz;
-  holder.position.z+=sin*dx+cos*dz;
-  // seat height from the bench itself: highest surface under
-  // her hips in the seat band, cast against the props near her
-  var seatY=null;
-  try{
-    var targets=[];
-    for(var i=0;i<scene.children.length;i++){ var o=scene.children[i];
-      if(o!==grp&&Math.abs(o.position.x-opts.x)<1.6&&o.position.z>5) targets.push(o); }
-    var rc=new THREE.Raycaster(new THREE.Vector3(opts.x,1.3,opts.z),new THREE.Vector3(0,-1,0),0,1.3);
-    var hits=rc.intersectObjects(targets,true);
-    for(var h=0;h<hits.length;h++){
-      if(hits[h].point.y>=0.25&&hits[h].point.y<=1.05){ seatY=hits[h].point.y; break; }
-    }
-  }catch(e){ seatY=null; }
-  if(seatY!==null) entry.seatRaycast=true;
-  var seatTarget=(seatY!==null?seatY:(opts.seatH||0.595));
-  grp.updateMatrixWorld(true);
-  hp=hips.getWorldPosition(new THREE.Vector3());
-  holder.position.y+=(seatTarget-0.012)-(hp.y-0.135); // butt on the seat, 1.2 cm press
-  grp.updateMatrixWorld(true);
-  var floorUnder=(opts.feetY!==undefined?opts.feetY:(opts.floorY||0));
-  var resid=figureBBox(model).min.y-floorUnder; // + floating, − sunk
-  if(Math.abs(resid)>0.02){
-    var trimDeg=Math.max(-14,Math.min(14,resid*123)); // 0.81 cm of sole travel per degree (lab)
-    entry.trimDeg=(entry.trimDeg||0)+trimDeg;
-    entry.corr=buildSitCorr(entry.trimDeg);
-    applySitTrim(entry,trimDeg);
-    grp.updateMatrixWorld(true);
-    resid=figureBBox(model).min.y-floorUnder;
-  }
-  if(Math.abs(resid)>0.02) holder.position.y-=Math.max(-0.025,Math.min(0.025,resid*0.5));
-  entry.anchored=true;
-  entry.debug={seatY:seatY,seatTarget:seatTarget,resid:Math.round(resid*1000)/1000,trimDeg:entry.trimDeg||0};
-}
-/* ---- the standing guests: Anna again, cloned — on the
-   Mixamo rig, playing a natural standing idle ----
-   Two clones of Anna's Mixamo-rigged mesh (anna-mixamo.glb,
-   fetched ONCE for every clone — the first caller starts the
-   shared load below and the rest queue on it;
-   THREE.SkeletonUtils.clone remaps every clone's skeleton
-   onto its own bones, so each moves on her own rig) flank the
-   car row, one by the S15, one by the Lambo. Both play
-   Mixamo's Female Standing Idle (idle-stand-clip.glb, 301
-   frames — the same relaxed standing idle family as Alina's
-   motion, which is why Collin picked it) natively on that
-   rig, rotation-only, looped, desynced by timeOffset so the
-   pair never sway in sync. The two standing guests who used
-   to pose by the benches (crossed arms, raised arm — held
-   2-frame poses) are DELETED, figures and colliders both;
-   nobody stands by the benches any more. A held pose can
-   still be passed as opts.pose instead of opts.clip: it lands
-   frame 0, captures its waist/head quaternions, and takes the
-   procedural breathing / head-turn layer in updatePeople —
-   a looping clip skips that layer on purpose, because the
-   layer resets those bones every frame and would freeze the
-   clip's own waist and head motion. No clip is ever
-   retargeted: model and clips are the same Mixamo rig.
-   Every clone is scaled by fitFigureMixamo (her stature, not
-   her lying bind pose's thickness — the old fit made her 7 m
-   tall); once the clip lands, groundFigure re-grounds her
-   from the posed body, so each guest stands exactly 1.70 m
-   with her feet on the floor on the spot she was placed. */
-var standingAnnas=[];
-var annaShared=null, annaSharedQueue=null;
-function withSharedAnna(cb){
-  if(annaShared){ cb(annaShared); return; }
-  if(annaSharedQueue){ annaSharedQueue.push(cb); return; }
-  annaSharedQueue=[cb];
-  try{
-    var loader=jpLoader();
-    jpStart(function(){ loader.load('assets/anna-mixamo.glb',function(gltf){
-      annaShared=gltf.scene;
-      var q=annaSharedQueue; annaSharedQueue=null;
-      if(q) q.forEach(function(f){ f(annaShared); });
-    },undefined,function(){ annaSharedQueue=null; }); });
-  }catch(e){ annaSharedQueue=null; }
-}
-function loadStandingAnna(opts){
-  try{
-    withSharedAnna(function(template){
-      var model=THREE.SkeletonUtils.clone(template);
-      model.traverse(function(o){
-        if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
-        if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
-      });
-      var grp=figureGroup();
-      var holder=fitFigureMixamo(model,1.70);
-      grp.add(holder);
-      grp.position.set(opts.x,0,opts.z);
-      grp.rotation.y=opts.ry||0;
-      if(opts.collider) addCollider(opts.x,opts.z,opts.collider[0],opts.collider[1]);
-      var B={};
-      model.traverse(function(o){ if(o.isBone) B[o.name]=o; });
-      // her idle bones on the Mixamo rig: waist = Spine2,
-      // head = Head — under their LOADED names (GLTFLoader
-      // strips the colon from 'mixamorig:Spine2'/'mixamorig:Head';
-      // the colon forms silently matched nothing)
-      var entry={ waist:B['mixamorigSpine2'], head:B['mixamorigHead'], phase:opts.phase||0,
-        baseWaist:null, baseHead:null, grp:grp };
-      function captureBase(){
-        entry.baseWaist=entry.waist?entry.waist.quaternion.clone():null;
-        entry.baseHead=entry.head?entry.head.quaternion.clone():null;
-        standingAnnas.push(entry);
-      }
-      if(opts.pose||opts.clip){
-        var loader=jpLoader();
-        jpStart(function(){ loader.load(opts.clip||opts.pose,function(pg){
-          if(pg.animations&&pg.animations.length){
-            var mixer=new THREE.AnimationMixer(model);
-            // v18: a looping idle is amplified hard on the body
-            // core (hips 4.8°->11°, legs ~4.5°->10°) — measured
-            // from the file, the raw clip's sway was sub-pixel
-            // from the spawn point and the pair read as frozen;
-            // held poses keep their raw frame 0 for captureBase
-            var act=mixer.clipAction(opts.clip
-              ? amplifyClip(prepClip(pg.animations[0],false,true),2.3,1.45)
-              : prepClip(pg.animations[0],false,true)); // rotation-only
-            act.setLoop(THREE.LoopRepeat); act.play();
-            // a held pose lands frame 0; a looping clip lands at
-            // its desync offset — either way the pose is on her
-            // NOW, before grounding (and any base capture)
-            mixer.update(opts.clip?(opts.timeOffset||0):0);
-            jpMixers.push(mixer);
-          }
-          groundFigure(holder,model,grp,0); // feet on the floor, centred on her spot
-          // v18: looping-clip guests join the whole-body sway
-          // layer (updatePeople) — base offsets captured AFTER
-          // grounding, so the sway settles around exactly where
-          // groundFigure planted her; phases differ per guest so
-          // the pair never sway in sync
-          if(opts.clip) carSway.push({grp:grp,holder:holder,baseX:holder.position.x,baseY:holder.position.y,
-            phase:(opts.timeOffset||0)*1.37+1.1});
-          // a looping clip animates the waist and head itself, so
-          // the guest stays OUT of standingAnnas: the procedural
-          // layer there resets those bones to a captured base
-          // every frame and would freeze the clip's best motion
-          if(!opts.clip) captureBase();
-        },undefined,function(){ if(!opts.clip) captureBase(); }); });
-      } else captureBase();
-    });
-  }catch(e){ /* standing guest simply absent */ }
-}
-/* ---- Alina (v24): the white-top girl by Bay 2 is the
-   companion follower now. She keeps her own look, proportions
-   (fitFigure at 1.68, exactly as loadGuest placed her) and her
-   own 22.6 s natural idle clip for standing; for walking she
-   borrows the aisle walker's mocap cycle — the SAME CC_Base
-   rig family (both are Jungle Jim / Character Creator
-   figures), so the clip binds by bone name; the three tracks
-   aimed at calf-twist helper bones she doesn't have are
-   filtered out before the action is built. Her mixer is NOT
-   in jpMixers: FollowerSystem owns her stepping (through
-   SimulationSystem's LOD rules), her crossfades and all her
-   movement — this loader only builds the figure and hands
-   her over. No static collider any more: she moves, and the
-   FollowerSystem keeps her out of the player's space. ---- */
-function loadAlina(){
-  try{
-    var loader=jpLoader();
-    jpStart(function(){ loader.load('assets/alina.glb',function(gltf){
-      var model=gltf.scene;
-      model.traverse(function(o){
-        if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; }
-        if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ toneFigureMaterial(m); }); }
-      });
-      var grp=figureGroup();
-      grp.add(fitFigure(model,1.68));
-      grp.position.set(-8.6,0,0.6);
-      grp.rotation.y=1.76;
-      var mixer=new THREE.AnimationMixer(model);
-      var idleAct=null;
-      if(gltf.animations&&gltf.animations.length){
-        idleAct=mixer.clipAction(prepClip(gltf.animations[0],true)); // her own idle, root pinned as before
-        idleAct.setLoop(THREE.LoopRepeat); idleAct.play();
-      }
-      var entry={grp:grp,mixer:mixer,idle:idleAct,walk:null};
-      FollowerSystem.attach(entry);
-      loader.load('assets/walker.glb',function(wg){
-        try{
-          if(!wg.animations||!wg.animations.length) return;
-          var bones={};
-          model.traverse(function(o){ bones[o.name]=true; });
-          var clip=prepClip(wg.animations[0],true); // cloned by prep; hip x/z pinned — she walks in place, the system moves her
-          clip.tracks=clip.tracks.filter(function(tr){ return !!bones[tr.name.split('.')[0]]; });
-          var wAct=mixer.clipAction(clip);
-          wAct.setLoop(THREE.LoopRepeat); wAct.enabled=true; wAct.setEffectiveWeight(0); wAct.play();
-          entry.walk=wAct; FollowerSystem.setWalk(wAct);
-        }catch(e){ /* no walk cycle — she keeps to a slow companion drift on her idle */ }
-      },undefined,function(){});
-    },undefined,function(){}); });
-  }catch(e){ /* Alina simply absent */ }
-}
-/* the guests — adult women, real clips, placed as planned above.
-   Headings use the figure convention: rotation 0 faces +z, so
-   ry = atan2(dx, dz) toward whatever she's looking at. */
-function loadAllGuests(){
-loadSeatedAnna({x:-5.2,z:8.91,ry:Math.PI-0.10,seatH:0.595,anchor:'seat',floorY:0.11,timeOffset:0});
-loadSeatedAnna({x:5.35,z:8.91,ry:Math.PI+0.14,seatH:0.595,anchor:'seat',floorY:0.11,timeOffset:2.3});
-loadStandingAnna({x:-6.6,z:-1.2,ry:2.03,collider:[0.3,0.3],clip:'assets/idle-stand-clip.glb',timeOffset:0});
-loadStandingAnna({x:6.6,z:-1.2,ry:-2.03,collider:[0.3,0.3],clip:'assets/idle-stand-clip.glb',timeOffset:3.7});
-loadAlina();
-}
-/* The v13 layer loads with everything else, behind the start
-   menu: the menu's preload gate holds START until the load
-   settles, so the chill area and its guests are already in place
-   when the game begins. (The software-renderer protections —
-   morph-track stripping, mixer throttling, debounced shadows —
-   still apply where they did before.) */
 /* ================= SHOP POLISH (v15) =================
    Atmosphere pass over the whole room, built only from what's
    already here: real ceiling light fixtures over the bays, LED
    accent strips running the walls, two coloured accent lights at
-   the back, three more of ydvisual's neon signs on the back wall,
-   and (until v16) dust motes in the light. Emissive does most of the
-   work (bloom picks it up); only two real lights are added, both
-   at the back of the shop, far from the girls, so the colour fix
-   is untouched. */
+   the back, and (until v16) dust motes in the light. Emissive does
+   most of the work (bloom picks it up); only two real lights are
+   added, both at the back of the shop. (v26: the ydvisual neon
+   signs that hung on the back wall are deleted with the rest of
+   the Japanese decor.) */
 function buildPolish(){
   // ceiling fixtures over each bay: dark housing + warm tube
   var housing=new THREE.MeshStandardMaterial({color:0x141518,roughness:0.6,metalness:0.4});
@@ -3486,42 +2393,14 @@ function buildPolish(){
   // coloured accent wash at the back of the shop
   var a1=new THREE.PointLight(0x36c5ff,9,13,1.8); a1.position.set(-9.5,3.6,-6.5); scene.add(a1);
   var a2=new THREE.PointLight(0xff3d7e,9,13,1.8); a2.position.set(9.5,3.6,-6.5); scene.add(a2);
-  // three more neon signs on the back wall, same ydvisual set
-  try{
-    var loader=jpLoader();
-    jpStart(function(){ loader.load('assets/jp-neon.glb',function(gltf){
-      var picks=[
-        {node:'sign.001',h:1.6,x:-8.5,y:2.8},
-        {node:'sign.006',h:1.6,x:0,y:2.9},
-        {node:'sign.012',h:1.6,x:8.5,y:2.8}
-      ];
-      picks.forEach(function(p){
-        var node=gltf.scene.getObjectByName(p.node);
-        if(!node) return;
-        node.traverse(function(o){ if(o.isMesh&&o.material){
-          (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){ m.emissiveIntensity=1.8; }); } });
-        var holder=new THREE.Group(); holder.add(node);
-        holder.updateMatrixWorld(true);
-        var bb=new THREE.Box3().setFromObject(node), sz=bb.getSize(new THREE.Vector3());
-        holder.scale.setScalar(p.h/Math.max(sz.y,0.01));
-        holder.updateMatrixWorld(true);
-        bb=new THREE.Box3().setFromObject(node);
-        var ctr=bb.getCenter(new THREE.Vector3());
-        holder.position.set(-ctr.x,-ctr.y,-ctr.z);
-        var grp=new THREE.Group(); grp.add(holder);
-        grp.position.set(p.x,p.y,-9.93); grp.rotation.y=0; // back wall, facing into the room
-        scene.add(grp);
-      });
-    },undefined,function(){}); });
-  }catch(e){ /* signs simply absent */ }
   // (v16: the polish pass's dust Points cloud is gone with the
-  // rest of the particle systems — fixtures, LED strips, accent
-  // lights and neon signs above all stay.)
+  // rest of the particle systems — fixtures, LED strips and accent
+  // lights above all stay.)
 }
 /* ================= ATMOSPHERE (v17 refresh) =================
    Cheap cinematic depth that costs almost nothing on a phone:
    additive glow pools on the polished concrete under the neon
-   sign, the DTL cross, the stage and each bay's ceiling tubes —
+   sign, the DTL cross and each bay's ceiling tubes —
    they read as faint reflections in the floor — plus a small
    cloud of dust motes drifting in the light for depth. No extra
    post-processing anywhere; the motes are skipped entirely on
@@ -3532,7 +2411,6 @@ var dustPts=null, dustBase=null;
 function buildAtmosphere(){
   floorGlow(0,-8.3,7.5,3.2,0xff7a3a,0.10);       // main neon sign spill
   floorGlow(11.5,-5.6,3.6,3.6,0xff2e63,0.08);    // DTL cross spill
-  floorGlow(1.75,8.66,3.2,3.2,0xff2e63,0.07);    // the stage
   [-10,-5,0,5,10].forEach(function(x){ floorGlow(x,-2,4.8,3.6,0xffd9a0,0.045); }); // bay light pools
   if(softwareGL||reduceMotion) return;
   var N=140, pos=new Float32Array(N*3); dustBase=new Float32Array(N*3);
@@ -3926,7 +2804,7 @@ function buildBong(bx,by,bz){
   APT.bongGroup=grp;
   APT.bongMouth=new THREE.Vector3(bx,by+0.262,bz);
 }
-buildChillArea(); loadAllGuests(); buildPolish(); buildApartment();
+buildPolish(); buildApartment();
 
 /* ================= INTERACTABLES ================= */
 var interactables=[];
@@ -4541,7 +3419,7 @@ function step(dt,t){
   // the game". No single toggle effect can take the frame loop
   // down now: the value still converges, the prompt/count logic
   // in toggleInter is untouched, and the rest of the frame —
-  // movement, people, render — always runs.
+  // movement, render — always runs.
   var anyAnim=false;
   for(var i=0;i<interactables.length;i++){
     var it=interactables[i];
@@ -4556,8 +3434,6 @@ function step(dt,t){
   cars.forEach(function(car,idx){
     car.group.position.y=(car.engineOn&&!reduceMotion)?Math.sin(t*46+idx*2)*0.0035:0;
   });
-  updatePeople(dt,t);
-  FollowerSystem.update(dt,player,camYaw,started,colliders); // v24: Alina walks with the player (own module, LOD-stepped, game state passed in explicitly like every other system)
   // atmosphere: a whisper of neon flicker (particles removed in v16)
   neonLight.intensity=26+Math.sin(t*29)*0.8+Math.sin(t*7.7)*1.1;
   neon.material.emissiveIntensity=1.15+Math.sin(t*29)*0.03+Math.sin(t*7.7)*0.04;
@@ -4715,11 +3591,6 @@ function frame(now){
   var rawMs=now-last; last=now;
   PerfSystem.frame(now,Math.min(rawMs,250));
   SimulationSystem.tick();
-  // the chill-area props stream in over a second or two; refresh the
-  // (static, expensive) shadow map once they have all landed, not
-  // once per file — a shadow render is a full scene pass, and a
-  // dozen of them back to back can stall a weak device for minutes
-  if(shadowTimer&&now-shadowTimer>900){ renderer.shadowMap.needsUpdate=true; shadowTimer=0; }
   var dt=rawMs/1000; if(dt>0.1)dt=0.1; acc+=dt;
   /* simulation and render are guarded SEPARATELY: a throwing step
      can no longer skip the frame's render, a throwing render can
