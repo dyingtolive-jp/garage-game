@@ -2849,7 +2849,7 @@ function buildApartment(){
   box(0.03,0.69,4.26,new THREE.MeshStandardMaterial({map:tileTex,roughness:0.35,envMapIntensity:0.7}),-5.485,1.255,-29.7);
   var strip=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.018,3.2),
     new THREE.MeshStandardMaterial({color:0xfff1d6,emissive:0xffd9a0,emissiveIntensity:2.2,roughness:0.5}));
-  strip.position.set(-5.02,1.585,-29.7); scene.add(strip);
+  strip.position.set(-5.05,1.585,-29.7); scene.add(strip); // tucked against the cabinet front face (-5.08) — it floated 4 cm proud of it
   // v25: the kitchen island — cabinet base, quartz top with an
   // overhang, two stools on the living side. The bong lives on top.
   box(0.5,0.1,1.58,darkWood,-3.55,0.05,-29.7); // toe kick
@@ -2889,9 +2889,9 @@ function buildApartment(){
   // and the bed's west edge (3.7) is a real 1.34 m walkway for
   // the player (r 0.34) and for Alina (r 0.30) alike.
   box(1.7,0.28,2.2,darkWood,4.55,0.14,-31.55);
-  box(1.7,0.85,0.08,darkWood,4.55,0.55,-32.68);
+  box(1.7,1.0,0.08,darkWood,4.55,0.5,-32.68); // headboard runs floor -> 1.0 m: the old slab stopped 0.125 short of the floor and floated on the frame's end grain
   box(1.6,0.2,2.1,new THREE.MeshStandardMaterial({color:0xf0ece2,roughness:0.95}),4.55,0.38,-31.5);
-  box(1.64,0.07,1.35,new THREE.MeshStandardMaterial({map:blanketTex,roughness:0.95}),4.55,0.5,-31.05);
+  box(1.64,0.07,1.27,new THREE.MeshStandardMaterial({map:blanketTex,roughness:0.95}),4.55,0.5,-31.085); // ends flush with the mattress foot — the old length cantilevered 7 cm past it with air underneath
   // the two pillows MEET at x 4.55 (centres 4.27 / 4.83, 0.56
   // wide) — the old pair left a 0.22 m gap at 4.44..4.66, which
   // is exactly where her head lands (root 4.55, head centre
@@ -2930,7 +2930,7 @@ function buildApartment(){
   box(0.03,0.13,0.018,bedDoorBrass,3.885,0.45,-30.17,false); // hinges at the jamb edge
   box(0.03,0.13,0.018,bedDoorBrass,3.885,1.65,-30.17,false);
   var bedKnob=new THREE.Mesh(new THREE.SphereGeometry(0.04,12,10),bedDoorBrass);
-  bedKnob.position.set(4.86,1.02,-30.13); scene.add(bedKnob);
+  bedKnob.position.set(4.86,1.02,-30.155); scene.add(bedKnob); // back of the knob meets the slab's face — at -30.13 it hovered a centimetre off the door
   // the bedroom's own ceiling fixture + warm light, so the room
   // reads as its own space after dark, not a lit corner
   box(1.1,0.06,0.4,fixMat,4.1,2.68,-31.4,false);
@@ -2951,7 +2951,7 @@ function buildApartment(){
   var pot=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.12,0.3,12),new THREE.MeshStandardMaterial({color:0x8a4a34,roughness:0.85}));
   pot.position.set(4.55,0.15,-25.7); scene.add(pot);
   var leaf=new THREE.MeshStandardMaterial({color:0x3f7a3a,roughness:0.9});
-  [[4.55,0.62,-25.7,0.24],[4.42,0.82,-25.61,0.17],[4.68,0.85,-25.79,0.15]].forEach(function(s){
+  [[4.55,0.56,-25.7,0.24],[4.42,0.80,-25.61,0.17],[4.68,0.83,-25.79,0.15]].forEach(function(s){ // lowest leaf ball now meets the pot's rim (0.30) instead of hovering 8 cm over it
     var b=new THREE.Mesh(new THREE.IcosahedronGeometry(s[3],1),leaf);
     b.position.set(s[0],s[1],s[2]); scene.add(b); });
   addCollider(4.55,-25.7,0.25,0.25);
@@ -3584,7 +3584,7 @@ window.__WAVE_SYS__=WaveSystem;
    She is NOT an interactable and never touches the objective. */
 var FollowerSystem={
   ready:false, root:null, model:null, mixer:null,
-  laidDown:false, clothing:[], blob:null, _saved:null,
+  laidDown:false, clothing:[], blob:null, _saved:null, BED_Y:0.63, BED_PITCH:0.125, _bedT:0,
   x:2.4, z:7.6, yaw:-Math.PI/2,
   FOLLOW_START:3.2, STOP_DIST:1.9, MINSEP:1.5,
   bones:null, baseQ:null, baseY:0, gaitPhase:0, gaitAmp:0, moving:false, following:false, speedNow:0, tx:0, tz:0,
@@ -3707,15 +3707,33 @@ var FollowerSystem={
      layDown() is called by the bed interactable, and only
      succeeds while she is here in the apartment zone. She is
      placed on the bed in the bedroom: root at her feet
-     (4.55, -30.62 — the bed's centre line, just inside its
-     foot), tipped back -90° about X so her body runs south
+     (4.55, -30.73 — the bed's centre line, just inside its
+     foot), tipped back about X so her body runs south
      along the bed with her head at the pillows (z ≈ -32.3)
-     and her front facing up. Lying on top of the mattress +
-     blanket puts the root plane at y 0.53 — the blanket's top
-     is 0.535, so she rests ON the bedding with just a whisper
-     of compression instead of sinking through it (0.50 put the
-     blanket's surface above her body plane and her legs read
-     as half-buried). Her head turn is a gentle one (neck -0.09
+     and her front facing up.
+     RESTING ON TOP, MEASURED (this build): the old root
+     height (0.53) treated her body as a weightless plane at
+     the blanket's top (0.535) — but her body has thickness.
+     Vertex-sampling the posed, skinned model in the running
+     game showed her back running 0.12–0.17 BELOW the root
+     plane (legs at world y 0.412, torso 0.363, skull 0.358),
+     i.e. sunk clean through the blanket into the mattress,
+     and her head end 0.23–0.26 below the pillow tops
+     (0.585), with the skull joint at the pillows' south
+     edge drooped to mattress level — the "head hanging off
+     the bed" look. The fix is a recline, not just a lift,
+     because the bed's surfaces step along her length
+     (blanket 0.535 under her legs/hips, bare mattress 0.48
+     under her torso, pillows 0.585 under her head): the
+     root now sits at BED_Y 0.63 with BED_PITCH 0.125 rad
+     tipping her head end up (rotation.x -PI/2 + BED_PITCH,
+     pivoting at her feet), so every station of her back
+     lands ON its own surface — re-sampled in-game after the
+     fix, her clearance over the bed is positive everywhere
+     and no vertex sits inside any bed box — and the root
+     moved 0.10 toward the headboard so her skull centres
+     on the pillow run instead of teetering on its edge.
+     Her head turn is a gentle one (neck -0.09
      / head -0.17, halved from the first pass): the old -0.30
      wrench, combined with her head landing in the crack
      between the two pillows, read as strained, not seductive.
@@ -3745,7 +3763,29 @@ var FollowerSystem={
      room. Angles are [pitch X, twist Y, sway Z] in radians;
      applied in layDown() and re-asserted every frame by
      update()'s laidDown branch, so the pose holds exactly
-     until getUp() hands her back to the clip. */
+     until getUp() hands her back to the clip.
+     THE IDLE: she is NOT a statue on the bed. _applyBedPose(t)
+     layers a slow, languid idle over the static pose, built
+     around one rule — the breath is a LIFT, never a swing.
+     _breathLift(t) runs 0..1 over the ~4.6 s breath cycle
+     (0 = the static pose exactly, 1 = full inhale, with the
+     depth itself breathing on a ~17 s wave), and every
+     breath-coupled term is lift × a positive amplitude:
+     waist +0.030 and spine02 +0.042 of flexion raise her
+     chest off the bed, the forearm resting on her stomach
+     rides the rise (+0.038), her pelvis tips a touch
+     (+0.008), and the root bob in _bedFrame adds up to
+     9 mm at the inhale peak. Because lift never goes
+     negative, the exhale returns her to the measured static
+     pose and no phase of the cycle can dip her below it —
+     the clearances in the bed header above hold at every
+     moment of the idle, not just on average. Layered over
+     the breath on incommensurate periods (6–14 s) so it
+     never reads as a mechanical loop: her head drifts
+     slowly as if half-dreaming, the bent knee sways, the
+     long leg's foot lazily points and flexes, the arm
+     thrown over her head settles and shifts, her hips
+     roll a whisper. */
   _bedPose:{
     pelvis:[-0.03,0,0.05], waist:[-0.05,0,0], spine2:[-0.04,-0.05,0],
     neck:[0,-0.09,-0.03], head:[0,-0.17,-0.05],
@@ -3755,16 +3795,44 @@ var FollowerSystem={
     rThigh:[0.10,0,-0.09], rCalf:[-0.14,0,0], rFoot:[0.38,0,0]
   },
   _q2:new THREE.Quaternion(), _yAxis:new THREE.Vector3(0,1,0), _zAxis:new THREE.Vector3(0,0,1),
-  _applyBedPose:function(){
+  /* the breath envelope: 0 at the bottom of the exhale (the
+     static pose, exactly), 1 at the inhale peak, ~4.6 s
+     period, depth modulated ±14% on a ~17 s wave so no two
+     breaths are quite the same depth. Never negative — see
+     the idle header above _bedPose for why that matters. */
+  _breathLift:function(t){
+    return (0.5-0.5*Math.cos(t*1.366))*(0.86+0.14*Math.sin(t*0.371+0.7));
+  },
+  _applyBedPose:function(t){
     if(!this.bones||!this.baseQ) return;
+    if(t===undefined) t=this._bedT||0;
     var B=this.bones, Q=this.baseQ, sq=this._swingQ, q2=this._q2;
+    /* the idle layer: dynamic offsets added to the static
+       pose (see the header above _bedPose). The breath terms
+       are lift × positive amplitudes — they only ever raise
+       her; the drifts are slow sines on incommensurate
+       periods that wander against the breath. */
+    var lift=this._breathLift(t);
+    var drift=Math.sin(t*0.571+1.3); // ~11 s head drift
+    var kneeSway=Math.sin(t*0.722+0.6); // ~8.7 s
+    var dyn={
+      pelvis:[0.008*lift,0,Math.sin(t*0.458)*0.010],
+      waist:[0.030*lift,0,0], spine2:[0.042*lift,0,0],
+      neck:[0.010*lift,drift*0.020,0],
+      head:[0.006*lift,drift*0.048,Math.sin(t*0.862)*0.014],
+      rFore:[Math.sin(t*0.648+4.0)*0.030,0,0],
+      lFore:[0.038*lift,0,0],
+      lThigh:[0,0,kneeSway*0.022], lCalf:[kneeSway*0.014,0,0],
+      rFoot:[Math.sin(t*1.030+2.1)*0.070,0,0]
+    };
     for(var k in this._bedPose){
       var b=B[k], base=Q[k]; if(!b||!base) continue;
-      var a=this._bedPose[k];
+      var a=this._bedPose[k], d=dyn[k];
+      var ax=a[0]+(d?d[0]:0), ay=a[1]+(d?d[1]:0), az=a[2]+(d?d[2]:0);
       b.quaternion.copy(base);
-      if(a[0]){ sq.setFromAxisAngle(this._xAxis,a[0]); b.quaternion.multiply(sq); }
-      if(a[1]){ q2.setFromAxisAngle(this._yAxis,a[1]); b.quaternion.multiply(q2); }
-      if(a[2]){ q2.setFromAxisAngle(this._zAxis,a[2]); b.quaternion.multiply(q2); }
+      if(ax){ sq.setFromAxisAngle(this._xAxis,ax); b.quaternion.multiply(sq); }
+      if(ay){ q2.setFromAxisAngle(this._yAxis,ay); b.quaternion.multiply(q2); }
+      if(az){ q2.setFromAxisAngle(this._zAxis,az); b.quaternion.multiply(q2); }
     }
   },
   layDown:function(){
@@ -3773,13 +3841,26 @@ var FollowerSystem={
     this._saved={x:this.x,z:this.z,yaw:this.yaw};
     this.laidDown=true; this.following=false; this.moving=false;
     this.gaitAmp=0; this.speedNow=0;
-    this.x=4.55; this.z=-30.62;
+    this.x=4.55; this.z=-30.73;
+    this._bedT=0;
     for(var i=0;i<this.clothing.length;i++) this.clothing[i].visible=false;
     if(this.blob) this.blob.visible=false;
-    this.root.position.set(this.x,0.53,this.z);
-    this.root.rotation.set(-Math.PI/2,0.10,0.05); // a slight diagonal + roll — posed, not planked
-    this._applyBedPose();
+    this.root.position.set(this.x,this.BED_Y,this.z);
+    this.root.rotation.set(-Math.PI/2+this.BED_PITCH,0.10,0.05); // reclined up onto the pillows + a slight diagonal and roll — posed, not planked
+    this._applyBedPose(0);
     return true;
+  },
+  /* one frame of the bed scene: advance the idle clock, set
+     the root (recline + the breath bob, which only ever adds
+     height — 2 mm at the exhale bottom, up to 9 mm at the
+     inhale peak), and compose the pose. update()'s laidDown
+     branch is the only caller in play. */
+  _bedFrame:function(dt){
+    this._bedT+=dt;
+    var bob=0.002+0.007*this._breathLift(this._bedT);
+    this.root.position.set(this.x,this.BED_Y+bob,this.z);
+    this.root.rotation.set(-Math.PI/2+this.BED_PITCH,0.10,0.05);
+    this._applyBedPose(this._bedT);
   },
   getUp:function(){
     if(!this.laidDown) return;
@@ -3846,10 +3927,11 @@ var FollowerSystem={
   update:function(dt){
     if(!this.ready||!this.root) return;
     if(this.laidDown){
-      // in bed: hold the reclined pose, nothing else simulates
-      this.root.position.set(this.x,0.53,this.z);
-      this.root.rotation.set(-Math.PI/2,0.10,0.05);
-      this._applyBedPose();
+      // in bed: hold the reclined pose and breathe — the idle
+      // layered in _applyBedPose (via _bedFrame) is the only
+      // motion; nothing else simulates (no follow, no gait,
+      // no mixer)
+      this._bedFrame(dt);
       if(this.model) this.model.position.y=this.baseY;
       return;
     }
