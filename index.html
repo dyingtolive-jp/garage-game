@@ -201,7 +201,7 @@
   </div>
   <button id="enterBtn" disabled>LOADING&hellip;</button>
   <p class="controls"><b>WASD</b> walk &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>E</b> interact &nbsp;·&nbsp; <b>Shift</b> run &nbsp;—&nbsp; on touch, use the stick and buttons.</p>
-  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — all CC BY 4.0 · HDRI: Poly Haven CC0 · Apartment wall art: Van Gogh · Vermeer · Hokusai · Cézanne — public domain via Wikimedia Commons · Traffic car: "Toyota Prius 2012" by Doz3 (Sketchfab) — CC BY 4.0</p>
+  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — all CC BY 4.0 · HDRI: Poly Haven CC0 · Apartment wall art: Van Gogh · Vermeer · Hokusai · Cézanne — public domain via Wikimedia Commons · Traffic car: "Toyota Prius 2012" by Doz3 (Sketchfab) — CC BY 4.0 · The driver: "Soldier" character by Mixamo, via the three.js examples</p>
 </div>
 
 <div id="errBox"></div>
@@ -3521,13 +3521,61 @@ var FollowerSystem={
      long leg's foot lazily points and flexes, the arm
      thrown over her head settles and shifts, her hips
      roll a whisper. */
-  _bedPose:{
-    pelvis:[-0.03,0,0.05], waist:[-0.05,0,0], spine2:[-0.04,-0.05,0],
-    neck:[0,-0.09,-0.03], head:[0,-0.17,-0.05],
-    rArm:[2.55,0,-0.28], rFore:[1.15,0,0],
-    lArm:[0.48,0,0.16], lFore:[1.30,0,0],
-    lThigh:[0.95,0,0.12], lCalf:[-2.05,0,0], lFoot:[0.45,0,0],
-    rThigh:[0.10,0,-0.09], rCalf:[-0.14,0,0], rFoot:[0.38,0,0]
+  /* v41: she does not strike the same pose twice in a row.
+     layDown() advances _bedIdx through _bedPoses, so every
+     time she gets on the bed she settles into the NEXT one —
+     three reclined poses, cycled in order. Every pose keeps
+     her pelvis / waist / spine within a whisper of pose 1's
+     measured values, because those are the bones that set how
+     her back meets the bed (see the clearance measurements in
+     the bed header above): the variety lives in her arms,
+     legs, head turn and the root's diagonal, all inside the
+     pose-1 envelope, so no pose can sink her into the bed.
+     Each pose also names which forearm rides the breath
+     (fore), which knee sways (kneeT/kneeC) and which foot
+     lazily points and flexes (foot) for the idle layer. */
+  _bedIdx:-1,
+  _bedPoses:[
+    { // 1 — the original: arm over her head, one knee bent up
+      yaw:0.10, roll:0.05, dz:0, fore:'lFore', kneeT:'lThigh', kneeC:'lCalf', foot:'rFoot',
+      pose:{
+        pelvis:[-0.03,0,0.05], waist:[-0.05,0,0], spine2:[-0.04,-0.05,0],
+        neck:[0,-0.09,-0.03], head:[0,-0.17,-0.05],
+        rArm:[2.55,0,-0.28], rFore:[1.15,0,0],
+        lArm:[0.48,0,0.16], lFore:[1.30,0,0],
+        lThigh:[0.95,0,0.12], lCalf:[-2.05,0,0], lFoot:[0.45,0,0],
+        rThigh:[0.10,0,-0.09], rCalf:[-0.14,0,0], rFoot:[0.38,0,0]
+      }
+    },
+    { // 2 — legs long and swept together to one side, one hand
+      // resting on her stomach, the other arm up over her head,
+      // head turned further toward the room
+      yaw:-0.07, roll:0.10, dz:0.02, fore:'rFore', kneeT:'rThigh', kneeC:'rCalf', foot:'lFoot',
+      pose:{
+        pelvis:[-0.03,0.06,0.09], waist:[-0.05,0.03,0], spine2:[-0.04,-0.02,0],
+        neck:[0,-0.13,-0.04], head:[0,-0.26,-0.07],
+        rArm:[0.55,0,-0.14], rFore:[1.15,0,0],
+        lArm:[2.45,0,0.24], lFore:[1.05,0,0],
+        lThigh:[0.16,0,0.20], lCalf:[-0.20,0,0], lFoot:[0.50,0,0],
+        rThigh:[0.24,0,0.24], rCalf:[-0.28,0,0], rFoot:[0.55,0,0]
+      }
+    },
+    { // 3 — both knees bent up with her feet tucked in, both
+      // arms thrown up over her head
+      yaw:0.03, roll:0.02, dz:-0.02, fore:'lFore', kneeT:'lThigh', kneeC:'lCalf', foot:'rFoot',
+      pose:{
+        pelvis:[-0.02,0,0.03], waist:[-0.06,0,0], spine2:[-0.05,0,0],
+        neck:[0,-0.05,-0.02], head:[0,-0.10,-0.03],
+        rArm:[2.55,0,-0.30], rFore:[1.10,0,0],
+        lArm:[2.40,0,0.30], lFore:[1.00,0,0],
+        lThigh:[0.95,0,0.12], lCalf:[-2.05,0,0], lFoot:[0.45,0,0],
+        rThigh:[0.88,0,-0.12], rCalf:[-1.95,0,0], rFoot:[0.45,0,0]
+      }
+    }
+  ],
+  _activePose:function(){
+    var i=this._bedIdx; if(i<0) i=0;
+    return this._bedPoses[i%this._bedPoses.length];
   },
   _q2:new THREE.Quaternion(), _yAxis:new THREE.Vector3(0,1,0), _zAxis:new THREE.Vector3(0,0,1),
   /* the breath envelope: 0 at the bottom of the exhale (the
@@ -3550,19 +3598,24 @@ var FollowerSystem={
     var lift=this._breathLift(t);
     var drift=Math.sin(t*0.571+1.3); // ~11 s head drift
     var kneeSway=Math.sin(t*0.722+0.6); // ~8.7 s
+    var P=this._activePose(); // v41: whichever pose this lay-down cycled to
     var dyn={
       pelvis:[0.008*lift,0,Math.sin(t*0.458)*0.010],
       waist:[0.030*lift,0,0], spine2:[0.042*lift,0,0],
       neck:[0.010*lift,drift*0.020,0],
-      head:[0.006*lift,drift*0.048,Math.sin(t*0.862)*0.014],
-      rFore:[Math.sin(t*0.648+4.0)*0.030,0,0],
-      lFore:[0.038*lift,0,0],
-      lThigh:[0,0,kneeSway*0.022], lCalf:[kneeSway*0.014,0,0],
-      rFoot:[Math.sin(t*1.030+2.1)*0.070,0,0]
+      head:[0.006*lift,drift*0.048,Math.sin(t*0.862)*0.014]
     };
-    for(var k in this._bedPose){
+    // the idle follows the pose: the forearm resting on her
+    // stomach (P.fore) rides the breath, the other forearm
+    // settles and shifts, the named knee sways, the named
+    // foot lazily points and flexes
+    dyn[P.fore]=[0.038*lift+Math.sin(t*0.648+4.0)*0.020,0,0];
+    dyn[P.fore==='lFore'?'rFore':'lFore']=[Math.sin(t*0.648+4.0)*0.030,0,0];
+    if(P.kneeT){ dyn[P.kneeT]=[0,0,kneeSway*0.022]; dyn[P.kneeC]=[kneeSway*0.014,0,0]; }
+    dyn[P.foot]=[Math.sin(t*1.030+2.1)*0.070,0,0];
+    for(var k in P.pose){
       var b=B[k], base=Q[k]; if(!b||!base) continue;
-      var a=this._bedPose[k], d=dyn[k];
+      var a=P.pose[k], d=dyn[k];
       var ax=a[0]+(d?d[0]:0), ay=a[1]+(d?d[1]:0), az=a[2]+(d?d[2]:0);
       b.quaternion.copy(base);
       if(ax){ sq.setFromAxisAngle(this._xAxis,ax); b.quaternion.multiply(sq); }
@@ -3578,10 +3631,12 @@ var FollowerSystem={
     this.gaitAmp=0; this.speedNow=0;
     this.x=4.55; this.z=-30.73;
     this._bedT=0;
+    this._bedIdx=(this._bedIdx+1)%this._bedPoses.length; // v41: the next pose in the cycle, every single time
+    var rp=this._activePose();
     for(var i=0;i<this.clothing.length;i++) this.clothing[i].visible=false;
     if(this.blob) this.blob.visible=false;
-    this.root.position.set(this.x,this.BED_Y,this.z);
-    this.root.rotation.set(-Math.PI/2+this.BED_PITCH,0.10,0.05); // reclined up onto the pillows + a slight diagonal and roll — posed, not planked
+    this.root.position.set(this.x,this.BED_Y,this.z+(rp.dz||0));
+    this.root.rotation.set(-Math.PI/2+this.BED_PITCH,rp.yaw,rp.roll); // reclined up onto the pillows + this pose's diagonal and roll — posed, not planked
     this._applyBedPose(0);
     return true;
   },
@@ -3593,8 +3648,9 @@ var FollowerSystem={
   _bedFrame:function(dt){
     this._bedT+=dt;
     var bob=0.002+0.007*this._breathLift(this._bedT);
-    this.root.position.set(this.x,this.BED_Y+bob,this.z);
-    this.root.rotation.set(-Math.PI/2+this.BED_PITCH,0.10,0.05);
+    var rp=this._activePose();
+    this.root.position.set(this.x,this.BED_Y+bob,this.z+(rp.dz||0));
+    this.root.rotation.set(-Math.PI/2+this.BED_PITCH,rp.yaw,rp.roll);
     this._applyBedPose(this._bedT);
   },
   getUp:function(){
@@ -3688,24 +3744,47 @@ var FollowerSystem={
     // sine directly, calves take only the negative (a knee folds
     // the foot backward, never forward), feet partly counter the
     // leg so they stay near level. amp 0 => the pure clip pose.
+    // v41 — the casual, sexy layer: a walk is not just legs. Her
+    // PELVIS now rolls (local Z) and twists (local Y) with the
+    // stride — the hip sway — while the waist and spine
+    // counter-rotate against it and the head counter-rolls to
+    // stay level, the way a relaxed catwalk actually moves. The
+    // thighs pick up a whisper of inward roll as they swing
+    // through (feet landing near her centre line), her elbows
+    // carry a soft permanent bend, and her arms hang a touch
+    // looser from the shoulder. Every term is × amp and in
+    // phase with the same gaitPhase that drives the legs, so
+    // the sway lands exactly on each step and still envelopes
+    // to zero when she stops — the upright lock is untouched
+    // (all of this is bone-local, under the root).
     if(!this.bones) return;
     var amp=this.gaitAmp; if(amp<0.003) return;
-    var p=this.gaitPhase, B=this.bones, Q=this.baseQ, sq=this._swingQ, XA=this._xAxis;
+    var p=this.gaitPhase, B=this.bones, Q=this.baseQ, sq=this._swingQ;
+    var XA=this._xAxis, YA=this._yAxis, ZA=this._zAxis;
     var thighAmp=(0.50+0.14*Math.min(1,this.speedNow/3.2))*amp;
     var sL=Math.sin(p), sR=Math.sin(p+Math.PI);
-    function set(k,ang){
+    var sway=Math.sin(p)*amp; // one sway cycle per full stride, peaking as each foot lands
+    function set(k,ax,ay,az){
       var b=B[k]; if(!b||!Q[k]) return;
-      sq.setFromAxisAngle(XA,ang);
-      b.quaternion.copy(Q[k]).multiply(sq);
+      b.quaternion.copy(Q[k]);
+      if(ax){ sq.setFromAxisAngle(XA,ax); b.quaternion.multiply(sq); }
+      if(ay){ sq.setFromAxisAngle(YA,ay); b.quaternion.multiply(sq); }
+      if(az){ sq.setFromAxisAngle(ZA,az); b.quaternion.multiply(sq); }
     }
     var bendL=Math.pow(Math.max(0,Math.cos(p)),1.4)*0.85*amp;
     var bendR=Math.pow(Math.max(0,Math.cos(p+Math.PI)),1.4)*0.85*amp;
-    set('lThigh',sL*thighAmp); set('rThigh',sR*thighAmp);
-    set('lCalf',-bendL); set('rCalf',-bendR);
-    set('lFoot',-(sL*thighAmp-bendL)*0.5+Math.sin(p-0.6)*0.10*amp);
-    set('rFoot',-(sR*thighAmp-bendR)*0.5+Math.sin(p+Math.PI-0.6)*0.10*amp);
-    set('lArm',sR*0.34*amp); set('rArm',sL*0.34*amp); // arms counter-swing the legs
-    set('lFore',sR*0.13*amp); set('rFore',sL*0.13*amp);
+    // the hips lead: roll + twist on the pelvis, countered up the spine
+    set('pelvis',0,sway*0.075,sway*0.080);
+    set('waist',0,-sway*0.050,-sway*0.048);
+    set('spine2',0,-sway*0.035,-sway*0.022);
+    set('neck',0,0,-sway*0.018);
+    set('head',0,sway*0.012,-sway*0.030); // head stays near level while the hips move under it
+    set('lThigh',sL*thighAmp,0,-0.045*amp); set('rThigh',sR*thighAmp,0,0.045*amp);
+    set('lCalf',-bendL,0,0); set('rCalf',-bendR,0,0);
+    set('lFoot',-(sL*thighAmp-bendL)*0.5+Math.sin(p-0.6)*0.10*amp,0,0);
+    set('rFoot',-(sR*thighAmp-bendR)*0.5+Math.sin(p+Math.PI-0.6)*0.10*amp,0,0);
+    set('lArm',sR*0.30*amp,0,0.07*amp); set('rArm',sL*0.30*amp,0,-0.07*amp); // arms counter-swing the legs, hanging loose
+    set('lFore',0.18*amp+sR*0.13*amp,0,0); set('rFore',0.18*amp+sL*0.13*amp,0,0); // a soft, relaxed elbow bend
   },
   update:function(dt){
     if(!this.ready||!this.root) return;
@@ -3766,14 +3845,14 @@ var FollowerSystem={
         this.root.rotation.set(0,this.yaw,0);
         var wstepped=this.mixer?SimulationSystem.mixerStep(this.mixer,this.root,player,dt,3):0;
         if(wmoved>0){
-          var wstride=Math.max(0.45,Math.min(0.95,0.38+0.16*this.speedNow));
+          var wstride=Math.max(0.45,Math.min(0.98,0.42+0.17*this.speedNow)); // v41: a longer, lazier stride — casual, not hurried
           this.gaitPhase+=wmoved/wstride*Math.PI;
         }
         var wampT=this.moving?1:0;
         this.gaitAmp+=(wampT-this.gaitAmp)*Math.min(1,dt*(wampT>this.gaitAmp?5:4));
         if(this.gaitAmp<0.003&&!this.moving) this.gaitAmp=0;
         if(wstepped&&this.bones){ for(var wk in this.bones){ if(this.bones[wk]) this.baseQ[wk].copy(this.bones[wk].quaternion); } }
-        if(this.model) this.model.position.y=this.baseY+(this.gaitAmp>0?(0.5-0.5*Math.cos(this.gaitPhase*2))*0.035*this.gaitAmp:0);
+        if(this.model) this.model.position.y=this.baseY+(this.gaitAmp>0?(0.5-0.5*Math.cos(this.gaitPhase*2))*0.042*this.gaitAmp:0);
         this._applyGait();
         this._ppx=px; this._ppz=pz;
         return;
@@ -3863,14 +3942,14 @@ var FollowerSystem={
        owns the pose outright. The base-pose snapshot refreshes on
        every mixer step, before the gait is composed on top. */
     if(moved>0){
-      var stride=Math.max(0.45,Math.min(0.95,0.38+0.16*this.speedNow));
+      var stride=Math.max(0.45,Math.min(0.98,0.42+0.17*this.speedNow)); // v41: a longer, lazier stride — casual, not hurried
       this.gaitPhase+=moved/stride*Math.PI;
     }
     var ampT=this.moving?1:0;
     this.gaitAmp+=(ampT-this.gaitAmp)*Math.min(1,dt*(ampT>this.gaitAmp?5:4));
     if(this.gaitAmp<0.003&&!this.moving) this.gaitAmp=0;
     if(stepped&&this.bones){ for(var k in this.bones){ if(this.bones[k]) this.baseQ[k].copy(this.bones[k].quaternion); } }
-    if(this.model) this.model.position.y=this.baseY+(this.gaitAmp>0?(0.5-0.5*Math.cos(this.gaitPhase*2))*0.035*this.gaitAmp:0);
+    if(this.model) this.model.position.y=this.baseY+(this.gaitAmp>0?(0.5-0.5*Math.cos(this.gaitPhase*2))*0.042*this.gaitAmp:0);
     this._applyGait();
   }
 };
@@ -3890,6 +3969,11 @@ FollowerSystem.load();
    at the main intersections. No shadows are cast out here —
    the garage's static shadow map never covered the street,
    and blob shadows ground the cars instead. */
+/* v41: the strip club's moving pieces (disco ball, stage
+   light, neon trim) are built inside TownSystem's club builder
+   but animated by ClubSystem — this little registry is the
+   hand-off, so neither system reaches into the other. */
+var CLUB_FX={ball:null,stageLight:null,trimMats:[]};
 var TownSystem=(function(){
   function build(){
     var g=new THREE.Group(); g.name='town'; scene.add(g);
@@ -3980,7 +4064,7 @@ var TownSystem=(function(){
       roof.position.set(lot[0],hh,lot[1]);
       if(lot[2]) roof.rotation.y=Math.PI/2;
       g.add(roof);
-      addCollider(lot[0],lot[1],hw/2+0.2,hd/2+0.2);
+      addCollider(lot[0],lot[1],hw/2+0.06,hd/2+0.06); // v41: hugs the walls (was +0.2 — an invisible kerb around every house)
       // a driveway strip and a tree for most lots
       if(i%3!==2) tplane(3,7,asphaltMat,lot[0]+hw/2+1.6,0.014,lot[1]);
     });
@@ -4000,7 +4084,7 @@ var TownSystem=(function(){
       var band=new THREE.Mesh(new THREE.PlaneGeometry(w*0.86,1.5),
         new THREE.MeshStandardMaterial({color:0x2a2f36,emissive:0xffca7a,emissiveIntensity:0.5,roughness:0.4}));
       band.position.set(0,1.35,-d/2-0.02); band.rotation.y=Math.PI; grp.add(band);
-      addCollider(x,z,w/2+0.15,d/2+0.15);
+      addCollider(x,z,w/2+0.06,d/2+0.06); // v41: hugs the walls (was +0.15)
       return grp;
     }
     shop(-15,32,13,4.6,8,'TIRES OF HOUSTON','#ffb03a',0x4a3a30);
@@ -4012,13 +4096,13 @@ var TownSystem=(function(){
     [[43,27],[51,27],[43,31.5],[51,31.5]].forEach(function(p){
       var post=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,3.6,8),canMat);
       post.position.set(p[0],1.8,p[1]); g.add(post);
-      addCollider(p[0],p[1],0.16,0.16);
+      addCollider(p[0],p[1],0.12,0.12); // v41: the post is r=0.09 — the box barely clears it now
     });
     tbox(11.5,0.32,7.5,canMat,47,3.7,29.2);
     var pumpMat=new THREE.MeshStandardMaterial({color:0xa3242c,roughness:0.45});
     [[44.8,29.2],[49.2,29.2]].forEach(function(p){
       tbox(0.62,1.15,0.42,pumpMat,p[0],0.58,p[1]);
-      addCollider(p[0],p[1],0.45,0.35);
+      addCollider(p[0],p[1],0.34,0.24); // v41: the pump body is 0.62×0.42 (was 0.45/0.35 — a phantom box around it)
     });
     /* ---- the strip club: a real little building you can walk
        into, not a facade — four walls with a doorway gap in the
@@ -4090,6 +4174,83 @@ var TownSystem=(function(){
       var innerSign=new THREE.Mesh(new THREE.PlaneGeometry(3.6,0.68),new THREE.MeshBasicMaterial({map:innerSignTex}));
       innerSign.position.set(cx,2.7,back-0.17); innerSign.rotation.y=Math.PI; g.add(innerSign); // faces -Z, into the room
       var clubLight=new THREE.PointLight(0xff7ab8,42,13,1.9); clubLight.position.set(cx,2.9,cz); g.add(clubLight);
+      /* ---- v41 decor: the room dressed like a club, not an
+         empty box — neon trim on the stage edge, a lit runway
+         from the door to the stage, a mirror behind the stage,
+         a disco ball, two spot cones (additive shells — no
+         light cost), a bar with stools and backlit bottles,
+         neon posters, string lights, and a stage light of its
+         own. The moving pieces register in CLUB_FX for
+         ClubSystem to animate. ---- */
+      var neonMat=new THREE.MeshStandardMaterial({color:0x2a0e1e,emissive:0xff5ca8,emissiveIntensity:2.1,roughness:0.4});
+      var neonMatV=new THREE.MeshStandardMaterial({color:0x170e2a,emissive:0xb46bff,emissiveIntensity:1.5,roughness:0.4});
+      CLUB_FX.trimMats.push(neonMat); CLUB_FX.trimMats.push(neonMatV);
+      tbox(4.7,0.05,0.06,neonMat,cx,0.44,back-2.08); // stage front edge
+      tbox(0.06,0.05,1.95,neonMat,cx-2.32,0.44,back-1.15);
+      tbox(0.06,0.05,1.95,neonMat,cx+2.32,0.44,back-1.15);
+      tplane(1.5,6.2,new THREE.MeshStandardMaterial({color:0x33101f,roughness:1}),cx,0.016,62.1); // the runway carpet
+      tbox(0.05,0.015,6.2,neonMatV,cx-0.78,0.02,62.1);
+      tbox(0.05,0.015,6.2,neonMatV,cx+0.78,0.02,62.1);
+      var mirror=new THREE.Mesh(new THREE.PlaneGeometry(4.4,1.6),
+        new THREE.MeshStandardMaterial({color:0x9aa4b8,metalness:1,roughness:0.08,envMapIntensity:1.5}));
+      mirror.position.set(cx,1.55,back-0.16); mirror.rotation.y=Math.PI; g.add(mirror);
+      var ball=new THREE.Mesh(new THREE.SphereGeometry(0.26,18,12),
+        new THREE.MeshStandardMaterial({color:0xe8edf5,metalness:1,roughness:0.15,envMapIntensity:1.6}));
+      ball.position.set(cx,3.02,cz-0.5); g.add(ball); CLUB_FX.ball=ball;
+      var stem=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,0.34,6),clubTrim);
+      stem.position.set(cx,3.32,cz-0.5); g.add(stem);
+      var ballGlow=glowSprite(0xff8fc0,1.7,0.30); ballGlow.position.set(cx,3.02,cz-0.5); g.add(ballGlow);
+      [[-1.7,0xff5ca8],[1.7,0x59d8ff]].forEach(function(sc){
+        var cone=new THREE.Mesh(new THREE.ConeGeometry(1.35,3.1,20,1,true),
+          new THREE.MeshBasicMaterial({color:sc[1],transparent:true,opacity:0.055,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+        cone.position.set(cx+sc[0],2.0,back-2.6); cone.rotation.x=-0.15; g.add(cone);
+      });
+      var stageLight=new THREE.PointLight(0xff4fa0,30,10,1.9);
+      stageLight.position.set(cx,2.7,back-1.6); g.add(stageLight); CLUB_FX.stageLight=stageLight;
+      // the bar, along the west wall: counter, shelf, bottles, stools
+      var barMat=new THREE.MeshStandardMaterial({color:0x2c1a12,roughness:0.55});
+      tbox(0.62,1.04,3.6,barMat,cx-W/2+1.5,0.52,cz);
+      tbox(0.78,0.05,3.8,tableMat,cx-W/2+1.5,1.06,cz);
+      tbox(0.24,0.05,3.2,barMat,cx-W/2+0.27,1.75,cz);
+      addCollider(cx-W/2+1.5,cz,0.35,1.85);
+      var bottleCols=[0x7fe08a,0xffc37a,0xff8fc0,0x7fd4ff,0x7fe08a,0xffc37a];
+      for(var bi=0;bi<6;bi++){
+        var bottle=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.28,0.09),
+          new THREE.MeshStandardMaterial({color:0x141a14,emissive:bottleCols[bi],emissiveIntensity:0.65,roughness:0.2}));
+        bottle.position.set(cx-W/2+0.27,1.92,cz-1.3+bi*0.52); g.add(bottle);
+      }
+      for(var si=0;si<3;si++){
+        var stoolZ=cz-1.2+si*1.2;
+        var seat=new THREE.Mesh(new THREE.CylinderGeometry(0.19,0.19,0.07,12),boothMat);
+        seat.position.set(cx-W/2+2.65,0.64,stoolZ); g.add(seat);
+        var leg=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.6,8),tableMat);
+        leg.position.set(cx-W/2+2.65,0.3,stoolZ); g.add(leg);
+        addCollider(cx-W/2+2.65,stoolZ,0.21,0.21);
+      }
+      // neon posters on the east wall
+      [['VELVET',0],[ 'DANCERS',1]].forEach(function(pd){
+        var pTex=makeTex(256,340,function(g2,tw,th){
+          g2.fillStyle='#0d060b'; g2.fillRect(0,0,tw,th);
+          g2.strokeStyle=pd[1]?'#59d8ff':'#ff5ca8'; g2.lineWidth=7;
+          g2.beginPath(); g2.arc(tw/2,128,74,0,Math.PI*2); g2.stroke();
+          g2.fillStyle=pd[1]?'#59d8ff':'#ff5ca8';
+          g2.font='700 44px "Barlow Condensed","Arial Narrow",sans-serif';
+          g2.textAlign='center'; g2.textBaseline='middle';
+          g2.fillText(pd[0],tw/2,272);
+        });
+        var poster=new THREE.Mesh(new THREE.PlaneGeometry(1.05,1.4),new THREE.MeshBasicMaterial({map:pTex}));
+        poster.position.set(cx+W/2-0.16,1.95,cz+(pd[1]?1.8:-1.8)); poster.rotation.y=-Math.PI/2; g.add(poster);
+      });
+      // string lights around the ceiling edges
+      var bulbGeo=new THREE.SphereGeometry(0.035,8,6);
+      var bulbMats=[new THREE.MeshStandardMaterial({color:0x1a0d12,emissive:0xff8fc0,emissiveIntensity:2.4}),
+                    new THREE.MeshStandardMaterial({color:0x1a1408,emissive:0xffc37a,emissiveIntensity:2.4})];
+      for(var li=0;li<8;li++){
+        [-1,1].forEach(function(sd){
+          var bulb=new THREE.Mesh(bulbGeo,bulbMats[(li+(sd>0?1:0))%2]);
+          bulb.position.set(cx+sd*(W/2-0.4),3.25,front+0.7+li*1.14); g.add(bulb);
+        });
+      }
     })();
     /* ---- streetlights: emissive heads + glow sprites, with
        four real point lights at the main intersections ---- */
@@ -4099,7 +4260,7 @@ var TownSystem=(function(){
      [-44,56.8,-1],[28,56.8,-1],[-20,86.8,-1],[16,86.8,-1],[4.8,40,-1],[-34.8,68,1]].forEach(function(L){
       var pole=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.09,4.6,8),poleMat);
       pole.position.set(L[0],2.3,L[1]); g.add(pole);
-      addCollider(L[0],L[1],0.15,0.15);
+      addCollider(L[0],L[1],0.10,0.10); // v41: the pole is r=0.09 (was 0.15)
       var head=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.1,0.85),lampHeadMat);
       head.position.set(L[0],4.62,L[1]+L[2]*0.75); g.add(head);
       var glow=glowSprite(0xffc37a,2.8,0.32); glow.position.set(L[0],4.55,L[1]+L[2]*0.8); g.add(glow);
@@ -4118,7 +4279,7 @@ var TownSystem=(function(){
     [[-24,28],[-6,44],[24,28],[8,44],[-24,58],[24,74],[-6,92],[60,44],[-60,74],[36,58],[-36,92],[60,92],[-60,28],[12,92],[-64,58],[64,40]].forEach(function(T,i){
       var cone=new THREE.Mesh(new THREE.ConeGeometry(1.5+((i*31)%10)/10*0.5,4.6,7),pineMat);
       cone.position.set(T[0],2.3,T[1]); g.add(cone);
-      addCollider(T[0],T[1],0.4,0.4);
+      addCollider(T[0],T[1],0.3,0.3); // v41: trunk-sized (was 0.4 — the foliage's edge is not a wall)
     });
     /* ---- the edge of town: a fence line on all four sides.
        The player/car/Alina clamps sit just inside it, so the
@@ -4142,6 +4303,119 @@ var TownSystem=(function(){
 })();
 TownSystem.build();
 
+/* ================= v41: THE CLUB (ClubSystem) =================
+   The strip club's life: a dancer on the stage and the room's
+   moving light. The dancer is a second instance of Alina's
+   model (assets/alina.glb, streamed through AssetSystem —
+   its dedupe hands this system a SkeletonUtils clone, so she
+   is fully independent of FollowerSystem's girl: her own
+   mixer, her own bones, clothes on). She works the pole on
+   the stage: a slow sway around it, always facing it, hips
+   rolling on a slow beat, her right hand up on the pole, the
+   dance composed bone-locally on top of her standing clip
+   with the same baseQ arithmetic FollowerSystem's gait uses —
+   so she can never tilt her root or fight the clip. Her
+   mixer steps through SimulationSystem like every actor's,
+   so she costs nothing from across town or the apartment.
+   ClubSystem also animates the decor TownSystem registered
+   in CLUB_FX: the disco ball spins, the stage light breathes,
+   the neon trim pulses. Self-contained: it reads only the
+   pole's fixed spot (stage centre, placed by TownSystem). */
+var ClubSystem=(function(){
+  var root=null, model=null, mixer=null, bones=null, baseQ={}, t=0, ready=false;
+  var POLE={x:47,z:66.35}, STAGE_Y=0.45;
+  var _sq=new THREE.Quaternion(), _xa=new THREE.Vector3(1,0,0), _ya=new THREE.Vector3(0,1,0), _za=new THREE.Vector3(0,0,1);
+  function build(gltf){
+    model=gltf.scene;
+    root=new THREE.Group(); root.add(model);
+    root.updateMatrixWorld(true);
+    var bb=new THREE.Box3().setFromObject(model);
+    var sz=bb.getSize(new THREE.Vector3());
+    if(sz.y>0.01) model.scale.multiplyScalar(1.66/sz.y);
+    root.updateMatrixWorld(true);
+    bb=new THREE.Box3().setFromObject(model);
+    var ctr=bb.getCenter(new THREE.Vector3());
+    model.position.x-=ctr.x; model.position.z-=ctr.z; model.position.y-=bb.min.y;
+    model.traverse(function(o){ if(o.isMesh){ o.castShadow=true; o.frustumCulled=false; } });
+    var src=null;
+    (gltf.animations||[]).forEach(function(a){ if(a.name==='5359960820992_TempMotion') src=a; });
+    if(src){
+      var tracks=src.tracks.filter(function(tr){ return /\.quaternion$/.test(tr.name)||/\.weights$/.test(tr.name); });
+      if(tracks.length){
+        var clip=new THREE.AnimationClip('club-standing',src.duration,tracks);
+        mixer=new THREE.AnimationMixer(model);
+        var act=mixer.clipAction(clip); act.setLoop(THREE.LoopRepeat); act.play();
+      }
+    }
+    bones={};
+    var wanted={pelvis:/^CC_Base_Pelvis_\d/,waist:/^CC_Base_Waist_\d/,spine2:/^CC_Base_Spine02_\d/,
+      neck:/^CC_Base_NeckTwist01_\d/,head:/^CC_Base_Head_\d/,
+      lArm:/^CC_Base_L_Upperarm_\d/,rArm:/^CC_Base_R_Upperarm_\d/,
+      lFore:/^CC_Base_L_Forearm_\d/,rFore:/^CC_Base_R_Forearm_\d/,
+      lThigh:/^CC_Base_L_Thigh_\d/,rThigh:/^CC_Base_R_Thigh_\d/,
+      lCalf:/^CC_Base_L_Calf_\d/,rCalf:/^CC_Base_R_Calf_\d/};
+    model.traverse(function(o){
+      if(!o.isBone) return;
+      for(var k in wanted){ if(!bones[k]&&wanted[k].test(o.name)){ bones[k]=o; baseQ[k]=o.quaternion.clone(); } }
+    });
+    var blob=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.62),
+      new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false,opacity:0.85}));
+    blob.rotation.x=-Math.PI/2; blob.position.y=0.013; blob.renderOrder=1; root.add(blob);
+    root.position.set(POLE.x+0.36,STAGE_Y,POLE.z);
+    scene.add(root);
+    ready=true;
+    renderer.shadowMap.needsUpdate=true;
+  }
+  try{
+    var loader=new THREE.GLTFLoader();
+    if(window.MeshoptDecoder) loader.setMeshoptDecoder(window.MeshoptDecoder);
+    var startLoad=function(){ loader.load('assets/alina.glb',function(gltf){
+      try{ build(gltf); }catch(e){ ErrorGuard.report(e,'club-build'); }
+    },undefined,function(){ /* no dancer — the decor still dresses the room */ }); };
+    if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(startLoad,startLoad);
+    else startLoad();
+  }catch(e){ /* no dancer — the decor still dresses the room */ }
+  function setB(k,ax,ay,az){
+    var b=bones&&bones[k]; if(!b||!baseQ[k]) return;
+    b.quaternion.copy(baseQ[k]);
+    if(ax){ _sq.setFromAxisAngle(_xa,ax); b.quaternion.multiply(_sq); }
+    if(ay){ _sq.setFromAxisAngle(_ya,ay); b.quaternion.multiply(_sq); }
+    if(az){ _sq.setFromAxisAngle(_za,az); b.quaternion.multiply(_sq); }
+  }
+  function update(dt){
+    t+=dt;
+    // the room: ball spins, stage light breathes, neon pulses
+    if(CLUB_FX.ball) CLUB_FX.ball.rotation.y+=dt*0.9;
+    if(CLUB_FX.stageLight) CLUB_FX.stageLight.intensity=26+9*Math.sin(t*2.2)+5*Math.sin(t*5.7);
+    for(var i=0;i<CLUB_FX.trimMats.length;i++) CLUB_FX.trimMats[i].emissiveIntensity=1.8+0.5*Math.sin(t*2.2);
+    if(!ready||!root) return;
+    var stepped=mixer?SimulationSystem.mixerStep(mixer,root,player,dt,5):0;
+    if(stepped&&bones){ for(var k in bones){ if(bones[k]) baseQ[k].copy(bones[k].quaternion); } }
+    // she works the pole: a slow sway around it, always facing
+    // it, hips rolling against the beat, one hand up on the
+    // pole, knees softening in turns
+    var th=Math.sin(t*0.24)*0.85;
+    var px=POLE.x+Math.sin(th)*0.36, pz=POLE.z+Math.cos(th)*0.36;
+    root.position.set(px,STAGE_Y+Math.abs(Math.sin(t*1.5))*0.018,pz);
+    root.rotation.set(0,Math.atan2(POLE.x-px,POLE.z-pz),0);
+    var sway=Math.sin(t*1.5);
+    setB('pelvis',0,Math.sin(t*0.75)*0.16,sway*0.11);
+    setB('waist',0,-Math.sin(t*0.75)*0.07,-sway*0.05);
+    setB('spine2',-0.06,0,-sway*0.02);
+    setB('head',0,Math.sin(t*0.5)*0.22,Math.sin(t*0.9)*0.06);
+    setB('neck',0,Math.sin(t*0.5)*0.08,0);
+    setB('rArm',2.45,0,-0.30+Math.sin(t*0.75)*0.06); // her right hand stays up on the pole
+    setB('rFore',0.30,0,0);
+    setB('lArm',0.30+sway*0.10,0,0.38);
+    setB('lFore',0.35+Math.sin(t*1.5+1.2)*0.10,0,0);
+    setB('lThigh',0.14+Math.max(0,sway)*0.16,0,0.05);
+    setB('rThigh',0.14+Math.max(0,-sway)*0.16,0,-0.05);
+    setB('lCalf',-0.22-Math.max(0,sway)*0.14,0,0);
+    setB('rCalf',-0.22-Math.max(0,-sway)*0.14,0,0);
+  }
+  return { update:update, dancer:function(){ return root; } };
+})();
+
 /* ================= v38: TRAFFIC (TrafficSystem) =================
    NPCs driving Toyota Priuses around the street grid on
    right-hand-traffic loops. Each Prius wears the real model —
@@ -4156,7 +4430,11 @@ TownSystem.build();
    the Prius ahead of it. Stealing runs through the ordinary
    interactable machinery (a noCount decor prompt whose point
    follows the car): the driver gets out, walks to the sidewalk
-   as a little pedestrian, and DriveSystem takes the car. A
+   as a little pedestrian, and DriveSystem takes the car. v41:
+   the driver gets out ONCE per car (the driverOut flag on each
+   Prius — set at his first exit, never cleared), and he is a
+   real character model now (Mixamo's Soldier, nerd.glb — see
+   buildNerd below), not a capsule. A
    stolen Prius the player parks stays parked, get-in-able
    through the same prompt. Self-contained: it talks to the
    rest of the game only through player, DriveSystem and the
@@ -4204,12 +4482,30 @@ function buildPrius(color){
   box(0.52,0.75,0.18,seatMat, 0.38,0.72,-0.28,fb,false);
   box(0.52,0.75,0.18,seatMat,-0.38,0.72,-0.28,fb,false);
   var driver=new THREE.Group();
+  // v41: the seated silhouette is dressed as the same nerd who
+  // gets out (see spawnPed — the real Soldier character model):
+  // pale-blue shirt, a tie, neat hair and glasses, so the guy
+  // through the glass and the guy on the sidewalk read as one
+  // person.
   var torso=new THREE.Mesh(new THREE.CapsuleGeometry(0.155,0.42,3,10),
-    new THREE.MeshStandardMaterial({color:0x2c3242,roughness:0.9}));
+    new THREE.MeshStandardMaterial({color:0x7186a3,roughness:0.9}));
   torso.position.y=0.92; driver.add(torso);
+  var tie=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.30,0.012),
+    new THREE.MeshStandardMaterial({color:0x6e2434,roughness:0.7}));
+  tie.position.set(0,1.02,0.155); driver.add(tie);
   var head=new THREE.Mesh(new THREE.SphereGeometry(0.105,12,10),
     new THREE.MeshStandardMaterial({color:0xc9a189,roughness:0.65}));
   head.position.y=1.33; driver.add(head);
+  var hair=new THREE.Mesh(new THREE.SphereGeometry(0.108,12,8,0,Math.PI*2,0,1.35),
+    new THREE.MeshStandardMaterial({color:0x2e2019,roughness:0.95}));
+  hair.position.y=1.345; driver.add(hair);
+  var frameMat=new THREE.MeshStandardMaterial({color:0x101114,roughness:0.4,metalness:0.3});
+  [-0.047,0.047].forEach(function(gx){
+    var lens=new THREE.Mesh(new THREE.TorusGeometry(0.036,0.006,6,14),frameMat);
+    lens.position.set(gx,1.345,0.098); driver.add(lens);
+  });
+  var bridge=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.008,0.008),frameMat);
+  bridge.position.set(0,1.352,0.10); driver.add(bridge);
   driver.position.set(0.38,0,0.15); g.add(driver);
   // wheels: steer groups up front, spin groups all round
   var tireMatP=new THREE.MeshStandardMaterial({color:0x0c0c0e,roughness:0.9});
@@ -4306,27 +4602,132 @@ var TrafficSystem=(function(){
   ];
   var COLORS=[0xc7ccd4,0xe9e9e6,0x86b4dc,0xa8352c,0x46525e];
   function angWrap(a){ return ((a+Math.PI*3)%(Math.PI*2))-Math.PI; }
-  function spawnPed(px,pz,sideX,sideZ){
-    var grp=new THREE.Group();
+  /* v42: the driver who gets out is a REAL human character —
+     Mixamo's "Soldier" (assets/nerd.glb, streamed through
+     AssetSystem like every GLB here; repeat loads are deduped
+     clones of one parse): textured skin and clothes, not a
+     mannequin. (v41 shipped Mixamo's "X Bot" here — a jointed
+     robot figure that read as anything but a person.) He is
+     dressed as a nerd with glasses built onto his head bone,
+     in the bone's own centimetre space — measured off this
+     file's geometry, his eyes sit at (±3.17, 13.1, −9.3) in
+     head-local coords and his face looks toward local −Z.
+     His Walk and Idle are the file's own clips, position
+     tracks stripped so he walks in place and this system
+     does the travelling, exactly like Alina.
+     If the file ever fails to load, the old capsule pedestrian
+     stands in so the steal still reads. One load is kicked off
+     at boot (below) purely to warm AssetSystem's cache, so the
+     first steal doesn't wait on a parse. */
+  function nerdFallback(ped){
+    if(ped.model) return;
     var body=new THREE.Mesh(new THREE.CapsuleGeometry(0.17,0.85,3,10),
       new THREE.MeshStandardMaterial({color:0x353a30,roughness:0.95}));
-    body.position.y=0.72; grp.add(body);
+    body.position.y=0.72; ped.grp.add(body);
     var hd=new THREE.Mesh(new THREE.SphereGeometry(0.105,12,10),
       new THREE.MeshStandardMaterial({color:0xb98f72,roughness:0.65}));
-    hd.position.y=1.47; grp.add(hd);
-    grp.position.set(px,0,pz); scene.add(grp);
-    peds.push({grp:grp,tx:px+sideX*5.5,tz:pz+sideZ*5.5,life:0,stand:0});
+    hd.position.y=1.47; ped.grp.add(hd);
+    ped.model=body;
   }
+  function buildNerd(ped,gltf){
+    var model=gltf.scene;
+    var wrap=new THREE.Group(); wrap.add(model);
+    wrap.updateMatrixWorld(true);
+    var bb=new THREE.Box3().setFromObject(model);
+    var sz=bb.getSize(new THREE.Vector3());
+    if(sz.y>0.01) model.scale.multiplyScalar(1.76/sz.y);
+    wrap.updateMatrixWorld(true);
+    bb=new THREE.Box3().setFromObject(model);
+    var ctr=bb.getCenter(new THREE.Vector3());
+    model.position.x-=ctr.x; model.position.z-=ctr.z; model.position.y-=bb.min.y;
+    var headBone=null;
+    model.traverse(function(o){
+      if(o.isMesh){ o.castShadow=true; o.frustumCulled=false;
+        (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
+          if(m.envMapIntensity!==undefined&&m.envMapIntensity<0.85) m.envMapIntensity=0.85;
+        });
+      }
+      if(o.isBone&&o.name==='mixamorig:Head') headBone=o;
+    });
+    if(headBone){
+      var gm=new THREE.MeshStandardMaterial({color:0x0e0e11,roughness:0.35,metalness:0.35});
+      function gbox(w,h,d,x,y,z){
+        var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),gm);
+        m.position.set(x,y,z); headBone.add(m);
+      }
+      gbox(5.6,4.6,0.5, 3.17,13.1,-9.9); gbox(5.6,4.6,0.5,-3.17,13.1,-9.9); // the two frames, on his eyes (face = local −Z on this rig)
+      gbox(1.9,0.55,0.5, 0,13.65,-9.9); // the bridge
+      gbox(0.5,0.55,13.5, 6.15,13.65,-3.1); gbox(0.5,0.55,13.5,-6.15,13.65,-3.1); // temple arms running back (+Z) to his ears
+    }
+    ped.grp.add(wrap);
+    ped.model=wrap;
+    // his own clips, in place: keep rotation + morph tracks,
+    // drop position tracks (the Hips would otherwise carry him
+    // out of his group and snap back every loop)
+    var mixer=new THREE.AnimationMixer(model), walk=null, idle=null;
+    (gltf.animations||[]).forEach(function(a){
+      var tracks=a.tracks.filter(function(t){ return /\.quaternion$/.test(t.name)||/\.weights$/.test(t.name); });
+      if(!tracks.length) return;
+      var clip=new THREE.AnimationClip(a.name,a.duration,tracks);
+      var nm=a.name.toLowerCase(); // this file names its clips 'Walk' / 'Idle'
+      if(nm==='walk') walk=mixer.clipAction(clip);
+      else if(nm==='idle') idle=mixer.clipAction(clip);
+    });
+    ped.mixer=mixer; ped.walkAct=walk; ped.idleAct=idle;
+    if(ped.arrived&&idle){ idle.play(); }
+    else if(walk){ walk.play(); }
+    else if(idle){ idle.play(); }
+    renderer.shadowMap.needsUpdate=true;
+  }
+  function spawnPed(px,pz,sideX,sideZ){
+    var grp=new THREE.Group();
+    grp.position.set(px,0,pz);
+    grp.rotation.y=Math.atan2(sideX,sideZ);
+    scene.add(grp);
+    var blob=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.62),
+      new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false,opacity:0.85}));
+    blob.rotation.x=-Math.PI/2; blob.position.y=0.013; blob.renderOrder=1; grp.add(blob);
+    var ped={grp:grp,tx:px+sideX*5.5,tz:pz+sideZ*5.5,life:0,stand:0,
+      mixer:null,walkAct:null,idleAct:null,arrived:false,model:null};
+    peds.push(ped);
+    try{
+      var ld=new THREE.GLTFLoader();
+      if(window.MeshoptDecoder) ld.setMeshoptDecoder(window.MeshoptDecoder);
+      var start=function(){ ld.load('assets/nerd.glb',function(gltf){
+        if(peds.indexOf(ped)<0) return; // he already walked off before the file landed
+        try{ buildNerd(ped,gltf); }catch(e){ ErrorGuard.report(e,'nerd-build'); nerdFallback(ped); }
+      },undefined,function(){ nerdFallback(ped); }); };
+      if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(start,start);
+      else start();
+    }catch(e){ nerdFallback(ped); }
+  }
+  // warm the cache: one throwaway load at boot so the first
+  // driver's clone arrives instantly (AssetSystem dedupes it)
+  try{
+    var warm=new THREE.GLTFLoader();
+    if(window.MeshoptDecoder) warm.setMeshoptDecoder(window.MeshoptDecoder);
+    var warmStart=function(){ warm.load('assets/nerd.glb',function(){},undefined,function(){}); };
+    if(window.MeshoptDecoder&&window.MeshoptDecoder.ready) window.MeshoptDecoder.ready.then(warmStart,warmStart);
+    else warmStart();
+  }catch(e){ /* the first steal just loads it live instead */ }
   function stealPrius(p){
     if(p.state!=='traffic') return;
     p.state='stolen'; p.speed=0;
     if(p.col){ var ci=colliders.indexOf(p.col); if(ci>=0) colliders.splice(ci,1); p.col=null; }
     if(p.driver) p.driver.visible=false;
-    var gp=p.group.position, h=p.heading;
-    // the driver steps out of the driver's side and walks off
-    var sx=Math.cos(h), sz=-Math.sin(h);
-    spawnPed(gp.x+sx*1.1,gp.z+sz*1.1,sx,sz);
-    toast('The driver steps out — the Prius is yours.',2600);
+    /* v41: the driver gets out ONCE per car — the first steal
+       only. driverOut is set the moment he steps out and is
+       never cleared, so no path (re-steal, re-enter, a state
+       hiccup) can ever produce a second driver from this car,
+       and the seat stays empty from then on. */
+    if(!p.driverOut){
+      p.driverOut=true;
+      var gp=p.group.position, h=p.heading;
+      // the driver steps out of the driver's side and walks off
+      var sx=Math.cos(h), sz=-Math.sin(h);
+      spawnPed(gp.x+sx*1.1,gp.z+sz*1.1,sx,sz);
+      toast('The driver steps out — the Prius is yours.',2600);
+    }
     DriveSystem.enter(p);
   }
   function makePrius(i){
@@ -4336,7 +4737,7 @@ var TrafficSystem=(function(){
       wheelFL:built.wheelFL, wheelFR:built.wheelFR,
       spec:{id:'prius',name:'Toyota Prius',short:'Prius',W:1.76,L:4.64,idleHz:50,crankHz:27},
       loop:loop, wp:i%loop.length, heading:0, speed:5, state:'traffic', engineOn:false, _audio:null, stealIt:null,
-      blockTime:0, col:null };
+      blockTime:0, col:null, driverOut:false };
     // when the real Prius model lands, buildPrius empties the
     // shared spinWheels array itself; the steer refs are copied
     // values, so it calls back here to null them on p as well
@@ -4383,8 +4784,8 @@ var TrafficSystem=(function(){
       // the rotated body (half extents W/2+0.08 by L/2+0.08,
       // projected onto the axes)
       if(p.col){
-        var ahx=Math.abs(Math.cos(p.heading))*0.96+Math.abs(Math.sin(p.heading))*2.40;
-        var ahz=Math.abs(Math.sin(p.heading))*0.96+Math.abs(Math.cos(p.heading))*2.40;
+        var ahx=Math.abs(Math.cos(p.heading))*0.92+Math.abs(Math.sin(p.heading))*2.36;
+        var ahz=Math.abs(Math.sin(p.heading))*0.92+Math.abs(Math.cos(p.heading))*2.36;
         p.col.minX=gp.x-ahx; p.col.maxX=gp.x+ahx; p.col.minZ=gp.z-ahz; p.col.maxZ=gp.z+ahz;
       }
       if(p.state!=='traffic') continue;
@@ -4453,21 +4854,32 @@ var TrafficSystem=(function(){
     // pedestrians: the drivers who got out, walking to the sidewalk
     for(i=peds.length-1;i>=0;i--){
       var ped=peds[i]; ped.life+=dt;
+      if(ped.mixer) ped.mixer.update(dt); // his own walk/idle clips (v41)
       var pdx2=ped.tx-ped.grp.position.x, pdz2=ped.tz-ped.grp.position.z;
       var pd2=Math.sqrt(pdx2*pdx2+pdz2*pdz2);
       if(pd2>0.3){
         ped.grp.position.x+=pdx2/pd2*1.35*dt;
         ped.grp.position.z+=pdz2/pd2*1.35*dt;
-        ped.grp.position.y=Math.abs(Math.sin(ped.life*7))*0.03;
+        if(!ped.mixer) ped.grp.position.y=Math.abs(Math.sin(ped.life*7))*0.03; // the capsule fallback bobs; the real walk clip has its own
         ped.grp.rotation.y=Math.atan2(pdx2,pdz2);
-      } else { ped.stand+=dt; ped.grp.position.y=0; }
-      if(ped.life>26||ped.stand>9){ scene.remove(ped.grp); peds.splice(i,1); }
+      } else {
+        ped.stand+=dt; ped.grp.position.y=0;
+        if(!ped.arrived){
+          ped.arrived=true;
+          if(ped.walkAct&&ped.idleAct){ ped.walkAct.fadeOut(0.3); ped.idleAct.reset().fadeIn(0.3).play(); }
+        }
+      }
+      if(ped.life>26||ped.stand>9){
+        if(ped.mixer) ped.mixer.stopAllAction();
+        scene.remove(ped.grp); peds.splice(i,1);
+      }
     }
   }
   return {
     update:update,
     steal:stealPrius,
-    vehicles:function(){ return priuses; }
+    vehicles:function(){ return priuses; },
+    peds:function(){ return peds; }
   };
 })();
 
@@ -4499,11 +4911,25 @@ var DriveSystem={
     }
     return -1;
   },
-  _dropCollider:function(veh){ var i=this._findCollider(veh); if(i>=0) colliders.splice(i,1); },
+  _dropCollider:function(veh){
+    // v41: a collider this system dropped is tracked on the
+    // vehicle and removed by identity — the old scan matched
+    // on width, which a heading-aware box no longer guarantees
+    if(veh._parkCol){ var i=colliders.indexOf(veh._parkCol); if(i>=0) colliders.splice(i,1); veh._parkCol=null; return; }
+    var j=this._findCollider(veh); if(j>=0) colliders.splice(j,1);
+  },
   _parkCollider:function(veh){
     this._dropCollider(veh);
-    var gp=veh.group.position, s=veh.spec;
-    colliders.push({minX:gp.x-(s.W/2+0.08),maxX:gp.x+(s.W/2+0.08),minZ:gp.z-(s.L/2+0.08),maxZ:gp.z+(s.L/2+0.08)});
+    var gp=veh.group.position, s=veh.spec, h=veh.group.rotation.y;
+    // v41: the parked box follows the car's heading (the old
+    // box ignored it, so a car parked diagonally wore a box
+    // that matched nothing — its corners stuck out of the
+    // collider on one side and the collider stuck out of the
+    // car on the other, and both read as invisible walls)
+    var ch=Math.abs(Math.cos(h)), sh=Math.abs(Math.sin(h));
+    var ahx=ch*(s.W/2+0.04)+sh*(s.L/2+0.04), ahz=sh*(s.W/2+0.04)+ch*(s.L/2+0.04);
+    veh._parkCol={minX:gp.x-ahx,maxX:gp.x+ahx,minZ:gp.z-ahz,maxZ:gp.z+ahz};
+    colliders.push(veh._parkCol);
   },
   enter:function(veh){
     if(this.driving||!veh) return;
@@ -4567,24 +4993,65 @@ var DriveSystem={
     if(Math.abs(sp)>0.02) this.heading+=(sp/2.7)*Math.tan(steerA)*dt;
     var h=this.heading;
     gp.x+=Math.sin(h)*sp*dt; gp.z+=Math.cos(h)*sp*dt;
-    var r=1.12, hit=false, i, b;
-    for(i=0;i<colliders.length;i++){
-      b=colliders[i];
-      if(gp.x>b.minX-r&&gp.x<b.maxX+r&&gp.z>b.minZ-r&&gp.z<b.maxZ+r){
-        var pl=gp.x-(b.minX-r), pr=(b.maxX+r)-gp.x, pb=gp.z-(b.minZ-r), pf=(b.maxZ+r)-gp.z;
-        var m=Math.min(pl,pr,pb,pf);
-        if(m===pl)gp.x=b.minX-r; else if(m===pr)gp.x=b.maxX+r;
-        else if(m===pb)gp.z=b.minZ-r; else gp.z=b.maxZ+r;
-        hit=true;
+    /* v41 collision — the car is TWO circles, not one. The old
+       model ran a single r=1.12 circle at the centre: wider
+       than the car (so it stopped at invisible walls beside
+       the body) yet 1.2 m shorter than it at each end (so the
+       nose and tail poked into obstacles and the min-axis
+       push-out snapped the car back out), and ANY contact cut
+       the speed to 45% every frame — grinding along a wall or
+       squeezing past a parked car bled the car to a stop and
+       felt like getting stuck. Now: one circle per axle line
+       at ±(L/2−1.05) with r = W/2+0.05, hugging the real body,
+       each pushed out of every collider along the true
+       closest-point normal (min-axis only when a centre lands
+       inside a box), two relaxation passes so corners settle
+       instead of popping. Speed is only taxed by the part of
+       the push that opposes the motion — a head-on hit costs
+       half, a side scrape or a nudge from behind costs
+       nothing, so the car slides along walls and threads gaps
+       instead of wedging on them. */
+    var fx=Math.sin(h), fz=Math.cos(h);
+    var cr=veh.spec.W/2+0.05, coff=Math.max(0.8,veh.spec.L/2-1.05);
+    var pushX=0, pushZ=0, hit=false, i, b, pass, oi;
+    for(pass=0;pass<2;pass++){
+      for(oi=0;oi<2;oi++){
+        var sgn=oi===0?1:-1;
+        var cxp=gp.x+fx*coff*sgn, czp=gp.z+fz*coff*sgn;
+        for(i=0;i<colliders.length;i++){
+          b=colliders[i];
+          if(cxp<b.minX-cr||cxp>b.maxX+cr||czp<b.minZ-cr||czp>b.maxZ+cr) continue;
+          var nx=Math.max(b.minX,Math.min(cxp,b.maxX)), nz=Math.max(b.minZ,Math.min(czp,b.maxZ));
+          var ddx=cxp-nx, ddz=czp-nz, d2=ddx*ddx+ddz*ddz;
+          if(d2>=cr*cr) continue;
+          var mx=0, mz=0;
+          if(d2>0.000001){
+            var dd=Math.sqrt(d2), pu=(cr-dd)/dd;
+            mx=ddx*pu; mz=ddz*pu;
+          } else {
+            // the circle's centre is inside the box: leave by
+            // the shallowest face
+            var pl=cxp-(b.minX-cr), pr=(b.maxX+cr)-cxp, pb=czp-(b.minZ-cr), pf=(b.maxZ+cr)-czp;
+            var m=Math.min(pl,pr,pb,pf);
+            if(m===pl)mx=-pl; else if(m===pr)mx=pr; else if(m===pb)mz=-pb; else mz=pf;
+          }
+          gp.x+=mx; gp.z+=mz; cxp+=mx; czp+=mz; pushX+=mx; pushZ+=mz; hit=true;
+        }
       }
     }
     var tv=TrafficSystem.vehicles();
     for(i=0;i<tv.length;i++){
       var q=tv[i]; if(q===veh||q.state!=='traffic') continue;
       var qx=gp.x-q.group.position.x, qz=gp.z-q.group.position.z, qd=Math.sqrt(qx*qx+qz*qz);
-      if(qd<2.7&&qd>0.001){ gp.x=q.group.position.x+qx/qd*2.7; gp.z=q.group.position.z+qz/qd*2.7; hit=true; }
+      if(qd<2.7&&qd>0.001){
+        var qpx=q.group.position.x+qx/qd*2.7-gp.x, qpz=q.group.position.z+qz/qd*2.7-gp.z;
+        gp.x+=qpx; gp.z+=qpz; pushX+=qpx; pushZ+=qpz; hit=true;
+      }
     }
-    if(hit) this.speed*=0.45;
+    if(hit){
+      var vn=(pushX*fx+pushZ*fz)*(sp<0?-1:1); // the push measured against the way the car is actually travelling
+      if(vn<0) this.speed*=0.55; // head-on costs speed; a scrape costs nothing
+    }
     gp.x=Math.max(-70.6,Math.min(70.6,gp.x));
     gp.z=Math.max(-9.3,Math.min(98.6,gp.z));
     gp.y=0;
@@ -4638,6 +5105,7 @@ cars.forEach(function(car){
 /* Headless verification hook, same spirit as __GARAGE_PERF__:
    the probe drives, steals and parks through here. */
 window.__DRIVE__={drive:DriveSystem,traffic:TrafficSystem};
+window.__CLUB__={sys:ClubSystem,fx:CLUB_FX}; // headless verification hook, same spirit as __DRIVE__
 
 /* ================= PLAYER ================= */
 var player={x:0.4,z:7.6,yaw:0.12,pitch:-0.04};
@@ -5016,6 +5484,7 @@ function step(dt,t){
   SimulationSystem.guard('traffic',function(){ TrafficSystem.update(dt); }); // v38: NPC Priuses + their drivers, guarded like every actor
   SimulationSystem.guard('bay-doors',function(){ DriveSystem.updateDoors(dt); }); // v38: the roll-up doors breathe with proximity
   SimulationSystem.guard('alina',function(){ FollowerSystem.update(dt); }); // v27: the follower steps with the player, guarded like every actor
+  SimulationSystem.guard('club',function(){ ClubSystem.update(dt); }); // v41: the club dancer + the room's moving light, guarded like every actor
 }
 
 buildAtmosphere();
