@@ -2733,8 +2733,8 @@ function buildApartment(){
   var wallMat=new THREE.MeshStandardMaterial({map:aptWallTex,color:0xf5efe4,roughness:0.95});
   var ceilMat=new THREE.MeshStandardMaterial({color:0xf4f1ec,roughness:0.95});
   var trimMat=new THREE.MeshStandardMaterial({color:0xf7f3ea,roughness:0.6});
-  var fabric=new THREE.MeshStandardMaterial({map:fabricTex,color:0x99a0a8,roughness:1});
-  var fabricLight=new THREE.MeshStandardMaterial({map:fabricTex,color:0xb4b9be,roughness:1});
+  var fabric=new THREE.MeshStandardMaterial({map:fabricTex,color:0x80878f,roughness:1});
+  var fabricLight=new THREE.MeshStandardMaterial({map:fabricTex,color:0x9ea5ac,roughness:1});
   var fabricDark=new THREE.MeshStandardMaterial({map:fabricTex,color:0x565b62,roughness:1});
   var rust=new THREE.MeshStandardMaterial({map:fabricTex,color:0xd2691e,roughness:0.9});
   var darkWood=new THREE.MeshStandardMaterial({color:0x4a3421,roughness:0.6,envMapIntensity:0.7});
@@ -2764,8 +2764,8 @@ function buildApartment(){
   box(10.9,0.07,0.03,trimMat,0,2.66,-25.22,false); box(10.9,0.07,0.03,trimMat,0,2.66,-32.78,false);
   box(0.03,0.07,7.9,trimMat,-5.48,2.66,-29,false); box(0.03,0.07,7.9,trimMat,5.48,2.66,-29,false);
   // ceiling light fixture + the room's one base light
-  var fixMat=new THREE.MeshStandardMaterial({color:0xf8f4e8,emissive:0xffe9c4,emissiveIntensity:1.6,roughness:0.5});
-  box(1.7,0.06,0.55,fixMat,0,2.68,-29);
+  var fixMat=new THREE.MeshStandardMaterial({color:0xf8f4e8,emissive:0xffe9c4,emissiveIntensity:1.25,roughness:0.5});
+  box(1.45,0.06,0.48,fixMat,0,2.68,-29);
   var aptLight=new THREE.PointLight(0xffd9b0,16,14,1.8); aptLight.position.set(0,2.4,-29); scene.add(aptLight);
   // v31: the window — a real framed opening onto the 3D city.
   // Dark-wood frame bars sit in the opening's depth, a centre
@@ -2783,8 +2783,8 @@ function buildApartment(){
   glass.position.set(1.6,1.65,-32.9); scene.add(glass);
   buildCitySkyline();
   var curtain=new THREE.MeshStandardMaterial({map:fabricTex,color:0x8a6a58,roughness:1});
-  box(0.42,1.8,0.07,curtain,-0.18,1.6,-32.68);
-  box(0.42,1.8,0.07,curtain,3.38,1.6,-32.68);
+  box(0.42,1.8,0.07,curtain,-0.08,1.6,-32.68);
+  box(0.42,1.8,0.07,curtain,3.30,1.6,-32.68);
   // v25 window light: a cool city-glow spill pooled on the floor
   // in front of the window + one dim point light to sell it. The
   // light is a scene child at z < -20, so zone culling switches
@@ -2793,10 +2793,19 @@ function buildApartment(){
     new THREE.MeshBasicMaterial({map:glowTex,color:0x7d9fc9,transparent:true,opacity:0.10,depthWrite:false,blending:THREE.AdditiveBlending}));
   spill.rotation.x=-Math.PI/2; spill.position.set(1.6,0.02,-31.4); spill.renderOrder=3; scene.add(spill);
   var winLight=new THREE.PointLight(0x9db8e8,3,6.5,1.8); winLight.position.set(1.6,1.8,-31.8); scene.add(winLight);
-  // living area: rug, couch facing the TV on the east wall
-  // (the rug and TV stand sit 0.1 m north of their old spots so
-  // the bedroom partition below never clips them)
-  box(3.4,0.02,2.6,new THREE.MeshStandardMaterial({map:rugTex,roughness:1}),3.55,0.011,-28.9);
+  // living area: rug, couch facing the TV on the east wall.
+  // The whole set used to sit in the south-east, right in front
+  // of the bedroom doorway — and it SEALED the bedroom shut:
+  // the couch collider (east edge x 3.1) and the coffee-table
+  // collider (west edge x 3.63) left a 0.53 m slot between them,
+  // narrower than the player's 0.68 m collision diameter, and
+  // the couch's south edge stopped 0.1 m short of the partition,
+  // so there was no way around either. The set now lives on the
+  // WEST side of the room (the other corner from the bedroom),
+  // backed toward the kitchen island like an open-plan divider,
+  // still facing the TV on the east wall — and the whole
+  // south-east approach to the bedroom doorway is open floor.
+  box(3.4,0.02,2.6,new THREE.MeshStandardMaterial({map:rugTex,roughness:1}),1.35,0.011,-28.9);
   box(0.5,0.42,2.6,darkWood,5.18,0.21,-28.9); addCollider(5.18,-28.9,0.3,1.35); // TV stand
   box(0.07,1.1,2.0,black,5.44,1.3,-28.9); // TV body
   APT.tvMat=new THREE.MeshStandardMaterial({map:aptTvTex,emissive:0xffffff,emissiveMap:aptTvTex,emissiveIntensity:0.06,color:0x2a2a2a,roughness:0.25});
@@ -2804,20 +2813,26 @@ function buildApartment(){
   box(0.24,0.34,0.24,black,5.18,0.59,-27.85); // speakers + receiver (the stereo)
   box(0.24,0.34,0.24,black,5.18,0.59,-29.95);
   box(0.4,0.09,0.5,black,5.18,0.47,-28.9);
-  box(0.85,0.12,2.2,fabricDark,2.55,0.06,-29); // the couch
-  box(0.95,0.38,2.3,fabric,2.55,0.31,-29);
-  box(0.8,0.16,1.05,fabricLight,2.6,0.56,-29.55);
-  box(0.8,0.16,1.05,fabricLight,2.6,0.56,-28.45);
-  box(0.24,0.62,2.3,fabric,2.14,0.78,-29);
-  box(0.14,0.45,1.05,fabricLight,2.31,0.83,-29.55);
-  box(0.14,0.45,1.05,fabricLight,2.31,0.83,-28.45);
-  box(0.95,0.28,0.22,fabric,2.55,0.64,-30.14);
-  box(0.95,0.28,0.22,fabric,2.55,0.64,-27.86);
-  box(0.36,0.36,0.13,rust,2.42,0.8,-29.92);
-  addCollider(2.55,-29,0.55,1.2);
-  box(0.55,0.05,1.15,darkWood,3.95,0.36,-29); // coffee table
-  box(0.5,0.04,1.05,darkWood,3.95,0.12,-29);
-  addCollider(3.95,-29,0.32,0.62);
+  box(0.85,0.12,2.2,fabricDark,0.35,0.06,-29); // the couch
+  box(0.95,0.38,2.3,fabric,0.35,0.31,-29);
+  box(0.8,0.16,1.05,fabricLight,0.4,0.56,-29.55);
+  box(0.8,0.16,1.05,fabricLight,0.4,0.56,-28.45);
+  box(0.24,0.62,2.3,fabric,-0.06,0.78,-29);
+  box(0.14,0.45,1.05,fabricLight,0.11,0.83,-29.55);
+  box(0.14,0.45,1.05,fabricLight,0.11,0.83,-28.45);
+  box(0.95,0.28,0.22,fabric,0.35,0.64,-30.14);
+  box(0.95,0.28,0.22,fabric,0.35,0.64,-27.86);
+  box(0.36,0.36,0.13,rust,0.22,0.8,-29.92);
+  addCollider(0.35,-29,0.55,1.2);
+  box(0.55,0.05,1.15,darkWood,1.75,0.36,-29); // coffee table
+  box(0.5,0.04,1.05,darkWood,1.75,0.12,-29);
+  // four legs — the top and shelf used to float 0.1 m over the
+  // rug with nothing under them, the first thing the entry view
+  // showed. Legs run floor -> shelf -> top at the corners.
+  [[1.53,-29.47],[1.97,-29.47],[1.53,-28.53],[1.97,-28.53]].forEach(function(lg){
+    box(0.05,0.34,0.05,darkWood,lg[0],0.17,lg[1],false);
+  });
+  addCollider(1.75,-29,0.32,0.62);
   // kitchen run along the west wall: cabinets, counter, stove, sink, fridge
   box(0.62,0.86,4.2,cabinet,-5.16,0.43,-29.7);
   box(0.68,0.05,4.26,counter,-5.16,0.885,-29.7);
@@ -2856,40 +2871,66 @@ function buildApartment(){
   // apartment — it has its own room in the south-east corner,
   // walled off from the kitchen/living space by two partition
   // walls with a doorway between the living room and the bed.
-  //   west partition:  x=2.7, from the south wall (z -32.8) up
+  //   west partition:  x=2.3, from the south wall (z -32.8) up
   //     to z -30.3. It lands east of the window's west portion,
   //     so the bedroom keeps the window's east panes and the
   //     nightstand corner; the living room keeps the rest.
   //   north partition: z=-30.3, from x 3.85 to the east wall,
-  //     leaving a 1.15 m doorway gap (x 2.7..3.85) at its west
+  //     leaving a 1.55 m doorway gap (x 2.3..3.85) at its west
   //     end — walk in past the bed's foot, then down the west
   //     side of the bed to the nightstand.
-  // The bed itself shifts 0.15 m east (centre x 4.45) so the
-  // gap between its west edge (3.6) and the west partition
-  // (2.76) is a real walkable bedside corridor for the player
-  // (r 0.34) and for Alina (r 0.30) alike.
-  box(1.7,0.28,2.2,darkWood,4.45,0.14,-31.55);
-  box(1.7,0.85,0.08,darkWood,4.45,0.55,-32.68);
-  box(1.6,0.2,2.1,new THREE.MeshStandardMaterial({color:0xf0ece2,roughness:0.95}),4.45,0.38,-31.5);
-  box(1.64,0.07,1.35,new THREE.MeshStandardMaterial({map:blanketTex,roughness:0.95}),4.45,0.5,-31.05);
-  box(0.62,0.12,0.4,new THREE.MeshStandardMaterial({color:0xfaf7f0,roughness:0.95}),4.03,0.53,-32.35);
-  box(0.62,0.12,0.4,new THREE.MeshStandardMaterial({color:0xfaf7f0,roughness:0.95}),4.87,0.53,-32.35);
-  addCollider(4.45,-31.55,0.9,1.15);
+  // The doorway was widened (partition 2.7 -> 2.3) and the bed
+  // nudged east (centre 4.45 -> 4.55) after measuring the old
+  // slot: between the west partition's collider and the bed
+  // collider's NW corner, the player's centre had a 0.11 m
+  // slot to thread — a knife-edge that read as "the bedroom is
+  // blocked". The slot is now ~0.6 m of centre travel, and the
+  // bedside corridor between the partition's east face (2.36)
+  // and the bed's west edge (3.7) is a real 1.34 m walkway for
+  // the player (r 0.34) and for Alina (r 0.30) alike.
+  box(1.7,0.28,2.2,darkWood,4.55,0.14,-31.55);
+  box(1.7,0.85,0.08,darkWood,4.55,0.55,-32.68);
+  box(1.6,0.2,2.1,new THREE.MeshStandardMaterial({color:0xf0ece2,roughness:0.95}),4.55,0.38,-31.5);
+  box(1.64,0.07,1.35,new THREE.MeshStandardMaterial({map:blanketTex,roughness:0.95}),4.55,0.5,-31.05);
+  // the two pillows MEET at x 4.55 (centres 4.27 / 4.83, 0.56
+  // wide) — the old pair left a 0.22 m gap at 4.44..4.66, which
+  // is exactly where her head lands (root 4.55, head centre
+  // ~4.47): she slept wedged in the crack between them, face
+  // down at mattress level with a pillow cliff on each side.
+  // Butted together, the pair reads as one unbroken pillow run
+  // and her head rests ON it wherever it lands.
+  box(0.56,0.11,0.38,new THREE.MeshStandardMaterial({color:0xfaf7f0,roughness:0.95}),4.27,0.53,-32.35);
+  box(0.56,0.11,0.38,new THREE.MeshStandardMaterial({color:0xfaf7f0,roughness:0.95}),4.83,0.53,-32.35);
+  addCollider(4.55,-31.55,0.9,1.15);
   // the partitions themselves (same plaster as the shell walls)
-  box(0.12,2.7,2.5,wallMat,2.7,1.35,-31.55,false); addCollider(2.7,-31.55,0.06,1.25);
+  box(0.12,2.7,2.5,wallMat,2.3,1.35,-31.55,false); addCollider(2.3,-31.55,0.06,1.25);
   box(1.65,2.7,0.12,wallMat,4.675,1.35,-30.3,false); addCollider(4.675,-30.3,0.825,0.06);
   // baseboards on the partition faces, matching the shell trim
-  box(0.03,0.11,2.44,trimMat,2.79,0.055,-31.55,false); box(0.03,0.11,2.44,trimMat,2.61,0.055,-31.55,false);
+  box(0.03,0.11,2.44,trimMat,2.39,0.055,-31.55,false); box(0.03,0.11,2.44,trimMat,2.21,0.055,-31.55,false);
   box(1.59,0.11,0.03,trimMat,4.675,0.055,-30.39,false); box(1.59,0.11,0.03,trimMat,4.675,0.055,-30.21,false);
-  // the doorway: trim jamb + header on the gap's east edge, and
-  // the bedroom door itself, swung open flat against the
-  // living-room side of the north partition
+  // the doorway: trim jambs on both edges + a header, and the
+  // bedroom door FIXED OPEN, outward, for good. It is a static
+  // slab hinged at the doorway's east jamb (x 3.85) and swung a
+  // full 180° out into the living room, lying flat against the
+  // north partition's living-room face (slab x 3.87..4.93, its
+  // back 5 mm off the plaster) — it never crosses the gap, it
+  // has no collider, and nothing in the game ever moves it, so
+  // the doorway (x 2.3..3.85) is permanently clear. Panel
+  // insets, brass hinges at the jamb edge and the knob at the
+  // FREE edge (x 4.86) make it read as a door at rest, not a
+  // wall panel.
   box(0.1,2.15,0.18,trimMat,3.85,1.075,-30.3,false);
-  box(1.25,0.1,0.18,trimMat,3.27,2.15,-30.3,false);
-  box(0.92,2.08,0.045,darkWood,4.32,1.06,-30.17,false);
-  var bedKnob=new THREE.Mesh(new THREE.SphereGeometry(0.04,12,10),
-    new THREE.MeshStandardMaterial({color:0xc9a24d,roughness:0.25,metalness:1,envMapIntensity:1.3}));
-  bedKnob.position.set(3.93,1.02,-30.12); scene.add(bedKnob);
+  box(0.1,2.15,0.18,trimMat,2.32,1.075,-30.3,false);
+  box(1.7,0.1,0.18,trimMat,3.08,2.15,-30.3,false);
+  var bedDoorPanel=new THREE.MeshStandardMaterial({color:0x6b4a2f,roughness:0.5,envMapIntensity:0.85});
+  var bedDoorBrass=new THREE.MeshStandardMaterial({color:0xc9a24d,roughness:0.25,metalness:1,envMapIntensity:1.3});
+  box(1.06,2.06,0.045,darkWood,4.40,1.05,-30.205,false);
+  box(0.78,0.74,0.02,bedDoorPanel,4.40,1.52,-30.175,false); // raised panels on the living-room face
+  box(0.78,0.62,0.02,bedDoorPanel,4.40,0.52,-30.175,false);
+  box(0.03,0.13,0.018,bedDoorBrass,3.885,0.45,-30.17,false); // hinges at the jamb edge
+  box(0.03,0.13,0.018,bedDoorBrass,3.885,1.65,-30.17,false);
+  var bedKnob=new THREE.Mesh(new THREE.SphereGeometry(0.04,12,10),bedDoorBrass);
+  bedKnob.position.set(4.86,1.02,-30.13); scene.add(bedKnob);
   // the bedroom's own ceiling fixture + warm light, so the room
   // reads as its own space after dark, not a lit corner
   box(1.1,0.06,0.4,fixMat,4.1,2.68,-31.4,false);
@@ -3115,8 +3156,9 @@ var bongInter=addDecor('apt-bong',function(it){ return 'Take a hit from the bong
 /* the bed: lay Alina down / help her up. Not an objective find
    (noCount, like the doors) — the objective stays FIND ALL 13.
    FollowerSystem owns the state: layDown() moves her onto the
-   bed in the bedroom, lying on her back with her head at the
-   pillows, and her clothes come off as part of it (her GLB
+   bed in the bedroom and poses her there — reclined on her
+   back, head at the pillows, one knee bent up, one arm thrown
+   over her head — and her clothes come off as part of it (her GLB
    builds the camisole, denim shorts and shoes as their own
    meshes over the body — layDown hides exactly those, getUp
    restores them). If she isn't in the apartment with you, the
@@ -3616,7 +3658,12 @@ var FollowerSystem={
       lCalf:/^CC_Base_L_Calf_\d/,rCalf:/^CC_Base_R_Calf_\d/,
       lFoot:/^CC_Base_L_Foot_\d/,rFoot:/^CC_Base_R_Foot_\d/,
       lArm:/^CC_Base_L_Upperarm_\d/,rArm:/^CC_Base_R_Upperarm_\d/,
-      lFore:/^CC_Base_L_Forearm_\d/,rFore:/^CC_Base_R_Forearm_\d/};
+      lFore:/^CC_Base_L_Forearm_\d/,rFore:/^CC_Base_R_Forearm_\d/,
+      /* torso + head, captured for the bed pose (_applyBedPose):
+         the gait never touches these keys */
+      pelvis:/^CC_Base_Pelvis_\d/,waist:/^CC_Base_Waist_\d/,
+      spine2:/^CC_Base_Spine02_\d/,neck:/^CC_Base_NeckTwist01_\d/,
+      head:/^CC_Base_Head_\d/};
     var self=this;
     model.traverse(function(o){
       if(!o.isBone) return;
@@ -3660,11 +3707,19 @@ var FollowerSystem={
      layDown() is called by the bed interactable, and only
      succeeds while she is here in the apartment zone. She is
      placed on the bed in the bedroom: root at her feet
-     (4.45, -30.62 — the bed's centre line, just inside its
+     (4.55, -30.62 — the bed's centre line, just inside its
      foot), tipped back -90° about X so her body runs south
      along the bed with her head at the pillows (z ≈ -32.3)
      and her front facing up. Lying on top of the mattress +
-     blanket puts the root plane at y 0.50. Her clothes come
+     blanket puts the root plane at y 0.53 — the blanket's top
+     is 0.535, so she rests ON the bedding with just a whisper
+     of compression instead of sinking through it (0.50 put the
+     blanket's surface above her body plane and her legs read
+     as half-buried). Her head turn is a gentle one (neck -0.09
+     / head -0.17, halved from the first pass): the old -0.30
+     wrench, combined with her head landing in the crack
+     between the two pillows, read as strained, not seductive.
+     Her clothes come
      off as part of laying her down: the garment meshes
      collected in _build are hidden, and getUp() restores
      them exactly. While laidDown, update() holds this pose
@@ -3673,17 +3728,57 @@ var FollowerSystem={
      upright lock resumes the frame she gets up. Her spot is
      saved and restored, so getting up puts her back where
      she was standing, following as before. */
+  /* The pose itself: she does NOT lie there like a plank.
+     _applyBedPose composes a reclined pose on top of the
+     standing clip's base pose (the same baseQ * rotation
+     arithmetic _applyGait uses, on the same measured rig
+     axes: local X pitches a limb fore/aft, Z sways it
+     sideways, Y twists it). The root also lies at a slight
+     diagonal with a whisper of roll, and the bones do the
+     rest: her room-side arm is thrown up over her head onto
+     the pillow with the forearm folded down beside her
+     head, her other forearm rests folded across her
+     stomach, one knee is bent up with the foot tucked in
+     flat on the bed, the other leg lies long with a soft
+     knee and a pointed foot, her hips roll a touch, her
+     back arches a fraction, and her head turns toward the
+     room. Angles are [pitch X, twist Y, sway Z] in radians;
+     applied in layDown() and re-asserted every frame by
+     update()'s laidDown branch, so the pose holds exactly
+     until getUp() hands her back to the clip. */
+  _bedPose:{
+    pelvis:[-0.03,0,0.05], waist:[-0.05,0,0], spine2:[-0.04,-0.05,0],
+    neck:[0,-0.09,-0.03], head:[0,-0.17,-0.05],
+    rArm:[2.55,0,-0.28], rFore:[1.15,0,0],
+    lArm:[0.48,0,0.16], lFore:[1.30,0,0],
+    lThigh:[0.95,0,0.12], lCalf:[-2.05,0,0], lFoot:[0.45,0,0],
+    rThigh:[0.10,0,-0.09], rCalf:[-0.14,0,0], rFoot:[0.38,0,0]
+  },
+  _q2:new THREE.Quaternion(), _yAxis:new THREE.Vector3(0,1,0), _zAxis:new THREE.Vector3(0,0,1),
+  _applyBedPose:function(){
+    if(!this.bones||!this.baseQ) return;
+    var B=this.bones, Q=this.baseQ, sq=this._swingQ, q2=this._q2;
+    for(var k in this._bedPose){
+      var b=B[k], base=Q[k]; if(!b||!base) continue;
+      var a=this._bedPose[k];
+      b.quaternion.copy(base);
+      if(a[0]){ sq.setFromAxisAngle(this._xAxis,a[0]); b.quaternion.multiply(sq); }
+      if(a[1]){ q2.setFromAxisAngle(this._yAxis,a[1]); b.quaternion.multiply(q2); }
+      if(a[2]){ q2.setFromAxisAngle(this._zAxis,a[2]); b.quaternion.multiply(q2); }
+    }
+  },
   layDown:function(){
     if(!this.ready||!this.root||this.laidDown) return false;
     if(this.z>=-20) return false; // she has to be in the apartment
     this._saved={x:this.x,z:this.z,yaw:this.yaw};
     this.laidDown=true; this.following=false; this.moving=false;
     this.gaitAmp=0; this.speedNow=0;
-    this.x=4.45; this.z=-30.62;
+    this.x=4.55; this.z=-30.62;
     for(var i=0;i<this.clothing.length;i++) this.clothing[i].visible=false;
     if(this.blob) this.blob.visible=false;
-    this.root.position.set(this.x,0.50,this.z);
-    this.root.rotation.set(-Math.PI/2,0,0);
+    this.root.position.set(this.x,0.53,this.z);
+    this.root.rotation.set(-Math.PI/2,0.10,0.05); // a slight diagonal + roll — posed, not planked
+    this._applyBedPose();
     return true;
   },
   getUp:function(){
@@ -3751,9 +3846,10 @@ var FollowerSystem={
   update:function(dt){
     if(!this.ready||!this.root) return;
     if(this.laidDown){
-      // in bed: hold the lying pose, nothing else simulates
-      this.root.position.set(this.x,0.50,this.z);
-      this.root.rotation.set(-Math.PI/2,0,0);
+      // in bed: hold the reclined pose, nothing else simulates
+      this.root.position.set(this.x,0.53,this.z);
+      this.root.rotation.set(-Math.PI/2,0.10,0.05);
+      this._applyBedPose();
       if(this.model) this.model.position.y=this.baseY;
       return;
     }
