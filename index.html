@@ -3208,39 +3208,68 @@ var BongSystem={
 };
 window.__BONG_SYS__={bong:BongSystem,high:HighSystem};
 
-/* ================= v28: FollowerSystem (Alina) =================
-   The game's ONLY girl. v28 fixes the three v27 phone defects at
-   their measured root causes:
-   - SHE SLID, NEVER WALKED: her GLB ships exactly ONE clip, a
-     22.6 s standing motion — there is no walk cycle in the asset,
-     so v27 moved her root while her legs played a standing pose.
-     v28 adds a PROCEDURAL GAIT on her own CC_Base rig: thigh /
-     calf / foot / upperarm / forearm bones get a swing rotation
-     about their local X axis composed on top of the standing
-     clip's pose every step (the swing axis and sign were measured
-     in-game on this rig: thigh rotateX +0.6 moves the foot +0.47 m
-     forward in root space, rotateZ moves it sideways). The phase
-     advances by the distance she actually travels, so her feet
-     match the ground — no slide. Amplitude envelopes to zero when
-     she stops, leaving the pure standing clip: she idles only
-     when settled. NO borrowed clip is used (the v24 retarget laid
-     her flat); the gait is arithmetic on her own bones and the
-     hard upright lock below is untouched.
-   - SHE HID BEHIND THE CAMERA: the v27 target was the single
-     point 0.55 m dead behind the player's facing with a 0.48 m
-     minimum separation — measured in-game: settled offset was
-     0.554 m behind, 0.004 m to the side, i.e. exactly on the
-     first-person camera's blind spot. The v28 target is 1.35 m
-     behind and 0.85 m to the player's RIGHT (about 1.6 m out),
-     and the hard minimum separation is 0.95 m, so she walks at
-     his right shoulder — a glance right or any turn brings her
-     into frame, and she can never park on his spine again.
-   - SHE COULD NEVER KEEP UP: one constant 1.05 m/s against the
-     player's 3.1 m/s walk meant permanent trailing. Her pace now
-     scales with the gap: a 1.45 m/s walk nearby, rising to a
-     3.5 m/s hurry when she is far behind — still no teleporting
-     and no circling: she walks straight lines to the one target
-     point, and the gait phase follows her real speed.
+/* ================= v29: FollowerSystem (Alina) =================
+   The game's ONLY girl. v29 fixes the v28 phone verdict — "she
+   looks kinda scary the way she follows me; her goal is to get
+   too close and out of sight / behind me" — at its measured root
+   cause: the v28 target still sat in the REAR half-plane, 1.35 m
+   behind the player's facing and 0.85 m right, a bearing of
+   ~148° off his view axis. A first-person camera never sees her
+   there while he walks; she only pops into frame mid-turn, and
+   her straight-line chase to a target pinned behind him meant
+   every turn swung her across his back. Settled, she also FACED
+   the player — standing behind him, staring at his back.
+   v29 moves her to his FRONT-RIGHT and keeps her there by
+   construction, not by tuning:
+   - THE SIDE SPOT: the follow target is GAP (1.25 m) out at a
+     bearing up to 45° RIGHT of his facing — beside him, shoulder
+     to shoulder, slightly ahead so she is in his view while they
+     walk. The bearing is clamped by the real frustum (from
+     camera.fov + camera.aspect, recomputed every step), so on
+     any screen — wide desktop or portrait phone — the spot stays
+     inside the frame with margin for her body width.
+   - THE CONE CLAMP: after she moves, her bearing relative to
+     his facing is hard-clamped into [-20°, +77°] every step by
+     rotating her offset around him at constant range. The rear
+     half-plane is mathematically unreachable: she cannot trail
+     behind him, circle behind him, or hide on his spine, no
+     matter how he turns. During a turn the clamp slides her
+     around his side a few centimetres per frame at most (his
+     turn rate is capped), which reads as her stepping around to
+     stay at his side.
+   - THE GAP: hard minimum separation is 1.0 m and the spot
+     itself rides 1.25 m out — she never crowds or closes in.
+   - SPEED MATCHING: her pace is the v28 gap-scaled pace floored
+     at the player's own measured speed x1.15 (cap 6.0 m/s), so
+     at his 3.1 m/s walk and his 5.1 m/s run she holds station at
+     his side instead of decaying into a trail; when he stops,
+     the target stops and she settles. She aims at an INTERCEPT
+     point — the spot led by his measured velocity over her
+     time-to-target (capped at 0.4 s) — because pure pursuit of
+     a moving side spot settles into a trailing offset behind
+     it (measured in simulation: bearing sagged 38.5° -> 53°
+     at a run, pushing her toward the frame edge); on the
+     intercept course she rides the spot itself. She still
+     walks every metre — no teleporting except the door
+     re-place below.
+   - SETTLED FACING: when she is on the spot she faces HIS
+     heading — the way a companion walking with you faces — not
+     at him. While moving she faces her walk direction, as v28.
+   Retained from v28, untouched:
+   - THE REAL WALK GAIT: her GLB ships exactly ONE clip, a 22.6 s
+     standing motion — there is no walk cycle in the asset. The
+     gait is PROCEDURAL on her own CC_Base rig: thigh / calf /
+     foot / upperarm / forearm bones get a swing rotation about
+     their local X axis composed on top of the standing clip's
+     pose every step (the swing axis and sign were measured
+     in-game on this rig: thigh rotateX +0.6 moves the foot
+     +0.47 m forward in root space, rotateZ moves it sideways).
+     The phase advances by the distance she actually travels, so
+     her feet match the ground — no slide. Amplitude envelopes to
+     zero when she stops, leaving the pure standing clip: she
+     idles only when settled. NO borrowed clip is used (the v24
+     retarget laid her flat); the gait is arithmetic on her own
+     bones and the hard upright lock below is untouched.
    - UPRIGHT, ALWAYS: the wrapper root's rotation is written by
      this module only, every step, as (0, yaw, 0) — pitch and
      roll are forced to zero and nothing else ever touches them.
@@ -3255,8 +3284,9 @@ window.__BONG_SYS__={bong:BongSystem,high:HighSystem};
 var FollowerSystem={
   ready:false, root:null, model:null, mixer:null,
   x:0.47, z:8.15, yaw:Math.PI,
-  TRAIL:1.35, SIDE:0.85, MINSEP:0.95,
+  GAP:1.25, BEARING:0.78, MINSEP:1.0,
   bones:null, baseQ:null, baseY:0, gaitPhase:0, gaitAmp:0, moving:false, speedNow:0, tx:0, tz:0,
+  _ppx:null, _ppz:0, _pSpd:0, _pvx:0, _pvz:0, _placed:false,
   load:function(){
     var self=this;
     try{
@@ -3335,19 +3365,46 @@ var FollowerSystem={
     renderer.shadowMap.needsUpdate=true;
   },
   _target:function(px,pz){
-    // behind-RIGHT of the player's facing: TRAIL back along the
-    // camera forward, SIDE along the camera right — the one spot
-    // that is near the player yet never on his blind spine line
+    // FRONT-RIGHT of the player's facing: GAP out at a bearing
+    // to his right — beside him, shoulder to shoulder, slightly
+    // ahead so she rides inside his view. The bearing wants 45°
+    // but is clamped by the real frustum (half horizontal FOV
+    // from the camera's live fov + aspect, minus ~14° so her
+    // body width fits too): on a narrow portrait screen the spot
+    // swings toward front-right rather than leaving the frame.
     var fx=-Math.sin(camYaw), fz=-Math.cos(camYaw);
     var rx=Math.cos(camYaw), rz=-Math.sin(camYaw);
-    this.tx=px-fx*this.TRAIL+rx*this.SIDE;
-    this.tz=pz-fz*this.TRAIL+rz*this.SIDE;
+    var halfH=Math.atan(Math.tan(camera.fov*Math.PI/360)*(camera.aspect||1));
+    var bear=Math.min(this.BEARING,Math.max(0.12,halfH-0.24));
+    var fwd=Math.cos(bear)*this.GAP, side=Math.sin(bear)*this.GAP;
+    this.tx=px+fx*fwd+rx*side;
+    this.tz=pz+fz*fwd+rz*side;
   },
-  _snapBehind:function(px,pz){
+  _snapToSide:function(px,pz){
     this._target(px,pz);
     this.x=this.tx; this.z=this.tz;
-    this.yaw=Math.atan2(px-this.x,pz-this.z);
+    this.yaw=camYaw+Math.PI; // face his heading, like a companion
     this._collide();
+  },
+  _clampCone:function(px,pz){
+    // the v29 guarantee, enforced every step: her bearing
+    // relative to his facing stays inside [-20°, +77°]. Outside
+    // it, her offset is rotated around him at constant range to
+    // the nearest edge — the rear half-plane (bearing beyond
+    // ±90°) can never occur, so she can never be behind him.
+    var ox=this.x-px, oz=this.z-pz;
+    var d=Math.sqrt(ox*ox+oz*oz); if(d<0.0001) return;
+    var fx=-Math.sin(camYaw), fz=-Math.cos(camYaw);
+    var rx=Math.cos(camYaw), rz=-Math.sin(camYaw);
+    var f=ox*fx+oz*fz, r=ox*rx+oz*rz;
+    var rel=Math.atan2(r,f);
+    var MAXR=1.35, MINR=-0.35;
+    if(rel>MAXR||rel<MINR){
+      var c=rel>MAXR?MAXR:MINR;
+      var nf=Math.cos(c)*d, nr=Math.sin(c)*d;
+      this.x=px+fx*nf+rx*nr;
+      this.z=pz+fz*nf+rz*nr;
+    }
   },
   _turnToward:function(target,dt){
     var d=((target-this.yaw+Math.PI*3)%(Math.PI*2))-Math.PI;
@@ -3406,32 +3463,53 @@ var FollowerSystem={
   update:function(dt){
     if(!this.ready||!this.root) return;
     var px=player.x, pz=player.z;
-    if((pz<-20)!==(this.z<-20)) this._snapBehind(px,pz); // she came through the door with him
+    /* the player's own speed, measured from his real movement
+       (a door teleport reads as a spike and is discarded): her
+       pace floor below is built from it, so she matches his walk
+       and his run instead of decaying into a trail behind him */
+    if(this._ppx===null){ this._ppx=px; this._ppz=pz; }
+    var pvx=px-this._ppx, pvz=pz-this._ppz;
+    var pInst=dt>0?Math.sqrt(pvx*pvx+pvz*pvz)/dt:0;
+    if(pInst>8){ pvx=0; pvz=0; pInst=0; }
+    var vk=Math.min(1,dt*12);
+    this._pvx+=((dt>0?pvx/dt:0)-this._pvx)*vk;
+    this._pvz+=((dt>0?pvz/dt:0)-this._pvz)*vk;
+    this._pSpd+=(pInst-this._pSpd)*vk;
+    this._ppx=px; this._ppz=pz;
+    if((pz<-20)!==(this.z<-20)||!this._placed){ this._snapToSide(px,pz); this._placed=true; } // door re-place + first placement: at his side, never behind
     this._target(px,pz);
     var dx=this.tx-this.x, dz=this.tz-this.z, dist=Math.sqrt(dx*dx+dz*dz);
     var moved=0;
-    if(dist>0.06){
-      // pace scales with the gap: an easy walk nearby, a hurry
-      // when she has real ground to make up — she still walks
-      // every metre of it, in a straight line to the one target
-      var spd=dist<1.2?1.45:Math.min(3.5,1.45+(dist-1.2)*1.1);
-      var step=Math.min(dist,spd*dt);
-      var mx=dx/dist, mz=dz/dist;
-      this.x+=mx*step; this.z+=mz*step; moved=step;
-      this._turnToward(Math.atan2(mx,mz),dt); // face where she walks
+    if(dist>0.035){
+      // pace: grows with the gap she has to close, and never
+      // drops below the player's own speed. She steers for the
+      // INTERCEPT point — the spot led by his velocity over her
+      // time-to-target — so she rides the spot instead of
+      // trailing behind it on a pursuit curve
+      var spd=Math.min(6.0,Math.max(1.5+dist*1.7,this._pSpd*1.15));
+      var lead=Math.min(0.4,dist/Math.max(1.2,spd));
+      var ax=this.tx+this._pvx*lead, az=this.tz+this._pvz*lead;
+      var adx=ax-this.x, adz=az-this.z, adist=Math.sqrt(adx*adx+adz*adz);
+      if(adist>0.0001){
+        var step=Math.min(adist,spd*dt);
+        var mx=adx/adist, mz=adz/adist;
+        this.x+=mx*step; this.z+=mz*step; moved=step;
+        this._turnToward(Math.atan2(mx,mz),dt); // face where she walks
+      }
     } else {
-      this._turnToward(Math.atan2(px-this.x,pz-this.z),dt); // settled: face the player
+      this._turnToward(camYaw+Math.PI,dt); // settled: face his heading, the way a companion walking with him faces
     }
     this.moving=moved>0.0005;
     this.speedNow=dt>0?this.speedNow+(moved/dt-this.speedNow)*Math.min(1,dt*7):0;
     // never touch, never crowd: hard minimum separation
     var sx=this.x-px, sz=this.z-pz, sd=Math.sqrt(sx*sx+sz*sz);
     if(sd<this.MINSEP&&sd>0.0001){ this.x=px+sx/sd*this.MINSEP; this.z=pz+sz/sd*this.MINSEP; }
+    this._clampCone(px,pz); // v29: the rear half-plane is forbidden, every step
     this._collide();
     this.root.position.set(this.x,0,this.z);
     this.root.rotation.set(0,this.yaw,0); // HARD UPRIGHT LOCK — pitch/roll forced to zero, every step
     var stepped=this.mixer?SimulationSystem.mixerStep(this.mixer,this.root,player,dt,3):0;
-    /* gait bookkeeping (v28): the phase advances by the distance
+    /* gait bookkeeping (v28, kept in v29): the phase advances by the distance
        she really travelled this step — stride length grows with
        speed, so her feet track the ground at a walk and at a
        hurry. The amplitude envelope opens while she moves and
