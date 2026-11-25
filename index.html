@@ -37,6 +37,10 @@
     font-size:12.5px;font-weight:600;letter-spacing:.14em;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
   #muteBtn:active{color:var(--ink);border-color:var(--amber);}
   #foundChip.pulse{animation:pulse .35s ease;}
+  /* the objective chip and the sound button are gameplay HUD:
+     while the start card is up they sit behind it on narrow
+     screens and read as clutter, so they only appear in play */
+  body:not(.playing) #foundChip, body:not(.playing) #muteBtn{display:none;}
   @keyframes pulse{40%{transform:scale(1.07);}}
 
   /* car info plate */
@@ -81,12 +85,6 @@
     background:radial-gradient(ellipse at 50% 46%,rgba(255,186,92,.10) 0%,rgba(255,140,70,.14) 55%,rgba(214,84,64,.20) 82%,rgba(122,44,96,.30) 100%);}
   #highFx .hfVig{position:absolute;inset:0;
     background:radial-gradient(ellipse at 50% 50%,transparent 46%,rgba(46,10,44,.42) 100%);}
-  #highChip{position:absolute;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
-    background:var(--plate);border:1px solid rgba(255,176,58,.55);border-radius:6px;padding:6px 13px 7px;
-    font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:14px;font-weight:600;letter-spacing:.22em;
-    color:var(--amber);display:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
-  #highChip b{color:var(--ink);letter-spacing:.08em;}
-
   /* ---------- touch controls ---------- */
   #touchUI{position:fixed;inset:0;z-index:6;pointer-events:none;display:none;}
   body.touch.playing #touchUI{display:block;}
@@ -168,7 +166,6 @@
 <div id="hud">
   <div id="highFx"><div class="hfWarm"></div><div class="hfVig"></div></div>
   <div id="crosshair"></div>
-  <div id="highChip">HIGH&nbsp; <b id="highTime">0:45</b></div>
   <div id="carPlate">
     <div class="bay" id="plateBay">BAY 3</div>
     <h2 id="plateName">Honda Civic</h2>
@@ -176,9 +173,9 @@
     <div class="note" id="plateNote"></div>
     <div class="states" id="plateStates"></div>
   </div>
-  <div id="foundChip"><span class="objLabel">OBJECTIVE · FIND ALL 13</span><span class="objCount">FOUND <b id="foundNum">0/13</b></span></div>
+  <div id="foundChip"><span class="objLabel">OBJECTIVE · FIND ALL 10</span><span class="objCount">FOUND <b id="foundNum">0/10</b></span></div>
   <button id="muteBtn" aria-label="Mute sound">SOUND ON</button>
-  <div id="prompt"><span class="key">E</span><span class="txt" id="promptTxt">Pop the hood</span></div>
+  <div id="prompt"><span class="key">E</span><span class="txt" id="promptTxt">Interact</span></div>
   <div id="toast"></div>
 </div>
 
@@ -190,16 +187,17 @@
   <button class="tbtn" id="btnInteract"><small>INTERACT</small><span id="btnInteractTxt">Open</span></button>
 </div>
 
-<div id="keysHint"><b>WASD</b> walk &nbsp;<b>Mouse</b> look &nbsp;<b>E</b> interact &nbsp;<b>Shift</b> run &nbsp;<b>Click scene</b> lock mouse</div>
+<div id="keysHint"><b>WASD</b> walk / drive &nbsp;<b>Mouse</b> look &nbsp;<b>E</b> interact / get in &amp; out &nbsp;<b>Shift</b> run &nbsp;<b>Click scene</b> lock mouse</div>
 
 <div id="startCard">
   <h1>THE <span>GARAGE</span></h1>
-  <p class="tagline">Three bays, thirteen interactions hiding in plain sight — <b>pop the hoods, flip the lights, start the engines</b>, then take the back door into <b>the apartment</b> and make yourself at home.</p>
+  <p class="tagline">Three bays, ten interactions hiding in plain sight — <b>flip the lights, start the engines</b>, then take the back door into <b>the apartment</b> and make yourself at home. Or roll up a bay door, <b>drive out into town</b>, and help yourself to a passing Prius.</p>
   <div id="lineup">
     <div class="carRow"><span class="bayNo">BAY 2</span><span class="carName">Nissan Silvia S15</span><span class="carTag">drift build</span></div>
     <div class="carRow"><span class="bayNo">BAY 3</span><span class="carName">1998 Honda Civic</span><span class="carTag">your car</span></div>
     <div class="carRow"><span class="bayNo">BAY 4</span><span class="carName">Lamborghini Gallardo</span><span class="carTag">V10</span></div>
     <div class="carRow"><span class="bayNo">DOOR</span><span class="carName">The Apartment</span><span class="carTag">back wall · 4 more finds</span></div>
+    <div class="carRow"><span class="bayNo">TOWN</span><span class="carName">The Town Outside</span><span class="carTag">drive out · steal a Prius</span></div>
   </div>
   <button id="enterBtn" disabled>LOADING&hellip;</button>
   <p class="controls"><b>WASD</b> walk &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>E</b> interact &nbsp;·&nbsp; <b>Shift</b> run &nbsp;—&nbsp; on touch, use the stick and buttons.</p>
@@ -643,9 +641,8 @@ function stopEngineAudio(car){ if(car._audio){ car._audio.stop(); car._audio=nul
    the full engine (the spec's idleHz, sub-octave weight) through a
    low lowpass — that fades in as you walk up to the car and out as
    you leave. It never doubles the real engine: while a car's
-   engine toggle is on, its proximity voice stays silent. Popping
-   a hood gets a short idle swell with a little blip, like someone
-   just woke the motor up. All of it obeys the HUD mute. ---- */
+   engine toggle is on, its proximity voice stays silent.
+   All of it obeys the HUD mute. ---- */
 var proxVoices={}, lastProxT=0, PROX=null; // PROX is wired by boot() — cars/player/started live in its scope
 function proxVoice(spec){
   if(proxVoices[spec.id]) return proxVoices[spec.id];
@@ -666,29 +663,10 @@ function updateProxAudio(t){
   if(!PROX||!AC) return;
   PROX.cars.forEach(function(car){
     var v=proxVoice(car.spec); if(!v) return;
-    var dx=PROX.player.x-car.spec.x, dz=PROX.player.z-(-2), d=Math.sqrt(dx*dx+dz*dz);
+    var dx=PROX.player.x-car.group.position.x, dz=PROX.player.z-car.group.position.z, d=Math.sqrt(dx*dx+dz*dz); // v38: cars can be driven away from their bays now — measure from where the car actually is
     var target=(!PROX.isStarted()||MUTED||car.engineOn)?0:Math.max(0,(3.6-d)/3.6)*0.05;
     v.gain.gain.setTargetAtTime(target,AC.currentTime,0.25);
   });
-}
-function hoodBlip(spec){
-  var ac=audio(); if(!ac||MUTED) return; var t=ac.currentTime;
-  var g=ac.createGain(); g.gain.value=0;
-  var lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=260; lp.Q.value=1.2;
-  lp.connect(g); g.connect(ac.destination);
-  var o=ac.createOscillator(); o.type='sawtooth'; o.frequency.value=spec.idleHz;
-  var o2=ac.createOscillator(); o2.type='square'; o2.frequency.value=spec.idleHz*0.5;
-  var og2=ac.createGain(); og2.gain.value=0.4;
-  o.connect(lp); o2.connect(og2); og2.connect(lp);
-  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.055,t+0.18);
-  o.frequency.setValueAtTime(spec.idleHz,t);
-  o.frequency.linearRampToValueAtTime(spec.idleHz*1.5,t+0.45);
-  o.frequency.linearRampToValueAtTime(spec.idleHz,t+0.9);
-  o2.frequency.setValueAtTime(spec.idleHz*0.5,t);
-  o2.frequency.linearRampToValueAtTime(spec.idleHz*0.75,t+0.45);
-  o2.frequency.linearRampToValueAtTime(spec.idleHz*0.5,t+0.9);
-  g.gain.linearRampToValueAtTime(0,t+1.05);
-  o.start(t); o2.start(t); o.stop(t+1.1); o2.stop(t+1.1);
 }
 
 /* Defer all heavy scene work until after DOMContentLoaded so the page
@@ -768,8 +746,8 @@ try{
 if(softwareGL){ renderer.setPixelRatio(0.5); renderer.shadowMap.enabled=false; }
 
 var scene=new THREE.Scene();
-scene.background=new THREE.Color(0x0b0c0e);
-scene.fog=new THREE.Fog(0x0b0c0e,17,44); // v17: a whisper closer, so the far wall falls off into depth
+scene.background=new THREE.Color(0x0d1016);
+scene.fog=new THREE.Fog(0x0d1016,30,150); // v38: pushed way out — the town beyond the bay doors needs the depth (the garage interior spans ~35 m corner to corner, so it barely feels this)
 
 var camera=new THREE.PerspectiveCamera(72,1,0.05,80);
 
@@ -1207,9 +1185,32 @@ function wall(wd,x,z,ry){
   grp.position.set(x,0,z); grp.rotation.y=ry; scene.add(grp); return grp;
 }
 wall(GAR.W,0,-GAR.D/2,0);            // back
-wall(GAR.W,0, GAR.D/2,Math.PI);      // front (garage doors)
 wall(GAR.D,-GAR.W/2,0, Math.PI/2);   // left
 wall(GAR.D, GAR.W/2,0,-Math.PI/2);   // right
+/* v38: the front wall is built from SEGMENTS, not one plane —
+   the three bay doors (x -5, 0, 5) are real openings a car can
+   drive through, with a header strip above each. The two end
+   doors (x -10, 10) stay shut forever, so the wall runs solid
+   behind them. Wall colliders (below) are what actually hold
+   the building together now that the player can walk and drive
+   out of it: interior containment comes from these boxes, and
+   the town-side clamps in collide() only fence the town edge. */
+wall(5.85,-10.075, GAR.D/2,Math.PI);
+wall(0.7,-2.5, GAR.D/2,Math.PI);
+wall(0.7, 2.5, GAR.D/2,Math.PI);
+wall(5.85, 10.075, GAR.D/2,Math.PI);
+[-5,0,5].forEach(function(hx){
+  var hd=new THREE.Mesh(new THREE.PlaneGeometry(4.3,1.3),wallMat);
+  hd.position.set(hx,4.55,GAR.D/2); hd.rotation.y=Math.PI; scene.add(hd);
+});
+addCollider(0,-GAR.D/2,13.2,0.25);            // back wall
+addCollider(-GAR.W/2,0,0.25,10.2);            // left wall
+addCollider( GAR.W/2,0,0.25,10.2);            // right wall
+addCollider(-10.075,GAR.D/2,2.925,0.25);      // front wall segments
+addCollider(-2.5,GAR.D/2,0.35,0.25);
+addCollider( 2.5,GAR.D/2,0.35,0.25);
+addCollider( 10.075,GAR.D/2,2.925,0.25);
+var bayDoors=[]; // the three working roll-up doors, filled in by the door builder below
 var ceil=new THREE.Mesh(new THREE.PlaneGeometry(GAR.W,GAR.D),
   new THREE.MeshStandardMaterial({color:0x141518,roughness:1}));
 ceil.rotation.x=Math.PI/2; ceil.position.y=GAR.H; scene.add(ceil);
@@ -1230,20 +1231,31 @@ for(var bx=-12;bx<=12;bx+=4){
    the scene — one less per-frame cost on every renderer, and the
    software audit path no longer rasterizes two additive Points
    clouds over the whole room. */
-// sectional garage doors on front wall
+// sectional garage doors on front wall — each door is a group
+// anchored at its TOP edge (y 3.9), so scaling the group rolls
+// the panel up into the header like a real roll-up door. The
+// three bay doors register in bayDoors with a collider that
+// DriveSystem swaps in and out as they open and close; the two
+// end doors never move.
 for(var di=0;di<5;di++){
   var dx=-10+di*5;
+  var dg=new THREE.Group(); dg.position.set(dx,3.9,GAR.D/2-0.07); scene.add(dg);
   var door=new THREE.Mesh(new THREE.BoxGeometry(4.3,3.9,0.1),
     new THREE.MeshStandardMaterial({color:0x30333a,roughness:0.6,metalness:0.5}));
-  door.position.set(dx,1.95,GAR.D/2-0.07); scene.add(door);
+  door.position.set(0,-1.95,0); dg.add(door);
   for(var r=1;r<5;r++){
     var groove=new THREE.Mesh(new THREE.BoxGeometry(4.3,0.035,0.02),blackTrim);
-    groove.position.set(dx,r*0.78,GAR.D/2-0.13); scene.add(groove);
+    groove.position.set(0,r*0.78-3.9,-0.06); dg.add(groove);
   }
   for(var wn=0;wn<4;wn++){
     var win=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.42,0.02),
       new THREE.MeshStandardMaterial({color:0x39434e,roughness:0.15,metalness:0.6}));
-    win.position.set(dx-1.5+wn*1.0,3.25,GAR.D/2-0.13); scene.add(win);
+    win.position.set(-1.5+wn*1.0,3.25-3.9,-0.06); dg.add(win);
+  }
+  if(dx===-5||dx===0||dx===5){
+    var dcol={minX:dx-2.15,maxX:dx+2.15,minZ:9.68,maxZ:10.32};
+    colliders.push(dcol);
+    bayDoors.push({x:dx,group:dg,t:0,blocked:true,col:dcol});
   }
 }
 // neon sign on back wall
@@ -1595,7 +1607,7 @@ function buildCar(spec){
     [1,-1].forEach(function(sd){ box(0.018,0.06,0.24,innerDarkMat,sd*(W/2-0.006),0.68,wb/2+0.52,g,false); });
   }
 
-  /* ---- doors: sealed flush panels — seam lines, pillars, handles only ---- */
+  /* ---- doors: flush panels — seam lines, pillars, handles only ---- */
   var doorLen=1.04, doorFront=cF-0.28, doorCenterZ=doorFront-doorLen/2;
   var seamMat=new THREE.MeshStandardMaterial({color:0x0a0b0d,roughness:0.85});
   [1,-1].forEach(function(side){
@@ -1699,7 +1711,7 @@ function buildCar(spec){
   }
   box(0.18,0.09,0.14,new THREE.MeshStandardMaterial({color:0xd8d4c4,roughness:0.35,transparent:true,opacity:0.85}),(W/2-0.34),belt+0.05,hoodRearZ+0.28,engineGroup,false);
 
-  /* ---- trunk: sealed flush deck, seam line only (does not open) ---- */
+  /* ---- trunk: flush deck, seam line only ---- */
   var trunkFrontZ=-L/2+0.66;
   box(W-0.5,0.012,0.014,seamMat,0,belt+0.028,trunkFrontZ,g,false);
   box(0.014,0.012,0.6,seamMat, (W/2-0.26),belt+0.01,trunkFrontZ-0.3,g,false);
@@ -1796,270 +1808,39 @@ function buildCar(spec){
 var CAR_SPECS=[
  { id:'s15', bay:2, x:-5, name:'Nissan Silvia S15', short:'S15', tag:'THE DRIFT CAR',
    spec:'SR20DET 2.0L turbo four · RWD · 5-speed',
-   note:'New in Bay 2 — the IS300 is gone. A widebody S15 drift build by Socksthecat (CC BY 4.0): red paint over a black carbon hood, GT wing, deep-dish wheels with tire lettering. Pop the hood — the SR20 is under there, turbo and all.',
+   note:'New in Bay 2 — the IS300 is gone. A widebody S15 drift build by Socksthecat (CC BY 4.0): red paint over a black carbon hood, GT wing, deep-dish wheels with tire lettering. The SR20 under there is turbocharged and all business.',
    color:0xa31616, valveColor:0x2456a6, duffelColor:0x22242a, rimColor:0xc8ccd2, spokes:5,
    L:4.45,W:1.9,wb:2.64,wr:0.33,belt:0.86,roof:1.28,tail:0.84,nose:0.6,cabinF:0.7,cabinR:-1.2,
    fourDoor:false, doorFront:0.7,
    spoiler:'wing', exhausts:[0.45], idleHz:60, crankHz:31 },
  { id:'civic', bay:3, x:0, name:'1998 Honda Civic Sedan', short:'Civic', tag:'YOUR CAR · STANCED',
    spec:'1.6L SOHC · FWD · 5-speed · real 3D model',
-   note:'Yours — and now the 4-door you actually drive: a real EK-generation Civic sedan model by blender aboba (CC BY 4.0), white on gunmetal steelies and dropped over its wheels. Doors and trunk sealed flush; the hood is the only panel that opens.',
+   note:'Yours — and now the 4-door you actually drive: a real EK-generation Civic sedan model by blender aboba (CC BY 4.0), white on gunmetal steelies and dropped over its wheels.',
    color:0xf0f1f3, valveColor:0x3a3f45, duffelColor:0x9e1b1e, rimColor:0x3a3f45, spokes:6,
    L:4.45,W:1.78,wb:2.62,wr:0.31,belt:0.88,roof:1.42,tail:0.92,nose:0.66,cabinF:0.78,cabinR:-1.3,
    fourDoor:true, archGap:0.045, camber:0.055, tuck:0.03, doorFront:0.9,
    spoiler:'lip', frontLip:true, exhausts:[0.5], idleHz:58, crankHz:30 },
  { id:'lambo', bay:4, x:5, name:'2010 Lamborghini Gallardo LP 560-4', short:'Gallardo', tag:'THE EXOTIC',
    spec:'5.2L V10 · AWD · 6-speed e-gear',
-   note:'A real Gallardo model file (Artem P, CC BY 4.0) in red clearcoat. The engine lives out back — pop the rear cover and have a look.',
+   note:'A real Gallardo model file (Artem P, CC BY 4.0) in red clearcoat — the V10 sits mid-ship under the rear glass, right where it should be.',
    color:0xb01a12, valveColor:0x1c1d20, duffelColor:0x3a3f45, rimColor:0x1c1d20, spokes:5,
    L:4.35,W:1.9,wb:2.56,wr:0.33,belt:0.78,roof:1.12,tail:0.86,nose:0.52,cabinF:0.55,cabinR:-1.05,
    doorFront:0.6,
    spoiler:'none', exhausts:[-0.4,0.4], plateX:-0.3, idleHz:68, crankHz:36 }
 ];
-/* ---- measured hood partition (v19) ----
-   The name-based hood hinges below were written for earlier
-   exports of these car files. The files that actually ship were
-   re-exported name-stripped (glTF node names like 'civ_hood' and
-   'b_hood' simply do not exist in them any more — verified by
-   parsing the shipped GLBs), so every car's hood interactable
-   animated an empty pivot and no panel ever moved. This is the
-   geometric replacement, in the same measure-don't-trust-names
-   spirit as the rest of the loaders: after a car is fitted, every
-   triangle of every substantial mesh that lies inside the car's
-   measured hood region (car space, from the fitted profile:
-   between the cowl and the nose, above the beltline, inside the
-   panel's width, facing up) is split out into a new mesh on a
-   hinge pivot at the region's cowl edge; the rest of the mesh is
-   untouched, so the panel sits dead flush when shut and lifts
-   like the procedural car's hood when open. The Gallardo's
-   region is its rear engine cover, hinged at its front edge.
-   Two hard-won details: the skip-list matches whole name TOKENS
-   (the S15's main shell is 'Mesh2_trimbl_0' — a substring test
-   for 'rim' would have excluded it), and copied attributes keep
-   their `normalized` flag — these files are KHR_mesh_quantization
-   int16, and an unflagged copy renders 32767x too big. Regions
-   and hinge points were validated offline against the decoded
-   files (panel sizes: Civic 1.24x1.46 m, S15 1.34x1.52 m,
-   Gallardo cover 1.65x1.16 m; closed car bboxes unchanged).
-   v23 — the panel is a SHELL, and the v19 test cut only its
-   skin. "In the box + facing up" took the outer skin and left
-   the panel's inner stamping behind, still covering the bay,
-   while flat bay-top hardware that happened to face up (inner
-   fender tops, core-support sheets) rode up with the skin —
-   opening a hood read as the engine bay flipped onto the
-   underside of the hood (Collin's report, confirmed by
-   rendering the decoded files offline: with the old set
-   removed, a complete hood-shaped stamping still sealed the
-   Civic's bay). The set is now built from the car's own top
-   surface: a heightfield over the whole model (car space)
-   marks the outer skin (box + facing up + within 4.5 cm of the
-   surface = seeds); the hood is the seeds plus every triangle
-   inside the seeds' footprint within 6 cm of that surface,
-   whatever it faces — skin, stamping and hems together. Bay
-   hardware sits deeper than the band and stays in the bay;
-   the Gallardo's taillight glass, surface-high but outside
-   the cover's footprint, stays on the body. Verified offline
-   per car: the lifted set is one thin panel sheet, and with
-   it removed each bay stands open (the Civic's real engine,
-   the Gallardo's real V10). */
-var HOOD_SKIP_TOKENS={tire:1,tyre:1,wheel:1,rim:1,engine:1,rotor:1,calip:1,caliper:1,brake:1};
-function partitionHood(car,model,region){
-  var g=car.group;
-  g.updateMatrixWorld(true);
-  var inv=new THREE.Matrix4().copy(g.matrixWorld).invert(); // world -> car space
-  var hoodMeshes=[];
-  var vA=new THREE.Vector3(),vB=new THREE.Vector3(),vC=new THREE.Vector3();
-  var e1=new THREE.Vector3(),e2=new THREE.Vector3(),nrm=new THREE.Vector3(),cen=new THREE.Vector3();
-  var meshes=[];
-  model.traverse(function(o){ if(o.isMesh) meshes.push(o); });
-  function vertCar(mesh,pos,i,out){ return out.fromBufferAttribute(pos,i).applyMatrix4(mesh.matrixWorld).applyMatrix4(inv); }
-  /* the car's top surface as a heightfield (car space, 4.5 cm
-     cells, per-cell highest triangle centroid over EVERY mesh —
-     glass, lamps and small parts included, so "the surface" is
-     the car's real outer surface, not just the shell mesh's) */
-  var CELL=0.045, SHELL_BAND=0.06, topY={};
-  function cellKey(x,z){ return Math.round(x/CELL)+','+Math.round(z/CELL); }
-  meshes.forEach(function(mesh){
-    var geo=mesh.geometry;
-    if(!geo||!geo.attributes.position||mesh.isSkinnedMesh) return;
-    var pos=geo.attributes.position, idx=geo.index?geo.index.array:null;
-    var tris=idx?idx.length/3:pos.count/3;
-    for(var t=0;t<tris;t++){
-      cen.set(0,0,0);
-      for(var c=0;c<3;c++){ vertCar(mesh,pos,idx?idx[t*3+c]:t*3+c,vA); cen.add(vA); }
-      cen.multiplyScalar(1/3);
-      var k=cellKey(cen.x,cen.z);
-      if(topY[k]===undefined||cen.y>topY[k]) topY[k]=cen.y;
-    }
-  });
-  /* classification pass over the candidate meshes: per triangle,
-     whether it sits in the strict box, in the band-relaxed box
-     (verts may dip SHELL_BAND below the region floor — the
-     stamping's ribs do), whether it faces up, its depth below
-     the surface and its heightfield cell. Seeds (strict + up +
-     at the surface) grow the panel footprint, dilated one cell
-     so the shell pass below reaches the panel's edge returns. */
-  var candMeshes=[], foot={}, triInfo={};
-  meshes.forEach(function(mesh){
-    var geo=mesh.geometry;
-    if(!geo||!geo.attributes.position||mesh.isSkinnedMesh||Array.isArray(mesh.material)) return;
-    var triCount=geo.index?geo.index.count/3:geo.attributes.position.count/3;
-    if(triCount<1500) return;
-    var toks=(mesh.name||'').toLowerCase().split(/[^a-z]+/);
-    for(var ti=0;ti<toks.length;ti++) if(HOOD_SKIP_TOKENS[toks[ti]]) return;
-    candMeshes.push(mesh);
-  });
-  candMeshes.forEach(function(mesh){
-    var geo=mesh.geometry, pos=geo.attributes.position, idx=geo.index?geo.index.array:null;
-    var tris=idx?idx.length/3:pos.count/3;
-    var info={strict:new Uint8Array(tris),low:new Uint8Array(tris),up:new Uint8Array(tris),
-      depth:new Float32Array(tris),cell:new Array(tris)};
-    var vs=[vA,vB,vC];
-    for(var t=0;t<tris;t++){
-      var strict=true, low=true;
-      cen.set(0,0,0);
-      for(var c=0;c<3;c++){
-        vertCar(mesh,pos,idx?idx[t*3+c]:t*3+c,vs[c]); cen.add(vs[c]);
-        var p=vs[c];
-        if(!(p.z>=region.zMin&&p.z<=region.zMax&&p.y<=region.yMax&&Math.abs(p.x)<=region.xMax)){ strict=false; low=false; }
-        else if(p.y<region.yMin){ strict=false; if(p.y<region.yMin-SHELL_BAND) low=false; }
-      }
-      cen.multiplyScalar(1/3);
-      var k=cellKey(cen.x,cen.z);
-      info.cell[t]=k;
-      info.depth[t]=(topY[k]===undefined?cen.y:topY[k])-cen.y;
-      if(strict){
-        e1.copy(vB).sub(vA); e2.copy(vC).sub(vA); nrm.copy(e1).cross(e2);
-        // region.absN (the Gallardo's rear deck): accept DOWN-facing
-        // triangles too — the cover's glass pane and the panel
-        // undersides are wound facing down, so the signed test left
-        // most of the glass floating over the open bay (v20)
-        var nl=nrm.lengthSq();
-        var ny=nl<1e-12?0:nrm.normalize().y;
-        info.up[t]=(nl>=1e-12&&(region.absN?Math.abs(ny):ny)>=region.nMin)?1:0;
-      }
-      info.strict[t]=strict?1:0; info.low[t]=low?1:0;
-      if(strict&&info.up[t]&&info.depth[t]<=0.045){
-        var parts=k.split(','), kx=+parts[0], kz=+parts[1];
-        for(var dx=-1;dx<=1;dx++) for(var dz=-1;dz<=1;dz++) foot[(kx+dx)+','+(kz+dz)]=1;
-      }
-    }
-    triInfo[mesh.uuid]=info;
-  });
-  candMeshes.forEach(function(mesh){
-    var info=triInfo[mesh.uuid]; if(!info) return;
-    var src=mesh.geometry;
-    var attrs=Object.keys(src.attributes);
-    var idx=src.index?src.index.array:null;
-    var tris=idx?idx.length/3:src.attributes.position.count/3;
-    var hoodTris=[], restTris=[];
-    for(var t=0;t<tris;t++){
-      // the shell rule: a seed, or any triangle inside the panel
-      // footprint within the shell band of the surface
-      var keep=(info.strict[t]&&info.up[t]&&info.depth[t]<=0.045)||
-               (info.low[t]&&foot[info.cell[t]]&&info.depth[t]<=SHELL_BAND);
-      (keep?hoodTris:restTris).push(t);
-    }
-    if(!hoodTris.length) return;
-    var hoodMesh;
-    if(idx&&( !src.groups||src.groups.length<=1)){
-      // indexed split (the fast path, and the one every shipped
-      // car takes): the two halves SHARE the source's attribute
-      // buffers and differ only in their index — no vertex is
-      // copied or de-indexed, so the render cost of the car is
-      // exactly what it was with the panel shut in the shell
-      function buildIndexed(idxs){
-        var out=new THREE.BufferGeometry();
-        attrs.forEach(function(name){ out.setAttribute(name,src.attributes[name]); });
-        var arr=new Uint32Array(idxs.length*3);
-        for(var k=0;k<idxs.length;k++){ arr[k*3]=idx[idxs[k]*3]; arr[k*3+1]=idx[idxs[k]*3+1]; arr[k*3+2]=idx[idxs[k]*3+2]; }
-        out.setIndex(new THREE.BufferAttribute(arr,1));
-        return out;
-      }
-      hoodMesh=new THREE.Mesh(buildIndexed(hoodTris),mesh.material);
-      mesh.geometry=buildIndexed(restTris);
-    } else {
-      // non-indexed fallback: copy the attribute ranges per part.
-      // Raw .array reads can't handle interleaved attributes
-      // (the shipped cars' position/normal ARE interleaved —
-      // but they all take the indexed path above, where reads go
-      // through getX/getY and the buffers are shared untouched)
-      for(var ai=0;ai<attrs.length;ai++) if(src.attributes[attrs[ai]].isInterleavedBufferAttribute) return;
-      function buildPart(idxs){
-        var out=new THREE.BufferGeometry();
-        attrs.forEach(function(name){
-          var at=src.attributes[name];
-          var arr=new at.array.constructor(idxs.length*3*at.itemSize);
-          for(var k=0;k<idxs.length;k++){
-            var t3=idxs[k]*3, k3=k*3;
-            for(var c2=0;c2<3;c2++) for(var j=0;j<at.itemSize;j++)
-              arr[(k3+c2)*at.itemSize+j]=at.array[(t3+c2)*at.itemSize+j];
-          }
-          var na=new THREE.BufferAttribute(arr,at.itemSize);
-          na.normalized=at.normalized; // quantized int attributes MUST stay normalized
-          out.setAttribute(name,na);
-        });
-        return out;
-      }
-      hoodMesh=new THREE.Mesh(buildPart(hoodTris),mesh.material);
-      mesh.geometry=buildPart(restTris);
-    }
-    hoodMesh.castShadow=true; hoodMesh.receiveShadow=true;
-    mesh.parent.add(hoodMesh);
-    hoodMesh.position.copy(mesh.position); hoodMesh.quaternion.copy(mesh.quaternion); hoodMesh.scale.copy(mesh.scale);
-    hoodMesh.updateMatrixWorld(true);
-    hoodMeshes.push(hoodMesh);
-  });
-  if(!hoodMeshes.length) return null;
-  var pivot=new THREE.Group();
-  pivot.position.set(0,region.hingeY,region.hingeZ);
-  g.add(pivot);
-  g.updateMatrixWorld(true);
-  hoodMeshes.forEach(function(m){ pivot.attach(m); });
-  return pivot;
-}
-/* a simple dressed engine bay that lives in the car's
-   engineGroup (revealed when the partitioned hood opens, exactly
-   like the procedural car's bay): a dark tub so the opening never
-   reads as a hollow shell, plus block, valve cover in the car's
-   colour and small hardware. ONLY the S15 gets one (v20): its
-   file models no engine, so the dressed bay is all it has. The
-   Civic and the Gallardo ship with complete, detailed REAL
-   engine bays inside their model files (the Civic's BeamNG bay
-   fills the whole under-hood volume; the Gallardo models its
-   own V10) — the v19 dressed boxes sat ON TOP of the Civic's
-   real engine and buried it, and the Gallardo's deck-wide tub
-   slabbed over its bay, so both dressings are gone and opening
-   those hoods shows the real engines again, exactly as the
-   earlier builds did. Positions are car space, measured from
-   the S15's fitted profile and hood region. */
-function dressBay(car){
-  var eg=car.engineGroup, id=car.spec.id;
-  if(id!=='s15') return; // Civic + Gallardo: the real modeled bay shows
-  var valveMat=new THREE.MeshStandardMaterial({color:car.spec.valveColor,roughness:0.35,metalness:0.6});
-  var cz=1.3, fy=0.52;
-  box(1.3,0.03,1.46,new THREE.MeshStandardMaterial({color:0x0c0d10,roughness:1}),0,fy,cz,eg,false);
-  box(0.58,0.15,0.62,darkMetal,0,fy+0.07,cz,eg,false);
-  box(0.44,0.05,0.48,valveMat,0,fy+0.165,cz,eg,false);
-  var intake=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,0.5,12),chromeMat);
-  intake.rotation.z=Math.PI/2; intake.rotation.y=0.25; intake.position.set(0.1,fy+0.14,cz+0.2); eg.add(intake);
-  var strut=new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,1.14,8),chromeMat);
-  strut.rotation.z=Math.PI/2; strut.position.set(0,fy+0.2,cz-0.55); eg.add(strut);
-  box(0.24,0.14,0.18,blackTrim,-0.44,fy+0.07,cz-0.45,eg,false);
-  if(id==='s15'){
-    var turbo=new THREE.Mesh(new THREE.TorusGeometry(0.07,0.03,10,18),discMat);
-    turbo.rotation.y=Math.PI/2; turbo.position.set(-0.38,fy+0.08,cz+0.25); eg.add(turbo);
-  }
-}
-
 /* ---- Bay 3: your Civic sedan — a real GLB file from the same
    Sketchfab pipeline as the old EK9, meshopt-compressed at build
    time. The loader is fully measurement-driven: it aligns the
    model's long axis to the bay, scales it to the car's real length,
-   centres and grounds it from its own bounding box, finds the hood
-   group, makes sure it faces the front of the bay, and hinges it on
-   its rear edge. (Bay 2's S15 and Bay 4's Gallardo go through
-   buildGLBCar below.) Per-file prep:
+   centres and grounds it from its own bounding box, and uses the
+   hood group's position only to make sure the car faces the front
+   of the bay. (Bay 2's S15 and Bay 4's Gallardo go through
+   buildGLBCar below.) Hoods on every car are fixed body panels —
+   there is no hood interactable, no hinge and no panel partition
+   anywhere in the game (removed for good in the hood-removal
+   pass: the loaders no longer split panels out of the shells,
+   which also drops a full per-triangle scan from every car
+   load). Per-file prep:
    · Civic sedan (blender aboba, CC BY 4.0): 479k-tri EK sedan, flat
      materials — its paint material is swapped for the garage's white
      clearcoat at load, its steel wheels shot gunmetal, and the body
@@ -2072,7 +1853,7 @@ function buildRealCar(spec){
   var blob=new THREE.Mesh(new THREE.PlaneGeometry(spec.W+0.85,spec.L+0.85),
     new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false}));
   blob.rotation.x=-Math.PI/2; blob.position.y=0.012; blob.renderOrder=1; g.add(blob);
-  var hoodPivot=new THREE.Group(); g.add(hoodPivot); // replaced by the real hinge on load
+  var hoodPivot=new THREE.Group(); g.add(hoodPivot); // inert: kept only so the procedural fallback's shape matches
   var engineGroup=new THREE.Group(); engineGroup.visible=false; g.add(engineGroup);
   var beams=[];
   [1,-1].forEach(function(sd){
@@ -2180,23 +1961,6 @@ function buildRealCar(spec){
         });
         if(tails.length) car.tailMat=tails.length===1?tails[0]:tails;
         if(car.allMats.indexOf(whitePaint)<0) car.allMats.push(whitePaint);
-      // hinge the Civic's hood group on its rear (cowl) edge
-      if(hoodNode&&hoodNode.parent){
-        g.updateMatrixWorld(true);
-        var hb=new THREE.Box3().setFromObject(hoodNode);
-        var hinge=new THREE.Vector3((hb.min.x+hb.max.x)/2,hb.max.y-0.02,hb.min.z+0.01);
-        var pivot=new THREE.Group();
-        hoodNode.parent.add(pivot);
-        pivot.position.copy(hoodNode.parent.worldToLocal(hinge.clone()));
-        pivot.attach(hoodNode);
-        car.hoodPivot=pivot;
-      }
-      // the shipped file has no hood group under that name (v19):
-      // cut the panel out of the shell geometrically instead
-      if(!hoodNode&&spec.hoodRegion){
-        var hp19=partitionHood(car,model,spec.hoodRegion);
-        if(hp19){ car.hoodPivot=hp19; dressBay(car); }
-      }
       // headlight glow quads that fade in with the lights toggle
       var glowY=spec.glowY||0.6, glowX=spec.glowX||0.58;
       [-1,1].forEach(function(sd){
@@ -2218,10 +1982,9 @@ function buildRealCar(spec){
 /* ---- Bay 4: the Gallardo — Artem P's 2010 Gallardo GLB (CC BY 4.0,
    Objaverse), meshopt-compressed + WebP textures. Auto-fitted to its
    real length, grounded on its own bounding box, and polished with
-   the garage's material recipe. Its rear engine cover gets a
-   working hinge from the measured partition in partitionHood
-   (the node name the old code looked for no longer exists in
-   the shipped file). ---- */
+   the garage's material recipe. The rear engine cover is a fixed
+   panel like every other hood in the game — nothing on any car
+   opens. ---- */
 function buildGLBCar(spec){
   var g=new THREE.Group();
   var blob=new THREE.Mesh(new THREE.PlaneGeometry(spec.W+0.85,spec.L+0.85),
@@ -2279,10 +2042,8 @@ function buildGLBCar(spec){
       model.position.z+=-2-ctrB.z;
       model.position.y-=bb.min.y;
       g.updateMatrixWorld(true);
-      var hoodNode=null;
       model.traverse(function(o){
         if(o.isMesh) o.castShadow=true;
-        if(spec.hoodNode&&o.name===spec.hoodNode) hoodNode=o;
         if(o.material){
           (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
             if(car.allMats.indexOf(m)<0){
@@ -2322,22 +2083,6 @@ function buildGLBCar(spec){
           });
         }
       });
-      if(hoodNode&&hoodNode.parent){
-        g.updateMatrixWorld(true);
-        var hb=new THREE.Box3().setFromObject(hoodNode);
-        var hinge=new THREE.Vector3((hb.min.x+hb.max.x)/2,hb.max.y-0.02,hb.max.z-0.01);
-        var pivot=new THREE.Group();
-        hoodNode.parent.add(pivot);
-        pivot.position.copy(hoodNode.parent.worldToLocal(hinge.clone()));
-        pivot.attach(hoodNode);
-        car.hoodPivot=pivot;
-      }
-      // the shipped files have no hood node under that name (v19):
-      // cut the panel out of the shell geometrically instead
-      if(!hoodNode&&spec.hoodRegion){
-        var hp19=partitionHood(car,model,spec.hoodRegion);
-        if(hp19){ car.hoodPivot=hp19; dressBay(car); }
-      }
       // headlight glow quads that fade in with the lights toggle
       var glowY=spec.glowY||(spec.id==='lambo'?0.58:0.62), glowX=spec.glowX||(spec.id==='lambo'?0.68:0.58);
       [-1,1].forEach(function(sd){
@@ -2356,19 +2101,16 @@ function buildGLBCar(spec){
 
 var cars=CAR_SPECS.map(function(spec){
   if(spec.id==='lambo'){
-    spec.glb='assets/lambo.glb'; spec.fitLen=spec.L; spec.hoodNode='b_hood';
-    spec.hoodRegion={zMin:-2.08,zMax:-0.92,yMin:0.78,yMax:1.10,xMax:0.80,nMin:0.25,hingeZ:-0.92,hingeY:1.02,absN:true};
+    spec.glb='assets/lambo.glb'; spec.fitLen=spec.L;
     return buildGLBCar(spec);
   }
   if(spec.id==='s15'){
     spec.glb='assets/s15.glb'; spec.fitLen=spec.L; spec.glowX=0.6; spec.glowY=0.6;
-    spec.hoodRegion={zMin:0.52,zMax:2.08,yMin:0.52,yMax:0.92,xMax:0.62,nMin:0.30,hingeZ:0.52,hingeY:0.88};
     return buildGLBCar(spec);
   }
   spec.glb='assets/civic.glb';
   spec.fitLen=spec.L;
   spec.hoodMatch='civ_hood'; spec.glowX=0.56; spec.glowY=0.6;
-  spec.hoodRegion={zMin:0.70,zMax:2.16,yMin:0.70,yMax:1.08,xMax:0.62,nMin:0.30,hingeZ:0.70,hingeY:1.00};
   return buildRealCar(spec);
 });
 
@@ -2450,7 +2192,7 @@ function buildAtmosphere(){
    downloads, nothing to stream, nothing Victorian. Four of
    its pieces are interactable (TV, stereo, bedside lamp, and
    — v25 — the bong on the new kitchen island) and count
-   toward the objective: 9 car finds + 4 = FIND ALL 13. */
+   toward the objective: 6 car finds + 4 = FIND ALL 10. */
 var APT={tvMat:null,lampLight:null,lampShadeMat:null};
 var woodTex=makeTex(1024,512,function(g,w,h){
   /* v25 texture pass: wide-plank oak — per-plank tone jitter,
@@ -2795,7 +2537,7 @@ function buildApartment(){
   var winLight=new THREE.PointLight(0x9db8e8,3,6.5,1.8); winLight.position.set(1.6,1.8,-31.8); scene.add(winLight);
   // living area: rug, couch facing the TV on the east wall.
   // The whole set used to sit in the south-east, right in front
-  // of the bedroom doorway — and it SEALED the bedroom shut:
+  // of the bedroom doorway — and it BLOCKED the bedroom shut:
   // the couch collider (east edge x 3.1) and the coffee-table
   // collider (west edge x 3.63) left a 0.53 m slot between them,
   // narrower than the player's 0.68 m collision diameter, and
@@ -3062,7 +2804,7 @@ buildPolish(); buildApartment();
 
 /* ================= INTERACTABLES ================= */
 var interactables=[];
-var foundCount=0, TOTAL=13;
+var foundCount=0, TOTAL=10;
 var foundEl=document.getElementById('foundNum');
 var chipEl=document.getElementById('foundChip');
 var toastEl=document.getElementById('toast'), toastTimer=null;
@@ -3091,10 +2833,6 @@ function addDecor(kind,labelFn,point,apply,onToggle,noCount){
 }
 cars.forEach(function(car){
   var s=car.spec, cx=s.x, cz=-2;
-  // hood — the only panel that opens; doors and trunk are sealed for a flush, accurate body
-  if(s.hasHood!==false) addInter(car,'hood',function(it){ return (it.on?'Close':'Pop')+' the hood — '+s.short; },
-    new THREE.Vector3(cx,1.0,cz+s.L/2+0.55),
-    function(v){ car.hoodPivot.rotation.x=(car.hoodTilt||0)+(car.hoodDir||-0.66)*v; car.engineGroup.visible=v>0.2; });
   // headlights
   addInter(car,'lights',function(it){ return 'Turn headlights '+(it.on?'off':'on')+' — '+s.short; },
     new THREE.Vector3(cx-(s.W/2+0.15),0.85,cz+s.L/2+0.5),
@@ -3154,7 +2892,7 @@ var bongInter=addDecor('apt-bong',function(it){ return 'Take a hit from the bong
   new THREE.Vector3(-3.62,1.15,-30.35), null,
   function(it){ BongSystem.startHit(it); });
 /* the bed: lay Alina down / help her up. Not an objective find
-   (noCount, like the doors) — the objective stays FIND ALL 13.
+   (noCount, like the doors) — the objective stays FIND ALL 10.
    FollowerSystem owns the state: layDown() moves her onto the
    bed in the bedroom and poses her there — reclined on her
    back, head at the pillows, one knee bent up, one arm thrown
@@ -3193,13 +2931,14 @@ function toggleInter(it){
   // crashed the game". The toggle state, the found count and the
   // car plate below always update, whatever an effect does.
   try{
-    if(it.onToggle){ it.onToggle(it); if(it.kind!=='door') clickSnd(); }
+    if(it.kind==='drive'){ DriveSystem.enter(it.car); it.on=false; it.target=0; } // v38: getting in is not an objective find — the toggle resets itself
+    else if(it.onToggle){ it.onToggle(it); if(it.kind!=='door') clickSnd(); }
     else if(it.kind==='engine'){
       it.car.engineOn=it.on;
       if(it.on){ it.car._audio=startEngineAudio(it.car.spec); }
       else { stopEngineAudio(it.car); clunk(.25,300); }
     } else if(it.kind==='lights'){ clickSnd(); }
-    else { clunk(.4,520); if(it.kind==='hood'&&it.on) hoodBlip(it.car.spec); }
+    else { clunk(.4,520); }
   }catch(e){ /* effect failed; the toggle itself still counts */ }
   if(it.on) markFound(it);
   refreshPlate();
@@ -3213,8 +2952,8 @@ function toggleInter(it){
    can't park the effect forever. The timer is the single
    source of truth — intensity is derived from it every frame,
    so the effect CANNOT get stuck on: when the seconds run
-   out the wash fades, the chip hides and the FOV is restored
-   exactly. Visuals are DOM gradients + a whisper of camera
+   out the wash fades and the FOV is restored exactly. The
+   timer is never displayed — no countdown is shown anywhere. Visuals are DOM gradients + a whisper of camera
    roll/FOV breathing + the wave warp, whose strength this
    module publishes as waveStrength (0..1) every frame.
    WaveSystem (below) turns that number into a real shader
@@ -3228,16 +2967,14 @@ function toggleInter(it){
    burn down it eases off with them — then the shared
    last-5-seconds intensity fade takes it to exactly zero. */
 var HighSystem={
-  remaining:0, intensity:0, waveStrength:0, _lastShown:-1, _fovApplied:false,
-  chip:document.getElementById('highChip'), timeEl:document.getElementById('highTime'),
+  remaining:0, intensity:0, waveStrength:0, _fovApplied:false,
   fx:document.getElementById('highFx'),
   addHit:function(){
     this.remaining=Math.min(this.remaining+45,270);
-    this.fx.style.display='block'; this.chip.style.display='block';
+    this.fx.style.display='block';
   },
   update:function(dt,t){
     if(this.remaining>0){ this.remaining-=dt; if(this.remaining<0)this.remaining=0; }
-    if(this.remaining<=0) this.chip.style.display='none';
     var target=this.remaining>0?(this.remaining<5?this.remaining/5:1):0;
     this.intensity+=(target-this.intensity)*Math.min(1,dt*1.6);
     if(this.remaining<=0&&this.intensity<0.02){
@@ -3256,9 +2993,6 @@ var HighSystem={
     this.fx.style.opacity=(I*0.92).toFixed(3);
     this.fx.style.transform='scale(1.05) rotate('+(Math.sin(t*0.21)*0.7*I).toFixed(3)+'deg) translate('
       +(Math.sin(t*0.13)*6*I).toFixed(1)+'px,'+(Math.cos(t*0.17)*5*I).toFixed(1)+'px)';
-    var secs=Math.ceil(this.remaining);
-    if(secs!==this._lastShown){ this._lastShown=secs;
-      this.timeEl.textContent=Math.floor(secs/60)+':'+('0'+(secs%60)).slice(-2); }
     if(!BongSystem.active){ // the POV camera owns the frame during a hit
       var sway=reduceMotion?0.3:1;
       camera.rotation.z+=Math.sin(t*0.45)*0.011*I*sway+Math.sin(t*0.83)*0.004*I*sway;
@@ -3366,7 +3100,7 @@ var BongSystem={
     if(APT.bongBubbles) APT.bongBubbles.forEach(function(b){ b.material.opacity=0; });
     if(this.it){ this.it.on=false; this.it.target=0; }
     if(currentInter===this.it) promptEl.classList.add('show');
-    toast('High +45s — every hit stacks more time.',2400);
+    toast('Every hit stacks the high higher.',2400);
   },
   update:function(dt,t){
     // smoke drifts on even after control returns, until it thins out
@@ -3882,8 +3616,11 @@ var FollowerSystem={
       this.x=Math.max(-5.08,Math.min(5.08,this.x));
       this.z=Math.max(-32.42,Math.min(-25.38,this.z));
     } else {
-      this.x=Math.max(-12.55,Math.min(12.55,this.x));
-      this.z=Math.max(-9.45,Math.min(9.55,this.z));
+      // v38: same town bounds as the player; the garage wall
+      // colliders in the shared list keep her from crossing a
+      // wall, and the bay-door gaps are how she gets outside
+      this.x=Math.max(-71,Math.min(71,this.x));
+      this.z=Math.max(-9.45,Math.min(99,this.z));
     }
     var r=0.30;
     for(var i=0;i<colliders.length;i++){
@@ -3936,6 +3673,24 @@ var FollowerSystem={
       return;
     }
     var px=player.x, pz=player.z;
+    /* v38: while he is DRIVING she waits where she stands —
+       no follow, no chase after a moving car. She idles on her
+       standing clip (the gait envelope closes, the mixer keeps
+       stepping so she breathes), and the speed tracker is kept
+       fed with his position so the frame he gets out doesn't
+       read as a teleport spike. Following resumes the moment
+       he is back on foot. */
+    if(typeof DriveSystem!=='undefined'&&DriveSystem.driving){
+      this.following=false; this.moving=false; this.speedNow=0;
+      this.gaitAmp+=(0-this.gaitAmp)*Math.min(1,dt*4);
+      if(this.gaitAmp<0.003) this.gaitAmp=0;
+      this._ppx=px; this._ppz=pz;
+      this.root.position.set(this.x,0,this.z);
+      this.root.rotation.set(0,this.yaw,0); // the hard upright lock holds while she waits, too
+      if(this.mixer) SimulationSystem.mixerStep(this.mixer,this.root,player,dt,3);
+      if(this.model) this.model.position.y=this.baseY;
+      return;
+    }
     /* the player's own speed, measured from his real movement
        (a door teleport reads as a spike and is discarded): her
        pace floor below is built from it, so she matches his walk
@@ -3950,6 +3705,17 @@ var FollowerSystem={
     this._pSpd+=(pInst-this._pSpd)*vk;
     this._ppx=px; this._ppz=pz;
     if((pz<-20)!==(this.z<-20)||!this._placed){ this._placeNear(px,pz); this._placed=true; } // door re-place + first placement: near him, then idle
+    /* v38: the long-drive catch-up. If he drove off and got out
+       across town (>30 m away, same open zone), she re-places
+       near him the same way she does at a door — she was never
+       going to path through the bay door and half the town's
+       walls to reach him, and a 30 m walk at her capped pace
+       would strand her behind traffic for half a minute. Under
+       30 m she walks every metre, exactly as before. */
+    else if(pz>=-20&&this.z>=-20){
+      var cdx=px-this.x, cdz=pz-this.z;
+      if(cdx*cdx+cdz*cdz>900) this._placeNear(px,pz);
+    }
     /* v30 state machine — position only. dist is the ONLY input:
        IDLE -> FOLLOWING when dist > FOLLOW_START; FOLLOWING ->
        IDLE when dist <= STOP_DIST. While IDLE nothing below moves
@@ -4012,6 +3778,555 @@ var FollowerSystem={
 };
 FollowerSystem.load();
 
+/* ================= v38: THE TOWN (TownSystem) =================
+   The outside world: a sealed little town wrapped around the
+   garage, Springfield-style — a street grid, houses, shops, a
+   gas station, streetlights, trees, and a fence line at the
+   edge of town you cannot leave. It is ONE group at the world
+   origin, so WorldSystem's zone culling treats it as part of
+   the garage zone (visible whenever the player is anywhere
+   outside the apartment, costing nothing while he is inside).
+   Everything here is cheap night geometry: flat-shaded boxes,
+   canvas-texture house fronts with lit windows, emissive lamp
+   heads with glow sprites, and exactly four real point lights
+   at the main intersections. No shadows are cast out here —
+   the garage's static shadow map never covered the street,
+   and blob shadows ground the cars instead. */
+var TownSystem=(function(){
+  function build(){
+    var g=new THREE.Group(); g.name='town'; scene.add(g);
+    function tbox(w,h,d,mat,x,y,z){
+      var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+      m.position.set(x,y,z); g.add(m); return m;
+    }
+    function tplane(w,d,mat,x,y,z){
+      var m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mat);
+      m.rotation.x=-Math.PI/2; m.position.set(x,y,z); g.add(m); return m;
+    }
+    var grassMat=new THREE.MeshStandardMaterial({color:0x18251b,roughness:1});
+    var walkMat=new THREE.MeshStandardMaterial({color:0x3b3e44,roughness:0.95});
+    var asphaltMat=new THREE.MeshStandardMaterial({color:0x232529,roughness:0.97});
+    function roadTex(vertical){
+      var t=makeTex(256,256,function(g2,w,h){
+        g2.fillStyle='#232529'; g2.fillRect(0,0,w,h);
+        for(var i=0;i<2400;i++){ g2.fillStyle='rgba(255,255,255,'+(Math.random()*0.05)+')'; g2.fillRect(Math.random()*w,Math.random()*h,2,2); }
+        g2.fillStyle='rgba(250,214,120,0.8)';
+        if(vertical){ g2.fillRect(w/2-3,12,6,100); g2.fillRect(w/2-3,144,6,100); }
+        else { g2.fillRect(12,h/2-3,100,6); g2.fillRect(144,h/2-3,100,6); }
+      });
+      t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
+    }
+    var roadMatH=new THREE.MeshStandardMaterial({map:roadTex(false),roughness:0.97});
+    roadMatH.map.repeat.set(16,1);
+    var roadMatV=new THREE.MeshStandardMaterial({map:roadTex(true),roughness:0.97});
+    roadMatV.map.repeat.set(1,12);
+    // ground, streets, sidewalks. Streets: verticals at x -30/0/30,
+    // horizontals at z 22/52/82, all 8 m wide; the x=0 street runs
+    // straight out of the middle bay door.
+    tplane(150,96,grassMat,0,-0.02,56);
+    [[-30,55],[0,55],[30,55]].forEach(function(s){ tplane(10.6,96,walkMat,s[0],0.004,s[1]); });
+    [[22],[52],[82]].forEach(function(s){ tplane(146,10.6,walkMat,0,0.006,s[0]); });
+    [[-30,55],[0,55],[30,55]].forEach(function(s){ tplane(8,94,roadMatV,s[0],0.016,s[1]); });
+    [[22],[52],[82]].forEach(function(s){ tplane(142,8,roadMatH,0,0.012,s[0]); });
+    // the driveway apron out of the bay doors to Main Street
+    tplane(19,9.2,walkMat,0,0.008,14.7);
+    tplane(13.5,9.2,asphaltMat,0,0.02,14.7);
+    /* ---- the garage, seen from outside: a plain shell a touch
+       proud of the interior walls (which face inward only), with
+       the same three door gaps cut into its front ---- */
+    var extMat=new THREE.MeshStandardMaterial({color:0x2e3033,roughness:0.92});
+    var extRoofMat=new THREE.MeshStandardMaterial({color:0x1e2023,roughness:1});
+    tbox(26.6,5.2,0.35,extMat,0,2.6,-10.2);
+    tbox(0.35,5.2,20.75,extMat,-13.2,2.6,0); tbox(0.35,5.2,20.75,extMat,13.2,2.6,0);
+    tbox(26.75,0.3,21.1,extRoofMat,0,5.35,0);
+    [[-10.075,5.85],[-2.5,0.7],[2.5,0.7],[10.075,5.85]].forEach(function(sg){
+      tbox(sg[1],3.9,0.35,extMat,sg[0],1.95,10.2);
+    });
+    tbox(26.6,1.32,0.35,extMat,0,4.56,10.2);
+    /* ---- houses: one box + one prism roof each, three shared
+       canvas fronts (siding + a grid of windows, some lit) ---- */
+    function houseTexFn(base,trim){
+      return makeTex(256,256,function(g2,w,h){
+        g2.fillStyle=base; g2.fillRect(0,0,w,h);
+        g2.fillStyle='rgba(0,0,0,0.09)';
+        for(var y=14;y<h;y+=16) g2.fillRect(0,y,w,2);
+        for(var r=0;r<2;r++) for(var c=0;c<3;c++){
+          var lit=Math.random()<0.45;
+          g2.fillStyle=trim; g2.fillRect(28+c*76,36+r*104,44,58);
+          g2.fillStyle=lit?'#ffd489':'#131a21'; g2.fillRect(32+c*76,40+r*104,36,50);
+          g2.fillStyle='rgba(0,0,0,0.28)'; g2.fillRect(48+c*76,40+r*104,3,50);
+        }
+      });
+    }
+    var houseMats=[houseTexFn('#6e4a3a','#3d2c22'),houseTexFn('#8a7f6d','#4c4438'),houseTexFn('#5d6a76','#37414a')].map(function(t){
+      return new THREE.MeshStandardMaterial({map:t,roughness:0.9});
+    });
+    var roofMatH=new THREE.MeshStandardMaterial({color:0x232126,roughness:1});
+    var triShape=new THREE.Shape();
+    triShape.moveTo(-0.5,0); triShape.lineTo(0.5,0); triShape.lineTo(0,1); triShape.closePath();
+    var roofGeo=new THREE.ExtrudeGeometry(triShape,{depth:1,bevelEnabled:false});
+    roofGeo.translate(0,0,-0.5);
+    var houseLots=[ // [x, z, ridgeAlongX]
+      [-15,44.5,1],[16,44.5,1],
+      [-20,63,1],[-9,63,1],[-15,73.5,1],
+      [10,63,1],[21,63,1],[16,73.5,1],
+      [-40,44.5,1],[56,44.5,1],[-52,63,0],[56,73.5,0],[-40,73.5,1],
+      [-15,92,1],[16,92,1],[-52,92,0],[52,92,0]
+    ];
+    houseLots.forEach(function(lot,i){
+      var hw=8.2+((i*37)%10)/10*1.6, hd=6.8+((i*53)%10)/10*1.2, hh=2.9+((i*29)%10)/10*0.5;
+      var walls=new THREE.Mesh(new THREE.BoxGeometry(hw,hh,hd),houseMats[i%3]);
+      walls.position.set(lot[0],hh/2,lot[1]); g.add(walls);
+      var roof=new THREE.Mesh(roofGeo,roofMatH);
+      roof.scale.set(hw+0.6,1.5+((i*41)%10)/10*0.5,hd+0.7);
+      roof.position.set(lot[0],hh,lot[1]);
+      if(lot[2]) roof.rotation.y=Math.PI/2;
+      g.add(roof);
+      addCollider(lot[0],lot[1],hw/2+0.2,hd/2+0.2);
+      // a driveway strip and a tree for most lots
+      if(i%3!==2) tplane(3,7,asphaltMat,lot[0]+hw/2+1.6,0.014,lot[1]);
+    });
+    /* ---- shops on Main Street, lit signs and all ---- */
+    function shop(x,z,w,h,d,signText,signColor,bodyColor){
+      var grp=new THREE.Group(); grp.position.set(x,0,z); g.add(grp);
+      var body=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:bodyColor,roughness:0.85}));
+      body.position.y=h/2; grp.add(body);
+      var signTex=makeTex(512,96,function(g2,tw,th){
+        g2.fillStyle='#101114'; g2.fillRect(0,0,tw,th);
+        g2.font='700 52px "Barlow Condensed","Arial Narrow",sans-serif';
+        g2.textAlign='center'; g2.textBaseline='middle';
+        g2.fillStyle=signColor; g2.fillText(signText,tw/2,th/2+3);
+      });
+      var sign=new THREE.Mesh(new THREE.PlaneGeometry(w*0.82,1.05),new THREE.MeshBasicMaterial({map:signTex}));
+      sign.position.set(0,h-0.72,-d/2-0.03); sign.rotation.y=Math.PI; grp.add(sign);
+      var band=new THREE.Mesh(new THREE.PlaneGeometry(w*0.86,1.5),
+        new THREE.MeshStandardMaterial({color:0x2a2f36,emissive:0xffca7a,emissiveIntensity:0.5,roughness:0.4}));
+      band.position.set(0,1.35,-d/2-0.02); band.rotation.y=Math.PI; grp.add(band);
+      addCollider(x,z,w/2+0.15,d/2+0.15);
+      return grp;
+    }
+    shop(-15,32,13,4.6,8,'TIRES OF HOUSTON','#ffb03a',0x4a3a30);
+    shop(16,32,11,4.0,8,'DINER','#ff7a5c',0x54423a);
+    shop(-47,32,12,4.2,8,'MARKET','#9fe08a',0x3c4a3e);
+    shop(47,34.5,7,3.2,6,'GAS','#7fd4ff',0x3a3f45);
+    // gas station canopy + pumps, out front of the kiosk
+    var canMat=new THREE.MeshStandardMaterial({color:0x9aa0a6,roughness:0.5,metalness:0.5});
+    [[43,27],[51,27],[43,31.5],[51,31.5]].forEach(function(p){
+      var post=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,3.6,8),canMat);
+      post.position.set(p[0],1.8,p[1]); g.add(post);
+    });
+    tbox(11.5,0.32,7.5,canMat,47,3.7,29.2);
+    var pumpMat=new THREE.MeshStandardMaterial({color:0xa3242c,roughness:0.45});
+    [[44.8,29.2],[49.2,29.2]].forEach(function(p){
+      tbox(0.62,1.15,0.42,pumpMat,p[0],0.58,p[1]);
+      addCollider(p[0],p[1],0.45,0.35);
+    });
+    /* ---- streetlights: emissive heads + glow sprites, with
+       four real point lights at the main intersections ---- */
+    var poleMat=new THREE.MeshStandardMaterial({color:0x24262a,roughness:0.7,metalness:0.6});
+    var lampHeadMat=new THREE.MeshStandardMaterial({color:0x554a33,emissive:0xffc37a,emissiveIntensity:2.6});
+    [[-56,26.8,-1],[-32,17.2,1],[-8,26.8,-1],[16,17.2,1],[40,26.8,-1],[64,17.2,1],
+     [-44,56.8,-1],[28,56.8,-1],[-20,86.8,-1],[16,86.8,-1],[4.8,40,-1],[-34.8,68,1]].forEach(function(L){
+      var pole=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.09,4.6,8),poleMat);
+      pole.position.set(L[0],2.3,L[1]); g.add(pole);
+      var head=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.1,0.85),lampHeadMat);
+      head.position.set(L[0],4.62,L[1]+L[2]*0.75); g.add(head);
+      var glow=glowSprite(0xffc37a,2.8,0.32); glow.position.set(L[0],4.55,L[1]+L[2]*0.8); g.add(glow);
+    });
+    [[0,22],[-30,52],[30,52],[0,82]].forEach(function(P){
+      var pl=new THREE.PointLight(0xffbe78,55,30,1.9); pl.position.set(P[0],4.6,P[1]); g.add(pl);
+    });
+    /* ---- pine trees: one dark cone each, silhouette trees ---- */
+    var pineMat=new THREE.MeshStandardMaterial({color:0x152419,roughness:1});
+    [[-24,28],[-6,50],[24,28],[8,50],[-24,58],[24,80],[-6,84],[60,50],[-60,80],[36,58],[-36,86],[60,86],[-60,28],[12,86],[-64,58],[64,40]].forEach(function(T,i){
+      var cone=new THREE.Mesh(new THREE.ConeGeometry(1.5+((i*31)%10)/10*0.5,4.6,7),pineMat);
+      cone.position.set(T[0],2.7,T[1]); g.add(cone);
+    });
+    /* ---- the edge of town: a fence line on all four sides.
+       The player/car/Alina clamps sit just inside it, so the
+       town is sealed — you can see the fence, you can't leave. ---- */
+    var fenceMat=new THREE.MeshStandardMaterial({color:0x27232b,roughness:1});
+    tbox(146,2.1,0.35,fenceMat,0,1.05,100.6);
+    tbox(0.35,2.1,91,fenceMat,72.5,1.05,55); tbox(0.35,2.1,91,fenceMat,-72.5,1.05,55);
+    tbox(59.4,2.1,0.35,fenceMat,-42.8,1.05,10.2); tbox(59.4,2.1,0.35,fenceMat,42.8,1.05,10.2);
+  }
+  return { build:build };
+})();
+TownSystem.build();
+
+/* ================= v38: TRAFFIC (TrafficSystem) =================
+   NPCs driving Toyota Priuses around the street grid on
+   right-hand-traffic loops. Each Prius is a procedural build in
+   the Prius silhouette — the long glasshouse, the roof peak
+   ahead of the middle, the Kammback tail cut off flat — with a
+   driver silhouette in the seat. Traffic yields: a Prius brakes
+   for the player on foot (which is what makes it stop long
+   enough to steal), for the car the player is driving, and for
+   the Prius ahead of it. Stealing runs through the ordinary
+   interactable machinery (a noCount decor prompt whose point
+   follows the car): the driver gets out, walks to the sidewalk
+   as a little pedestrian, and DriveSystem takes the car. A
+   stolen Prius the player parks stays parked, get-in-able
+   through the same prompt. Self-contained: it talks to the
+   rest of the game only through player, DriveSystem and the
+   shared collider list. */
+function buildPrius(color){
+  var g=new THREE.Group();
+  var paint=paintMat(color);
+  var blob=new THREE.Mesh(new THREE.PlaneGeometry(2.6,5.5),
+    new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false}));
+  blob.rotation.x=-Math.PI/2; blob.position.y=0.012; blob.renderOrder=1; g.add(blob);
+  // the silhouette: low nose, roof peaking ahead of the middle,
+  // tail cut off flat — the Prius teardrop, extruded like the
+  // procedural garage cars (shape +X is the nose, maps to +Z)
+  var s=new THREE.Shape();
+  s.moveTo(-2.32,0.30);
+  s.lineTo(-2.34,0.98);
+  s.quadraticCurveTo(-2.30,1.07,-2.02,1.11);
+  s.quadraticCurveTo(-1.15,1.30,-0.55,1.40);
+  s.quadraticCurveTo(0.35,1.44,0.85,1.30);
+  s.quadraticCurveTo(1.55,1.02,2.05,0.86);
+  s.quadraticCurveTo(2.34,0.80,2.36,0.55);
+  s.lineTo(2.36,0.30);
+  s.lineTo(1.85,0.30); s.absarc(1.45,0.30,0.40,0,Math.PI,false);
+  s.lineTo(-1.05,0.30); s.absarc(-1.45,0.30,0.40,0,Math.PI,false);
+  s.lineTo(-2.32,0.30); s.closePath();
+  g.add(extrudeProfile(s,1.62,paint));
+  // the glasshouse, following the same roofline a touch lower
+  var glassMatP=new THREE.MeshStandardMaterial({color:0x11161d,roughness:0.08,metalness:0.4,transparent:true,opacity:0.62,envMapIntensity:1.2});
+  var c=new THREE.Shape();
+  c.moveTo(-1.98,0.90);
+  c.quadraticCurveTo(-1.2,1.21,-0.55,1.335);
+  c.quadraticCurveTo(0.3,1.375,0.8,1.24);
+  c.quadraticCurveTo(1.35,1.0,1.78,0.88);
+  c.lineTo(1.78,0.90); c.lineTo(-1.98,0.90); c.closePath();
+  g.add(extrudeProfile(c,1.3,glassMatP));
+  // seats + the driver, readable through the glass
+  var seatMat=new THREE.MeshStandardMaterial({color:0x191b1f,roughness:0.95});
+  box(0.52,0.75,0.18,seatMat, 0.38,0.72,-0.28,g,false);
+  box(0.52,0.75,0.18,seatMat,-0.38,0.72,-0.28,g,false);
+  var driver=new THREE.Group();
+  var torso=new THREE.Mesh(new THREE.CapsuleGeometry(0.155,0.42,3,10),
+    new THREE.MeshStandardMaterial({color:0x2c3242,roughness:0.9}));
+  torso.position.y=0.92; driver.add(torso);
+  var head=new THREE.Mesh(new THREE.SphereGeometry(0.105,12,10),
+    new THREE.MeshStandardMaterial({color:0xc9a189,roughness:0.65}));
+  head.position.y=1.33; driver.add(head);
+  driver.position.set(0.38,0,0.15); g.add(driver);
+  // wheels: steer groups up front, spin groups all round
+  var tireMatP=new THREE.MeshStandardMaterial({color:0x0c0c0e,roughness:0.9});
+  var hubMatP=new THREE.MeshStandardMaterial({color:0x9aa0a8,roughness:0.35,metalness:0.8});
+  var wheelGeoP=new THREE.CylinderGeometry(0.33,0.33,0.24,18); wheelGeoP.rotateZ(Math.PI/2);
+  var spinWheels=[], wheelFL=null, wheelFR=null;
+  [[0.78,1.45,1],[ -0.78,1.45,1],[0.78,-1.45,0],[-0.78,-1.45,0]].forEach(function(wp){
+    var steer=new THREE.Group(); steer.position.set(wp[0],0.33,wp[1]); g.add(steer);
+    var spin=new THREE.Group(); steer.add(spin);
+    var tire=new THREE.Mesh(wheelGeoP,tireMatP); spin.add(tire);
+    var hub=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.17,0.25,12),hubMatP);
+    hub.rotation.z=Math.PI/2; spin.add(hub);
+    spinWheels.push(spin);
+    if(wp[2]){ if(wp[0]>0) wheelFL=steer; else wheelFR=steer; }
+  });
+  // lights: lit headlights + the full-width tail bar, and a
+  // light pool on the asphalt ahead (no real light cost)
+  var headMatP=new THREE.MeshStandardMaterial({color:0xdfe9ff,emissive:0xcfe0ff,emissiveIntensity:1.6});
+  box(0.42,0.1,0.05,headMatP, 0.55,0.72,2.33,g,false);
+  box(0.42,0.1,0.05,headMatP,-0.55,0.72,2.33,g,false);
+  var tailMatP=new THREE.MeshStandardMaterial({color:0x881111,emissive:0xff2a22,emissiveIntensity:0.9});
+  box(1.3,0.09,0.05,tailMatP,0,1.0,-2.34,g,false);
+  var pool=new THREE.Mesh(new THREE.CircleGeometry(1.6,20),
+    new THREE.MeshBasicMaterial({color:0xd8e4f5,transparent:true,opacity:0.10,depthWrite:false,blending:THREE.AdditiveBlending}));
+  pool.rotation.x=-Math.PI/2; pool.position.set(0,0.02,4.4); pool.renderOrder=4; g.add(pool);
+  box(1.2,0.04,0.18,paint,0,1.13,-2.26,g,false); // the little tail spoiler lip
+  box(0.16,0.07,0.1,paint, 0.93,1.0,0.95,g,false);
+  box(0.16,0.07,0.1,paint,-0.93,1.0,0.95,g,false);
+  return {group:g,driver:driver,spinWheels:spinWheels,wheelFL:wheelFL,wheelFR:wheelFR};
+}
+var TrafficSystem=(function(){
+  var priuses=[], peds=[];
+  // right-hand-traffic loops around the blocks: (streetX1,streetZ1)
+  // to (streetX2,streetZ2) with the 2 m lane offset baked in —
+  // eastbound rides the south lane, northbound the west lane, etc.
+  var LOOPS=[
+    [[2,24],[28,24],[28,50],[2,50]],
+    [[-28,24],[-2,24],[-2,50],[-28,50]],
+    [[2,54],[28,54],[28,80],[2,80]],
+    [[-28,54],[-2,54],[-2,80],[-28,80]],
+    [[-28,24],[28,24],[28,80],[-28,80]]
+  ];
+  var COLORS=[0xc7ccd4,0xe9e9e6,0x86b4dc,0xa8352c,0x46525e];
+  function angWrap(a){ return ((a+Math.PI*3)%(Math.PI*2))-Math.PI; }
+  function spawnPed(px,pz,sideX,sideZ){
+    var grp=new THREE.Group();
+    var body=new THREE.Mesh(new THREE.CapsuleGeometry(0.17,0.85,3,10),
+      new THREE.MeshStandardMaterial({color:0x353a30,roughness:0.95}));
+    body.position.y=0.72; grp.add(body);
+    var hd=new THREE.Mesh(new THREE.SphereGeometry(0.105,12,10),
+      new THREE.MeshStandardMaterial({color:0xb98f72,roughness:0.65}));
+    hd.position.y=1.47; grp.add(hd);
+    grp.position.set(px,0,pz); scene.add(grp);
+    peds.push({grp:grp,tx:px+sideX*5.5,tz:pz+sideZ*5.5,life:0,stand:0});
+  }
+  function stealPrius(p){
+    if(p.state!=='traffic') return;
+    p.state='stolen'; p.speed=0;
+    if(p.driver) p.driver.visible=false;
+    var gp=p.group.position, h=p.heading;
+    // the driver steps out of the driver's side and walks off
+    var sx=Math.cos(h), sz=-Math.sin(h);
+    spawnPed(gp.x+sx*1.1,gp.z+sz*1.1,sx,sz);
+    toast('The driver steps out — the Prius is yours.',2600);
+    DriveSystem.enter(p);
+  }
+  function makePrius(i){
+    var built=buildPrius(COLORS[i%COLORS.length]);
+    var loop=LOOPS[i%LOOPS.length];
+    var p={ group:built.group, driver:built.driver, spinWheels:built.spinWheels,
+      wheelFL:built.wheelFL, wheelFR:built.wheelFR,
+      spec:{id:'prius',name:'Toyota Prius',short:'Prius',W:1.76,L:4.64,idleHz:50,crankHz:27},
+      loop:loop, wp:i%loop.length, heading:0, speed:5, state:'traffic', engineOn:false, _audio:null, stealIt:null };
+    var start=loop[p.wp], next=loop[(p.wp+1)%loop.length];
+    p.group.position.set(start[0],0,start[1]);
+    p.heading=Math.atan2(next[0]-start[0],next[1]-start[1]);
+    p.group.rotation.y=p.heading;
+    scene.add(p.group);
+    var it=addDecor('steal',function(it2){ return it2.priusRef&&it2.priusRef.state==='parked'?'Get in the Prius':'Steal the Prius'; },
+      new THREE.Vector3(999,0,999), null,
+      function(it2){
+        it2.on=false; it2.target=0;
+        var pr=it2.priusRef; if(!pr||DriveSystem.driving) return;
+        if(pr.state==='traffic') stealPrius(pr);
+        else if(pr.state==='parked') DriveSystem.enter(pr);
+      }, true);
+    it.priusRef=p; p.stealIt=it;
+    priuses.push(p);
+    return p;
+  }
+  for(var pi=0;pi<5;pi++) makePrius(pi);
+  function update(dt){
+    var i, j, p, gp;
+    for(i=0;i<priuses.length;i++){
+      p=priuses[i]; gp=p.group.position;
+      // the steal prompt rides on the car; a car being driven hides it
+      if(p.stealIt){
+        if(p.state==='traffic'||p.state==='parked') p.stealIt.point.set(gp.x,1.0,gp.z);
+        else p.stealIt.point.set(999,0,999);
+      }
+      if(p.state!=='traffic') continue;
+      var wp=p.loop[p.wp];
+      var dx=wp[0]-gp.x, dz=wp[1]-gp.z, dist=Math.sqrt(dx*dx+dz*dz);
+      if(dist<3.6){ p.wp=(p.wp+1)%p.loop.length; wp=p.loop[p.wp]; dx=wp[0]-gp.x; dz=wp[1]-gp.z; }
+      var want=Math.atan2(dx,dz), turn=angWrap(want-p.heading);
+      var cruise=Math.abs(turn)>0.45?3.6:6.6;
+      var fx=Math.sin(p.heading), fz=Math.cos(p.heading), blocked=false;
+      // yield: the player on foot (this is what lets him walk up
+      // and steal it), the car he is driving, or a Prius ahead
+      if(!DriveSystem.driving){
+        var pdx=player.x-gp.x, pdz=player.z-gp.z, pd=Math.sqrt(pdx*pdx+pdz*pdz);
+        if(pd<2.4||(pd<3.8&&(pdx*fx+pdz*fz)>0)) blocked=true;
+      } else if(DriveSystem.veh){
+        var og=DriveSystem.veh.group.position;
+        var odx=og.x-gp.x, odz=og.z-gp.z, od=Math.sqrt(odx*odx+odz*odz);
+        if(od<6.5&&(odx*fx+odz*fz)>0) blocked=true;
+      }
+      for(j=0;j<priuses.length;j++){
+        if(j===i) continue; var q=priuses[j]; if(q.state!=='traffic') continue;
+        var qdx=q.group.position.x-gp.x, qdz=q.group.position.z-gp.z, qd=Math.sqrt(qdx*qdx+qdz*qdz);
+        if(qd<5.5&&(qdx*fx+qdz*fz)>0){ blocked=true; break; }
+      }
+      p.speed+=((blocked?0:cruise)-p.speed)*Math.min(1,dt*(blocked?5:1.6));
+      if(blocked&&p.speed<0.02) p.speed=0;
+      if(p.speed>0.05) p.heading+=Math.max(-1.35*dt,Math.min(1.35*dt,turn));
+      gp.x+=Math.sin(p.heading)*p.speed*dt;
+      gp.z+=Math.cos(p.heading)*p.speed*dt;
+      p.group.rotation.y=p.heading;
+      for(j=0;j<p.spinWheels.length;j++) p.spinWheels[j].rotation.x+=p.speed*dt/0.33;
+      var sa=Math.max(-0.45,Math.min(0.45,turn));
+      if(p.wheelFL) p.wheelFL.rotation.y=sa;
+      if(p.wheelFR) p.wheelFR.rotation.y=sa;
+    }
+    // pedestrians: the drivers who got out, walking to the sidewalk
+    for(i=peds.length-1;i>=0;i--){
+      var ped=peds[i]; ped.life+=dt;
+      var pdx2=ped.tx-ped.grp.position.x, pdz2=ped.tz-ped.grp.position.z;
+      var pd2=Math.sqrt(pdx2*pdx2+pdz2*pdz2);
+      if(pd2>0.3){
+        ped.grp.position.x+=pdx2/pd2*1.35*dt;
+        ped.grp.position.z+=pdz2/pd2*1.35*dt;
+        ped.grp.position.y=Math.abs(Math.sin(ped.life*7))*0.03;
+        ped.grp.rotation.y=Math.atan2(pdx2,pdz2);
+      } else { ped.stand+=dt; ped.grp.position.y=0; }
+      if(ped.life>26||ped.stand>9){ scene.remove(ped.grp); peds.splice(i,1); }
+    }
+  }
+  return {
+    update:update,
+    steal:stealPrius,
+    vehicles:function(){ return priuses; }
+  };
+})();
+
+/* ================= v38: DRIVING (DriveSystem) =================
+   One module owns every drivable vehicle — the three garage
+   cars and any Prius — through one small shape: {group, spec}
+   with spec {id, name, short, W, L, idleHz, crankHz}. Getting
+   in removes the vehicle's parked collider (a driven car must
+   not collide with itself); getting out drops a fresh collider
+   where it was left, so a car parked across town stays solid.
+   The model is a simple arcade bicycle: throttle/brake/reverse
+   on W/S (or the stick), steering that tightens with speed,
+   circle-vs-collider push-out against the shared collider list
+   (walls, houses, shops, parked cars) and a soft push-out
+   against moving traffic. While driving, step() routes the
+   player position, the prompts and the camera through here,
+   and E is the way out. The bay doors live here too: they roll
+   up for anyone — on foot or in a car — who comes close, and
+   their collider only exists while they are shut. */
+var DriveSystem={
+  driving:false, veh:null, heading:0, speed:0, _audio:null,
+  _cam:new THREE.Vector3(), _camOk:false,
+  _findCollider:function(veh){
+    var gp=veh.group.position, s=veh.spec;
+    for(var i=0;i<colliders.length;i++){
+      var b=colliders[i];
+      var cx=(b.minX+b.maxX)/2, cz=(b.minZ+b.maxZ)/2, w=b.maxX-b.minX;
+      if(Math.abs(cx-gp.x)<0.8&&Math.abs(cz-gp.z)<0.8&&Math.abs(w-(s.W+0.16))<0.35) return i;
+    }
+    return -1;
+  },
+  _dropCollider:function(veh){ var i=this._findCollider(veh); if(i>=0) colliders.splice(i,1); },
+  _parkCollider:function(veh){
+    this._dropCollider(veh);
+    var gp=veh.group.position, s=veh.spec;
+    colliders.push({minX:gp.x-(s.W/2+0.08),maxX:gp.x+(s.W/2+0.08),minZ:gp.z-(s.L/2+0.08),maxZ:gp.z+(s.L/2+0.08)});
+  },
+  enter:function(veh){
+    if(this.driving||!veh) return;
+    this.driving=true; this.veh=veh;
+    this.heading=veh.group.rotation.y; this.speed=0;
+    this._dropCollider(veh);
+    if(veh._audio){ stopEngineAudio(veh); } // a toggled-on engine hands its voice over
+    if(veh.spec.id!=='prius') veh.engineOn=true;
+    try{ this._audio=startEngineAudio({id:veh.spec.id,idleHz:veh.spec.idleHz||55,crankHz:veh.spec.crankHz||30}); }
+    catch(e){ this._audio=null; }
+    player.x=veh.group.position.x; player.z=veh.group.position.z;
+    player.yaw=this.heading; camYaw=this.heading;
+    this._camOk=false;
+    toast('Driving — '+veh.spec.name+'. E to get out.',2400);
+  },
+  exit:function(){
+    if(!this.driving) return false;
+    if(Math.abs(this.speed)>1.4){ toast('Stop the car first.',1400); return false; }
+    var veh=this.veh, gp=veh.group.position, h=this.heading;
+    // step out on the driver's side, then let the ordinary
+    // collision pass settle him against whatever is there
+    var wx=1.75*Math.cos(h)+0.25*Math.sin(h), wz=-1.75*Math.sin(h)+0.25*Math.cos(h);
+    player.x=gp.x+wx; player.z=gp.z+wz;
+    player.yaw=h; camYaw=h; player.pitch=-0.04; camPitch=-0.04;
+    collide();
+    if(this._audio){ try{ this._audio.stop(); }catch(e){} this._audio=null; }
+    if(veh.spec.id==='prius'){ if(veh.state==='stolen') veh.state='parked'; }
+    else{
+      veh.engineOn=false;
+      for(var i=0;i<interactables.length;i++){
+        var it=interactables[i];
+        if(it.car===veh&&it.kind==='engine'){ it.on=false; it.target=0; it.anim=0; }
+      }
+    }
+    this._parkCollider(veh);
+    this.driving=false; this.veh=null; this.speed=0;
+    refreshPlate();
+    return true;
+  },
+  driveStep:function(dt,t){
+    var veh=this.veh; if(!veh) return;
+    var gp=veh.group.position;
+    var th=0, st=0;
+    if(keys['KeyW']||keys['ArrowUp']) th+=1;
+    if(keys['KeyS']||keys['ArrowDown']) th-=1;
+    if(keys['KeyA']||keys['ArrowLeft']) st+=1;
+    if(keys['KeyD']||keys['ArrowRight']) st-=1;
+    th+=-joy.y; st+=-joy.x;
+    if(th>1)th=1; else if(th<-1)th=-1;
+    if(st>1)st=1; else if(st<-1)st=-1;
+    var sp=this.speed;
+    if(th>0) sp+=(sp<0?17:8.5)*th*dt;
+    else if(th<0) sp-=(sp>0.6?17:6.5)*(-th)*dt;
+    sp-=sp*0.5*dt;
+    if(!th&&Math.abs(sp)<0.12) sp=0;
+    sp=Math.max(-6.5,Math.min(23,sp));
+    this.speed=sp;
+    var steerA=st*0.52/(1+Math.abs(sp)*0.10);
+    if(Math.abs(sp)>0.02) this.heading+=(sp/2.7)*Math.tan(steerA)*dt;
+    var h=this.heading;
+    gp.x+=Math.sin(h)*sp*dt; gp.z+=Math.cos(h)*sp*dt;
+    var r=1.12, hit=false, i, b;
+    for(i=0;i<colliders.length;i++){
+      b=colliders[i];
+      if(gp.x>b.minX-r&&gp.x<b.maxX+r&&gp.z>b.minZ-r&&gp.z<b.maxZ+r){
+        var pl=gp.x-(b.minX-r), pr=(b.maxX+r)-gp.x, pb=gp.z-(b.minZ-r), pf=(b.maxZ+r)-gp.z;
+        var m=Math.min(pl,pr,pb,pf);
+        if(m===pl)gp.x=b.minX-r; else if(m===pr)gp.x=b.maxX+r;
+        else if(m===pb)gp.z=b.minZ-r; else gp.z=b.maxZ+r;
+        hit=true;
+      }
+    }
+    var tv=TrafficSystem.vehicles();
+    for(i=0;i<tv.length;i++){
+      var q=tv[i]; if(q===veh||q.state!=='traffic') continue;
+      var qx=gp.x-q.group.position.x, qz=gp.z-q.group.position.z, qd=Math.sqrt(qx*qx+qz*qz);
+      if(qd<2.7&&qd>0.001){ gp.x=q.group.position.x+qx/qd*2.7; gp.z=q.group.position.z+qz/qd*2.7; hit=true; }
+    }
+    if(hit) this.speed*=0.45;
+    gp.x=Math.max(-70.6,Math.min(70.6,gp.x));
+    gp.z=Math.max(-9.3,Math.min(98.6,gp.z));
+    gp.y=0;
+    veh.group.rotation.y=h;
+    if(veh.wheelFL){ veh.wheelFL.rotation.y=steerA*1.15; veh.wheelFR.rotation.y=steerA*1.15; }
+    if(veh.spinWheels) for(i=0;i<veh.spinWheels.length;i++) veh.spinWheels[i].rotation.x+=sp*dt/0.33;
+    player.x=gp.x; player.z=gp.z; player.yaw=h; player.pitch=-0.05;
+  },
+  chaseCam:function(dt){
+    var veh=this.veh; if(!veh) return;
+    var gp=veh.group.position, h=this.heading;
+    var tx=gp.x-Math.sin(h)*7.4, tz=gp.z-Math.cos(h)*7.4;
+    if(!this._camOk){ this._cam.set(tx,3.0,tz); this._camOk=true; }
+    var k=1-Math.exp(-dt*4.5);
+    this._cam.x+=(tx-this._cam.x)*k;
+    this._cam.z+=(tz-this._cam.z)*k;
+    this._cam.y+=(3.0-this._cam.y)*k;
+    camera.position.copy(this._cam);
+    camera.lookAt(gp.x+Math.sin(h)*4.2,1.0,gp.z+Math.cos(h)*4.2);
+  },
+  updateDoors:function(dt){
+    for(var i=0;i<bayDoors.length;i++){
+      var d=bayDoors[i];
+      var dx=player.x-d.x, dz=player.z-10, dist=Math.sqrt(dx*dx+dz*dz);
+      var target=dist<5.4?1:0;
+      d.t+=(target-d.t)*Math.min(1,dt*3.2);
+      if(Math.abs(d.t-target)<0.01) d.t=target;
+      d.group.scale.y=1-0.92*d.t;
+      var shouldBlock=d.t<0.55;
+      if(shouldBlock&&!d.blocked){ colliders.push(d.col); d.blocked=true; }
+      else if(!shouldBlock&&d.blocked){
+        var ix=colliders.indexOf(d.col); if(ix>=0) colliders.splice(ix,1); d.blocked=false;
+      }
+    }
+  }
+};
+/* getting into a garage car: a third prompt at the driver's
+   door of each bay, on the opposite side from the engine
+   prompt so the two never fight over the same spot */
+cars.forEach(function(car){
+  var s=car.spec;
+  addInter(car,'drive',function(it){ return 'Get in and drive — '+s.short; },
+    new THREE.Vector3(s.x-(s.W/2+0.62),1.0,-2+(s.doorFront||0.8)+0.35),
+    function(v){});
+});
+/* Headless verification hook, same spirit as __GARAGE_PERF__:
+   the probe drives, steals and parks through here. */
+window.__DRIVE__={drive:DriveSystem,traffic:TrafficSystem};
+
 /* ================= PLAYER ================= */
 var player={x:0.4,z:7.6,yaw:0.12,pitch:-0.04};
 var keys={}, started=false;
@@ -4029,12 +4344,12 @@ var currentInter=null, currentCar=null;
 
 function carStatesHTML(car){
   var out='';
-  [['hood','HOOD'],['lights','LIGHTS'],['engine','ENGINE']].forEach(function(pair){
+  [['lights','LIGHTS'],['engine','ENGINE']].forEach(function(pair){
     var it=interactables.find(function(i){return i.car===car&&i.kind===pair[0];});
-    if(!it) return; // the S15's shell has no hood panel — no dead state shown
+    if(!it) return;
     out+='<span class="'+(it.on?'on':'')+'">'+pair[1]+'</span>';
   });
-  return out+'<span>DOORS + TRUNK SEALED</span>';
+  return out;
 }
 function refreshPlate(){
   if(!currentCar){ plateEl.classList.remove('show'); return; }
@@ -4058,7 +4373,9 @@ function nearest(){
   });
   return {inter:best,car:bc};
 }
-function doInteract(){ if(BongSystem.active) return; if(currentInter){ audio(); toggleInter(currentInter); } }
+function doInteract(){ if(BongSystem.active) return;
+  if(typeof DriveSystem!=='undefined'&&DriveSystem.driving){ DriveSystem.exit(); return; } // v38: E is the way out of any car
+  if(currentInter){ audio(); toggleInter(currentInter); } }
 
 /* ---- input: keyboard ---- */
 window.addEventListener('keydown',function(e){
@@ -4226,8 +4543,12 @@ function collide(){
     player.x=Math.max(-5.08,Math.min(5.08,player.x));
     player.z=Math.max(-32.42,Math.min(-25.38,player.z));
   } else {
-    player.x=Math.max(-12.55,Math.min(12.55,player.x));
-    player.z=Math.max(-9.45,Math.min(9.55,player.z));
+    // v38: garage + town are one open zone now. The town fence
+    // is the only clamp out here; the garage's own walls hold
+    // the player (and cars, and Alina) in or out via the wall
+    // colliders, with gaps only at the three bay doors.
+    player.x=Math.max(-71,Math.min(71,player.x));
+    player.z=Math.max(-9.45,Math.min(99,player.z));
   }
   var r=0.34;
   for(var i=0;i<colliders.length;i++){
@@ -4261,8 +4582,13 @@ function step(dt,t){
     var dyaw=((player.yaw-camYaw+Math.PI*3)%(Math.PI*2))-Math.PI;
     camYaw+=dyaw*kk; camPitch+=(player.pitch-camPitch)*kk;
   }
+  // v38: driving replaces walking wholesale — DriveSystem owns
+  // the player position while it is active, and the walk input
+  // below is skipped so the two can never fight over him
+  var drivingNow=(typeof DriveSystem!=='undefined'&&DriveSystem.driving&&started);
+  if(drivingNow) DriveSystem.driveStep(dt,t);
   var f=0,s=0;
-  if(started){
+  if(started&&!drivingNow){
     if(keys['KeyW']||keys['ArrowUp'])f+=1;
     if(keys['KeyS']||keys['ArrowDown'])f-=1;
     if(keys['KeyA']||keys['ArrowLeft'])s-=1;
@@ -4276,16 +4602,18 @@ function step(dt,t){
   // walk relative to what you actually see (the smoothed heading), so
   // look and movement can never disagree mid-gesture
   var sin=Math.sin(camYaw), cos=Math.cos(camYaw);
-  player.x+=(-sin*f+cos*s)*sp*dt;
-  player.z+=(-cos*f-sin*s)*sp*dt;
-  collide();
+  if(!drivingNow){
+    player.x+=(-sin*f+cos*s)*sp*dt;
+    player.z+=(-cos*f-sin*s)*sp*dt;
+    collide();
+  }
   /* v28: doorways work by walking into them, not only by prompt.
      Stepping up to a door (within the last ~0.35 m the zone clamp
      allows, centred on the doorway) fires the same toggleInter the
      E key fires, so the round trip works hands-free on touch. The
      landing spots sit outside both trigger bands, so a teleport
      can never chain into the opposite door. */
-  if(started&&!BongSystem.active){
+  if(started&&!BongSystem.active&&!drivingNow){
     if(player.z<-20){ if(Math.abs(player.x)<0.62&&player.z>-25.72) toggleInter(doorToGarage); }
     else if(Math.abs(player.x-10.6)<0.95&&player.z<-8.95) toggleInter(doorToApartment);
   }
@@ -4294,9 +4622,12 @@ function step(dt,t){
   if(!started){ yaw+=Math.sin(t*0.16)*0.22; pitch+=-0.02+Math.sin(t*0.11)*0.02; }
   var bob=0;
   if(started&&(f||s)&&!reduceMotion) bob=Math.sin(t*9*run)*0.022;
-  camera.position.set(player.x,1.62+bob,player.z);
-  camera.rotation.order='YXZ';
-  camera.rotation.y=yaw; camera.rotation.x=pitch; camera.rotation.z=0;
+  if(drivingNow){ DriveSystem.chaseCam(dt); } // v38: the chase camera owns the view while driving
+  else{
+    camera.position.set(player.x,1.62+bob,player.z);
+    camera.rotation.order='YXZ';
+    camera.rotation.y=yaw; camera.rotation.x=pitch; camera.rotation.z=0;
+  }
   // interactable animations
   // v20 FIX: apply() runs inside a guard. An interactable's effect
   // (a light, a flame, the wine doors) throwing on some device
@@ -4345,20 +4676,33 @@ function step(dt,t){
     if(neonCrossGlowMat) neonCrossGlowMat.opacity=0.85*nf;
   }
   // prompts / plate (throttle: every frame is fine, DOM writes only on change)
-  var n=nearest();
-  if(n.inter!==currentInter){
-    currentInter=n.inter;
-    if(currentInter){
+  if(drivingNow){
+    // v38: while driving, the only prompt is the way out, and
+    // the bay plate (which reads off the nearest parked car)
+    // stays down
+    if(currentInter) currentInter=null;
+    promptTxt.textContent='Get out of the car';
+    btnInteractTxt.textContent='Exit';
+    promptEl.classList.add('show');
+    if(currentCar){ currentCar=null; refreshPlate(); }
+  } else {
+    var n=nearest();
+    if(n.inter!==currentInter){
+      currentInter=n.inter;
+      if(currentInter){
+        promptTxt.textContent=currentInter.labelFn(currentInter);
+        btnInteractTxt.textContent=currentInter.on?'Close':'Open';
+        promptEl.classList.add('show');
+      } else promptEl.classList.remove('show');
+    } else if(currentInter){
       promptTxt.textContent=currentInter.labelFn(currentInter);
-      btnInteractTxt.textContent=currentInter.on?'Close':'Open';
-      promptEl.classList.add('show');
-    } else promptEl.classList.remove('show');
-  } else if(currentInter){
-    promptTxt.textContent=currentInter.labelFn(currentInter);
+    }
+    if(n.car!==currentCar){ currentCar=n.car; refreshPlate(); }
   }
-  if(n.car!==currentCar){ currentCar=n.car; refreshPlate(); }
   BongSystem.update(dt,t); // v25: POV hit camera + smoke (no-op unless a hit is playing)
   HighSystem.update(dt,t); // v25: high timer, screen wash + camera sway (no-op at zero)
+  SimulationSystem.guard('traffic',function(){ TrafficSystem.update(dt); }); // v38: NPC Priuses + their drivers, guarded like every actor
+  SimulationSystem.guard('bay-doors',function(){ DriveSystem.updateDoors(dt); }); // v38: the roll-up doors breathe with proximity
   SimulationSystem.guard('alina',function(){ FollowerSystem.update(dt); }); // v27: the follower steps with the player, guarded like every actor
 }
 
@@ -4435,7 +4779,7 @@ QualitySystem.setApply(function(tier){
   if(tier==='full'){ buildComposer(); }
   else if(composer){ var oldC=composer; composer=null; try{ if(oldC.dispose) oldC.dispose(); }catch(e){} }
   if(dustPts) dustPts.visible=(tier==='full'||tier==='balanced');
-  camera.far=tier==='minimal'?58:80; camera.updateProjectionMatrix();
+  camera.far=tier==='minimal'?120:190; camera.updateProjectionMatrix(); // v38: far enough to see across town
   resize();
 });
 QualitySystem.tier=softwareGL?'minimal':'balanced';
