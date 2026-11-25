@@ -156,20 +156,13 @@
 </head>
 <body class="noselect">
 <canvas id="scene"></canvas>
-<!-- the high's wave warp (driven by HighSystem): an SVG
-     turbulence + displacement filter applied to the canvas
-     element itself. Because it lives in the DOM layer like
-     the wash, it works on every quality tier — the post
-     chain only exists at 'full', so the wave cannot live
-     there. Scale starts at 0 (no visible effect). -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs>
-    <filter id="highWave" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB">
-      <feTurbulence id="highTurb" type="fractalNoise" baseFrequency="0.012 0.019" numOctaves="2" seed="7" result="n"/>
-      <feDisplacementMap id="highDisp" in="SourceGraphic" in2="n" scale="0" xChannelSelector="R" yChannelSelector="G"/>
-    </filter>
-  </defs>
-</svg>
+<!-- the high's wave warp used to live here as an SVG filter
+     applied to the canvas via CSS filter:url(). That never
+     rendered on iOS Safari (the player's phone): the hit
+     stacked, the timer ran, and the screen stayed flat. The
+     warp now lives in the WebGL pipeline itself — see
+     WaveSystem below — so it works on every browser and
+     every quality tier. -->
 <div id="vignette"></div>
 
 <div id="hud">
@@ -2449,8 +2442,10 @@ function buildAtmosphere(){
    opens on this: ONE normal room, 11 x 8 m with a 2.7 m
    ceiling, in the same second zone (z < -20), so the v22 zone
    culling applies untouched. A couch and TV, a small kitchen
-   run along the west wall, a bed corner, a dresser, a plant,
-   a night-city window. Built entirely from in-engine boxes and
+   run along the west wall, a dresser, a plant, a night-city
+   window — and the bed in its own proper bedroom, walled off
+   in the south-east corner with a doorway, so it no longer
+   sits out in the open living space. Built entirely from in-engine boxes and
    canvas textures like the garage's own furniture — no
    downloads, nothing to stream, nothing Victorian. Four of
    its pieces are interactable (TV, stereo, bedside lamp, and
@@ -2799,14 +2794,16 @@ function buildApartment(){
   spill.rotation.x=-Math.PI/2; spill.position.set(1.6,0.02,-31.4); spill.renderOrder=3; scene.add(spill);
   var winLight=new THREE.PointLight(0x9db8e8,3,6.5,1.8); winLight.position.set(1.6,1.8,-31.8); scene.add(winLight);
   // living area: rug, couch facing the TV on the east wall
-  box(3.4,0.02,2.6,new THREE.MeshStandardMaterial({map:rugTex,roughness:1}),3.55,0.011,-29);
-  box(0.5,0.42,2.6,darkWood,5.18,0.21,-29); addCollider(5.18,-29,0.3,1.35); // TV stand
-  box(0.07,1.1,2.0,black,5.44,1.3,-29); // TV body
+  // (the rug and TV stand sit 0.1 m north of their old spots so
+  // the bedroom partition below never clips them)
+  box(3.4,0.02,2.6,new THREE.MeshStandardMaterial({map:rugTex,roughness:1}),3.55,0.011,-28.9);
+  box(0.5,0.42,2.6,darkWood,5.18,0.21,-28.9); addCollider(5.18,-28.9,0.3,1.35); // TV stand
+  box(0.07,1.1,2.0,black,5.44,1.3,-28.9); // TV body
   APT.tvMat=new THREE.MeshStandardMaterial({map:aptTvTex,emissive:0xffffff,emissiveMap:aptTvTex,emissiveIntensity:0.06,color:0x2a2a2a,roughness:0.25});
-  box(0.03,0.98,1.86,APT.tvMat,5.39,1.3,-29); // the screen
-  box(0.24,0.34,0.24,black,5.18,0.59,-27.95); // speakers + receiver (the stereo)
-  box(0.24,0.34,0.24,black,5.18,0.59,-30.05);
-  box(0.4,0.09,0.5,black,5.18,0.47,-29);
+  box(0.03,0.98,1.86,APT.tvMat,5.39,1.3,-28.9); // the screen
+  box(0.24,0.34,0.24,black,5.18,0.59,-27.85); // speakers + receiver (the stereo)
+  box(0.24,0.34,0.24,black,5.18,0.59,-29.95);
+  box(0.4,0.09,0.5,black,5.18,0.47,-28.9);
   box(0.85,0.12,2.2,fabricDark,2.55,0.06,-29); // the couch
   box(0.95,0.38,2.3,fabric,2.55,0.31,-29);
   box(0.8,0.16,1.05,fabricLight,2.6,0.56,-29.55);
@@ -2855,18 +2852,48 @@ function buildApartment(){
     addCollider(-2.8,sz,0.19,0.19);
   });
   buildBong(-3.62,0.93,-30.35);
-  // v27: bed corner moved to the SOUTH-EAST — diagonally opposite
-  // the kitchen, headboard on the south wall east of the window.
-  // (In v25/v26 the bed sat in the south-west and its foot ran
-  // into the kitchen island: bed collider reached z -30.4 while
-  // the island top reached z -30.63 — they overlapped in plan.)
-  box(1.7,0.28,2.2,darkWood,4.3,0.14,-31.55);
-  box(1.7,0.85,0.08,darkWood,4.3,0.55,-32.68);
-  box(1.6,0.2,2.1,new THREE.MeshStandardMaterial({color:0xf0ece2,roughness:0.95}),4.3,0.38,-31.5);
-  box(1.64,0.07,1.35,new THREE.MeshStandardMaterial({map:blanketTex,roughness:0.95}),4.3,0.5,-31.05);
-  box(0.62,0.12,0.4,new THREE.MeshStandardMaterial({color:0xfaf7f0,roughness:0.95}),3.88,0.53,-32.35);
-  box(0.62,0.12,0.4,new THREE.MeshStandardMaterial({color:0xfaf7f0,roughness:0.95}),4.72,0.53,-32.35);
-  addCollider(4.3,-31.55,0.9,1.15);
+  // THE BEDROOM: the bed no longer sits out in the open
+  // apartment — it has its own room in the south-east corner,
+  // walled off from the kitchen/living space by two partition
+  // walls with a doorway between the living room and the bed.
+  //   west partition:  x=2.7, from the south wall (z -32.8) up
+  //     to z -30.3. It lands east of the window's west portion,
+  //     so the bedroom keeps the window's east panes and the
+  //     nightstand corner; the living room keeps the rest.
+  //   north partition: z=-30.3, from x 3.85 to the east wall,
+  //     leaving a 1.15 m doorway gap (x 2.7..3.85) at its west
+  //     end — walk in past the bed's foot, then down the west
+  //     side of the bed to the nightstand.
+  // The bed itself shifts 0.15 m east (centre x 4.45) so the
+  // gap between its west edge (3.6) and the west partition
+  // (2.76) is a real walkable bedside corridor for the player
+  // (r 0.34) and for Alina (r 0.30) alike.
+  box(1.7,0.28,2.2,darkWood,4.45,0.14,-31.55);
+  box(1.7,0.85,0.08,darkWood,4.45,0.55,-32.68);
+  box(1.6,0.2,2.1,new THREE.MeshStandardMaterial({color:0xf0ece2,roughness:0.95}),4.45,0.38,-31.5);
+  box(1.64,0.07,1.35,new THREE.MeshStandardMaterial({map:blanketTex,roughness:0.95}),4.45,0.5,-31.05);
+  box(0.62,0.12,0.4,new THREE.MeshStandardMaterial({color:0xfaf7f0,roughness:0.95}),4.03,0.53,-32.35);
+  box(0.62,0.12,0.4,new THREE.MeshStandardMaterial({color:0xfaf7f0,roughness:0.95}),4.87,0.53,-32.35);
+  addCollider(4.45,-31.55,0.9,1.15);
+  // the partitions themselves (same plaster as the shell walls)
+  box(0.12,2.7,2.5,wallMat,2.7,1.35,-31.55,false); addCollider(2.7,-31.55,0.06,1.25);
+  box(1.65,2.7,0.12,wallMat,4.675,1.35,-30.3,false); addCollider(4.675,-30.3,0.825,0.06);
+  // baseboards on the partition faces, matching the shell trim
+  box(0.03,0.11,2.44,trimMat,2.79,0.055,-31.55,false); box(0.03,0.11,2.44,trimMat,2.61,0.055,-31.55,false);
+  box(1.59,0.11,0.03,trimMat,4.675,0.055,-30.39,false); box(1.59,0.11,0.03,trimMat,4.675,0.055,-30.21,false);
+  // the doorway: trim jamb + header on the gap's east edge, and
+  // the bedroom door itself, swung open flat against the
+  // living-room side of the north partition
+  box(0.1,2.15,0.18,trimMat,3.85,1.075,-30.3,false);
+  box(1.25,0.1,0.18,trimMat,3.27,2.15,-30.3,false);
+  box(0.92,2.08,0.045,darkWood,4.32,1.06,-30.17,false);
+  var bedKnob=new THREE.Mesh(new THREE.SphereGeometry(0.04,12,10),
+    new THREE.MeshStandardMaterial({color:0xc9a24d,roughness:0.25,metalness:1,envMapIntensity:1.3}));
+  bedKnob.position.set(3.93,1.02,-30.12); scene.add(bedKnob);
+  // the bedroom's own ceiling fixture + warm light, so the room
+  // reads as its own space after dark, not a lit corner
+  box(1.1,0.06,0.4,fixMat,4.1,2.68,-31.4,false);
+  var bedLight=new THREE.PointLight(0xffd9b0,7,8,1.8); bedLight.position.set(4.1,2.35,-31.4); scene.add(bedLight);
   // nightstand between the bed and the window, with the lamp
   box(0.5,0.42,0.4,darkWood,3.18,0.21,-32.45); addCollider(3.18,-32.45,0.3,0.25);
   box(0.24,0.04,0.17,rust,3.08,0.44,-32.38); // a book on it
@@ -3072,7 +3099,7 @@ addDecor('apt-tv',function(it){ return 'Turn the TV '+(it.on?'off':'on'); },
   new THREE.Vector3(4.9,1.3,-28.6),
   function(v){ if(APT.tvMat) APT.tvMat.emissiveIntensity=0.06+v*1.6; });
 addDecor('apt-stereo',function(it){ return (it.on?'Stop':'Play')+' the stereo'; },
-  new THREE.Vector3(4.9,0.75,-30.0), null,
+  new THREE.Vector3(4.9,0.75,-29.95), null,
   function(it){ setStereo(it.on); if(it.on) toast('The stereo hums a soft loop through the apartment.',2200); });
 addDecor('apt-lamp',function(it){ return 'Turn the lamp '+(it.on?'off':'on'); },
   new THREE.Vector3(3.18,0.8,-32.45),
@@ -3085,6 +3112,23 @@ addDecor('apt-lamp',function(it){ return 'Turn the lamp '+(it.on?'off':'on'); },
 var bongInter=addDecor('apt-bong',function(it){ return 'Take a hit from the bong'; },
   new THREE.Vector3(-3.62,1.15,-30.35), null,
   function(it){ BongSystem.startHit(it); });
+/* the bed: lay Alina down / help her up. Not an objective find
+   (noCount, like the doors) — the objective stays FIND ALL 13.
+   FollowerSystem owns the state: layDown() moves her onto the
+   bed in the bedroom, lying on her back with her head at the
+   pillows, and her clothes come off as part of it (her GLB
+   builds the camisole, denim shorts and shoes as their own
+   meshes over the body — layDown hides exactly those, getUp
+   restores them). If she isn't in the apartment with you, the
+   toggle politely refuses and resets itself. */
+var bedInter=addDecor('apt-bed',function(it){ return FollowerSystem.laidDown?'Help Alina up':'Lay Alina down on the bed'; },
+  new THREE.Vector3(3.95,0.9,-31.5), null,
+  function(it){
+    if(it.on){
+      if(!FollowerSystem.layDown()){ it.on=false; it.target=0; toast('Alina needs to be here in the apartment for that.',2200); }
+      else toast('Alina lies down on the bed.',2000);
+    } else FollowerSystem.getUp();
+  }, true);
 function teleport(x,z,yaw,msg){
   clunk(.4,300);
   player.x=x; player.z=z; player.yaw=yaw; player.pitch=-0.02;
@@ -3093,7 +3137,7 @@ function teleport(x,z,yaw,msg){
 }
 var doorToApartment=addDecor('door',function(){ return 'Enter the apartment'; },
   new THREE.Vector3(10.6,1.2,-8.5), null,
-  function(it){ teleport(0,-26.4,0,'The apartment — couch, TV, kitchen, bed. Make yourself at home.');
+  function(it){ teleport(0,-26.4,0,'The apartment — couch, TV, kitchen, and the bedroom through the doorway. Make yourself at home.');
     it.on=false; it.target=0; }, true);
 var doorToGarage=addDecor('door',function(){ return 'Return to the garage'; },
   new THREE.Vector3(0,1.2,-25.75), null,
@@ -3129,44 +3173,25 @@ function toggleInter(it){
    so the effect CANNOT get stuck on: when the seconds run
    out the wash fades, the chip hides and the FOV is restored
    exactly. Visuals are DOM gradients + a whisper of camera
-   roll/FOV breathing + (the latest addition) a smooth wave
-   warp: an SVG displacement filter on the canvas element,
-   driven from _wave() below. Still no post chain and no
-   backdrop blur, so it costs the same on every quality tier. */
+   roll/FOV breathing + the wave warp, whose strength this
+   module publishes as waveStrength (0..1) every frame.
+   WaveSystem (below) turns that number into a real shader
+   warp in the render pipeline. The warp used to be an SVG
+   displacement filter hung on the canvas element via CSS —
+   iOS Safari silently never applied it, so on the player's
+   phone the hits stacked and the screen stayed flat. The
+   strength follows the STACK, not just the on/off intensity:
+   stackFrac is remaining/cap, so more stacked hits (up to
+   the 4:30 cap) push waveStrength harder, and as the seconds
+   burn down it eases off with them — then the shared
+   last-5-seconds intensity fade takes it to exactly zero. */
 var HighSystem={
-  remaining:0, intensity:0, _lastShown:-1, _fovApplied:false, _waveOn:false, _waveTick:0,
+  remaining:0, intensity:0, waveStrength:0, _lastShown:-1, _fovApplied:false,
   chip:document.getElementById('highChip'), timeEl:document.getElementById('highTime'),
   fx:document.getElementById('highFx'),
-  turb:document.getElementById('highTurb'), disp:document.getElementById('highDisp'),
   addHit:function(){
     this.remaining=Math.min(this.remaining+45,270);
     this.fx.style.display='block'; this.chip.style.display='block';
-  },
-  /* the wave warp: displacement scale + a slow drift of the
-     turbulence frequency, written at most every other frame.
-     Strength follows the STACK, not just the on/off intensity:
-     stackFrac is remaining/cap, so more stacked hits (up to
-     the 4:30 cap) push the warp harder, and as the seconds
-     burn down the warp eases off with them — then the shared
-     last-5-seconds intensity fade takes it to exactly zero
-     and _waveOff() unhooks the filter. The motion is all slow
-     sines (0.09–0.5 Hz): a rolling swell, never a jitter. */
-  _wave:function(I,t){
-    var stackFrac=Math.min(1,this.remaining/270);
-    var amp=(0.5+0.5*stackFrac)*(reduceMotion?0.35:1);
-    if(!this._waveOn){ canvas.style.filter='url(#highWave)'; this._waveOn=true; }
-    canvas.style.transform='scale('+(1+0.05*I*amp).toFixed(4)+')';
-    if((this._waveTick++&1)===0){
-      this.disp.setAttribute('scale',(I*amp*24*(0.85+0.15*Math.sin(t*0.5))).toFixed(1));
-      this.turb.setAttribute('baseFrequency',
-        (0.012+0.004*Math.sin(t*0.11)).toFixed(4)+' '+(0.019+0.005*Math.sin(t*0.09+1.3)).toFixed(4));
-    }
-  },
-  _waveOff:function(){
-    if(!this._waveOn) return;
-    this._waveOn=false;
-    canvas.style.filter=''; canvas.style.transform='';
-    this.disp.setAttribute('scale','0');
   },
   update:function(dt,t){
     if(this.remaining>0){ this.remaining-=dt; if(this.remaining<0)this.remaining=0; }
@@ -3174,14 +3199,18 @@ var HighSystem={
     var target=this.remaining>0?(this.remaining<5?this.remaining/5:1):0;
     this.intensity+=(target-this.intensity)*Math.min(1,dt*1.6);
     if(this.remaining<=0&&this.intensity<0.02){
-      this.intensity=0;
+      this.intensity=0; this.waveStrength=0;
       if(this.fx.style.display!=='none') this.fx.style.display='none';
-      this._waveOff();
       if(this._fovApplied){ camera.fov=72; camera.updateProjectionMatrix(); this._fovApplied=false; }
       return;
     }
     var I=this.intensity;
-    this._wave(I,t);
+    /* publish the warp strength for WaveSystem: the base 0.30
+       is one hit's worth of wobble; the stack term takes it to
+       a full 1.0 only near the 4:30 cap, so hit two visibly
+       waves harder than hit one, hit four harder still. */
+    var stackFrac=Math.min(1,this.remaining/270);
+    this.waveStrength=I*(0.30+0.70*stackFrac)*(reduceMotion?0.4:1);
     this.fx.style.opacity=(I*0.92).toFixed(3);
     this.fx.style.transform='scale(1.05) rotate('+(Math.sin(t*0.21)*0.7*I).toFixed(3)+'deg) translate('
       +(Math.sin(t*0.13)*6*I).toFixed(1)+'px,'+(Math.cos(t*0.17)*5*I).toFixed(1)+'px)';
@@ -3355,6 +3384,91 @@ var BongSystem={
 };
 window.__BONG_SYS__={bong:BongSystem,high:HighSystem};
 
+/* ================= WaveSystem =================
+   The high's wave warp, done in the render pipeline itself —
+   its own self-contained module (bedrock rule 1), fed by one
+   number: HighSystem.waveStrength. While that is ~0 this is
+   a pure pass-through to the exact render path the game has
+   always used (post composer at 'full', plain renderer
+   otherwise), so a sober frame costs and looks precisely
+   what it did before. While it is up, the scene renders
+   once into a half-float target and a fullscreen quad
+   re-samples it with a two-axis sine displacement (the same
+   OutputPass-style shader shape three ships: the quad pass
+   applies the renderer's ACES tone mapping + sRGB output
+   itself, because a scene rendered into a target comes out
+   linear). Amplitude is in UV units: strength 1 = a 0.030
+   peak offset, about 3% of the screen — unmissable — and
+   the first hit's ~0.42 strength is a clear rolling swell.
+   The target mirrors at its edges, so displaced samples at
+   the frame border fold back instead of streaking. While
+   the warp is live the 'full' tier's bloom chain is bypassed
+   (the scene still renders through this pass); the moment
+   the high ends, the composer path returns untouched. Any
+   failure here disables the pass permanently and falls back
+   to the plain path — the game never depends on it. */
+var WaveSystem={
+  rt:null, quadScene:null, quadCam:null, mat:null, _dead:false, _size:new THREE.Vector2(),
+  _ensure:function(w,h){
+    if(this.rt&&(this.rt.width!==w||this.rt.height!==h)) this.rt.setSize(w,h);
+    if(this.rt) return;
+    this.rt=new THREE.WebGLRenderTarget(w,h,{type:THREE.HalfFloatType,depthBuffer:true,samples:softwareGL?0:4});
+    this.rt.texture.wrapS=THREE.MirroredRepeatWrapping;
+    this.rt.texture.wrapT=THREE.MirroredRepeatWrapping;
+    this.mat=new THREE.ShaderMaterial({
+      uniforms:{tDiffuse:{value:this.rt.texture},uTime:{value:0},uAmp:{value:0}},
+      vertexShader:'varying vec2 vUv;\nvoid main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
+      fragmentShader:[
+        'uniform sampler2D tDiffuse;','uniform float uTime;','uniform float uAmp;','varying vec2 vUv;',
+        'void main(){',
+        '  vec2 uv=vUv;',
+        '  float a=uAmp*(0.85+0.15*sin(uTime*0.7));',
+        '  uv.x+=(sin(uv.y*14.0+uTime*1.6)*0.65+sin(uv.y*27.0-uTime*2.3+uv.x*4.0)*0.35)*a;',
+        '  uv.y+=(cos(uv.x*11.0+uTime*1.3)*0.65+cos(uv.x*23.0-uTime*1.9+uv.y*3.0)*0.35)*a*0.75;',
+        '  gl_FragColor=texture2D(tDiffuse,uv);',
+        '  #include <tonemapping_fragment>',
+        '  #include <colorspace_fragment>',
+        '}'
+      ].join('\n'),
+      depthTest:false, depthWrite:false
+    });
+    this.quadScene=new THREE.Scene();
+    this.quadCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+    this.quadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),this.mat));
+  },
+  _plain:function(){
+    if(composer){
+      try{ composer.render(); }
+      catch(pe){
+        ErrorGuard.report(pe,'composer');
+        var badC=composer; composer=null;
+        try{ if(badC.dispose) badC.dispose(); }catch(e){}
+        renderer.render(scene,camera); // polish layer failed — keep playing without it
+      }
+    } else renderer.render(scene,camera);
+  },
+  render:function(now){
+    var strength=HighSystem.waveStrength||0;
+    if(this._dead||strength<=0.004){ this._plain(); return; }
+    try{
+      renderer.getDrawingBufferSize(this._size);
+      this._ensure(Math.max(2,this._size.x),Math.max(2,this._size.y));
+      this.mat.uniforms.uTime.value=now;
+      this.mat.uniforms.uAmp.value=strength*0.030;
+      renderer.setRenderTarget(this.rt);
+      renderer.render(scene,camera);
+      renderer.setRenderTarget(null);
+      renderer.render(this.quadScene,this.quadCam);
+    }catch(e){
+      ErrorGuard.report(e,'wave-pass');
+      this._dead=true;
+      try{ renderer.setRenderTarget(null); }catch(e2){}
+      this._plain();
+    }
+  }
+};
+window.__WAVE_SYS__=WaveSystem;
+
 /* ================= v30: FollowerSystem (Alina) =================
    The game's ONLY girl. v30 fixes the v29 phone verdict — "she
    shouldn't be attached to the camera like that. it should be
@@ -3428,6 +3542,7 @@ window.__BONG_SYS__={bong:BongSystem,high:HighSystem};
    She is NOT an interactable and never touches the objective. */
 var FollowerSystem={
   ready:false, root:null, model:null, mixer:null,
+  laidDown:false, clothing:[], blob:null, _saved:null,
   x:2.4, z:7.6, yaw:-Math.PI/2,
   FOLLOW_START:3.2, STOP_DIST:1.9, MINSEP:1.5,
   bones:null, baseQ:null, baseY:0, gaitPhase:0, gaitAmp:0, moving:false, following:false, speedNow:0, tx:0, tz:0,
@@ -3447,6 +3562,7 @@ var FollowerSystem={
     }catch(e){ ErrorGuard.report(e,'alina-load'); }
   },
   _build:function(gltf){
+    var fs=this;
     var model=gltf.scene;
     var root=new THREE.Group();
     root.add(model);
@@ -3461,7 +3577,16 @@ var FollowerSystem={
     var ctr=bb.getCenter(new THREE.Vector3());
     model.position.x-=ctr.x; model.position.z-=ctr.z; model.position.y-=bb.min.y;
     model.traverse(function(o){
-      if(o.isMesh){ o.castShadow=true; o.frustumCulled=false; }
+      if(o.isMesh){ o.castShadow=true; o.frustumCulled=false;
+        /* her clothes are their own meshes over the body (the
+           GLB's materials name them: Camisole, Denim_shorts,
+           Canvas_shoes). Collected here so layDown() can take
+           them off and getUp() can put them back — nothing
+           else ever touches their visibility. */
+        var mm=Array.isArray(o.material)?o.material:[o.material];
+        for(var mi=0;mi<mm.length;mi++){ var mn=mm[mi]&&mm[mi].name;
+          if(mn==='Camisole'||mn==='Denim_shorts'||mn==='Canvas_shoes') fs.clothing.push(o); }
+      }
       if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(function(m){
         if(m.envMapIntensity!==undefined&&m.envMapIntensity<0.85) m.envMapIntensity=0.85;
       }); }
@@ -3503,6 +3628,7 @@ var FollowerSystem={
     var blob=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.62),
       new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false,opacity:0.85}));
     blob.rotation.x=-Math.PI/2; blob.position.y=0.013; blob.renderOrder=1; root.add(blob);
+    this.blob=blob; // hidden while she is laid down (it would tilt with the root)
     root.position.set(this.x,0,this.z);
     root.rotation.set(0,this.yaw,0);
     scene.add(root);
@@ -3528,6 +3654,44 @@ var FollowerSystem={
     this._collide();
     // if a collider shoved her back across the gap, accept the
     // shove — she stays idle wherever collision leaves her
+    this.tx=this.x; this.tz=this.z;
+  },
+  /* ---- the bed (the bedroom in the apartment) ----
+     layDown() is called by the bed interactable, and only
+     succeeds while she is here in the apartment zone. She is
+     placed on the bed in the bedroom: root at her feet
+     (4.45, -30.62 — the bed's centre line, just inside its
+     foot), tipped back -90° about X so her body runs south
+     along the bed with her head at the pillows (z ≈ -32.3)
+     and her front facing up. Lying on top of the mattress +
+     blanket puts the root plane at y 0.50. Her clothes come
+     off as part of laying her down: the garment meshes
+     collected in _build are hidden, and getUp() restores
+     them exactly. While laidDown, update() holds this pose
+     and nothing else runs — no follow, no gait, no mixer, so
+     the standing clip can't writhe under her — and the hard
+     upright lock resumes the frame she gets up. Her spot is
+     saved and restored, so getting up puts her back where
+     she was standing, following as before. */
+  layDown:function(){
+    if(!this.ready||!this.root||this.laidDown) return false;
+    if(this.z>=-20) return false; // she has to be in the apartment
+    this._saved={x:this.x,z:this.z,yaw:this.yaw};
+    this.laidDown=true; this.following=false; this.moving=false;
+    this.gaitAmp=0; this.speedNow=0;
+    this.x=4.45; this.z=-30.62;
+    for(var i=0;i<this.clothing.length;i++) this.clothing[i].visible=false;
+    if(this.blob) this.blob.visible=false;
+    this.root.position.set(this.x,0.50,this.z);
+    this.root.rotation.set(-Math.PI/2,0,0);
+    return true;
+  },
+  getUp:function(){
+    if(!this.laidDown) return;
+    this.laidDown=false;
+    for(var i=0;i<this.clothing.length;i++) this.clothing[i].visible=true;
+    if(this.blob) this.blob.visible=true;
+    if(this._saved){ this.x=this._saved.x; this.z=this._saved.z; this.yaw=this._saved.yaw; this._saved=null; }
     this.tx=this.x; this.tz=this.z;
   },
   _turnToward:function(target,dt){
@@ -3586,6 +3750,13 @@ var FollowerSystem={
   },
   update:function(dt){
     if(!this.ready||!this.root) return;
+    if(this.laidDown){
+      // in bed: hold the lying pose, nothing else simulates
+      this.root.position.set(this.x,0.50,this.z);
+      this.root.rotation.set(-Math.PI/2,0,0);
+      if(this.model) this.model.position.y=this.baseY;
+      return;
+    }
     var px=player.x, pz=player.z;
     /* the player's own speed, measured from his real movement
        (a door teleport reads as a spike and is discarded): her
@@ -4149,15 +4320,10 @@ function frame(now){
   if(win&&!softwareGL&&AssetSystem.stats().active===0) QualitySystem.evaluate(win,now);
   MemorySystem.evaluate(renderer,now);
   try{
-    if(composer){
-      try{ composer.render(); }
-      catch(pe){
-        ErrorGuard.report(pe,'composer');
-        var badC=composer; composer=null;
-        try{ if(badC.dispose) badC.dispose(); }catch(e){}
-        renderer.render(scene,camera); // polish layer failed — keep playing without it
-      }
-    } else renderer.render(scene,camera);
+    /* WaveSystem owns the final draw: a pass-through to the
+       composer / plain paths while sober, the wave-warp pass
+       while the high is up (see its header for why). */
+    WaveSystem.render(now/1000);
   }catch(err){ ErrorGuard.report(err,'render'); QualitySystem.stepDown('render-error'); }
 }
 requestAnimationFrame(frame);
