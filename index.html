@@ -156,6 +156,20 @@
 </head>
 <body class="noselect">
 <canvas id="scene"></canvas>
+<!-- the high's wave warp (driven by HighSystem): an SVG
+     turbulence + displacement filter applied to the canvas
+     element itself. Because it lives in the DOM layer like
+     the wash, it works on every quality tier — the post
+     chain only exists at 'full', so the wave cannot live
+     there. Scale starts at 0 (no visible effect). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <filter id="highWave" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB">
+      <feTurbulence id="highTurb" type="fractalNoise" baseFrequency="0.012 0.019" numOctaves="2" seed="7" result="n"/>
+      <feDisplacementMap id="highDisp" in="SourceGraphic" in2="n" scale="0" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+</svg>
 <div id="vignette"></div>
 
 <div id="hud">
@@ -196,7 +210,7 @@
   </div>
   <button id="enterBtn" disabled>LOADING&hellip;</button>
   <p class="controls"><b>WASD</b> walk &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>E</b> interact &nbsp;·&nbsp; <b>Shift</b> run &nbsp;—&nbsp; on touch, use the stick and buttons.</p>
-  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — all CC BY 4.0 · HDRI: Poly Haven CC0</p>
+  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — all CC BY 4.0 · HDRI: Poly Haven CC0 · Apartment wall art: Van Gogh · Vermeer · Hokusai · Cézanne — public domain via Wikimedia Commons</p>
 </div>
 
 <div id="errBox"></div>
@@ -2576,20 +2590,63 @@ var aptTvTex=makeTex(1024,576,function(g,w,h){
   g.fillStyle='#ffb03a'; g.font='600 34px Barlow Condensed, sans-serif';
   g.fillText('- A P A R T M E N T   T V -',w/2,h*0.82+52);
 });
-var cityTex=makeTex(1024,448,function(g,w,h){
+/* v31 — the skyline texture pack. The flat cityTex backdrop is
+   GONE: the window is now a real opening in the south wall and
+   the city outside is real geometry (buildCitySkyline below) —
+   a sky backdrop, a street plane, and three rows of 3D towers
+   at three different depths, so walking past the window shifts
+   near towers against far ones exactly like a real city view.
+   Every material out there is fog:false (the scene fog would
+   otherwise swallow anything past ~44 m) and MeshBasic (unlit),
+   so the whole city costs no lights and no shadows. */
+/* night sky: deep gradient, star field, one moon with a halo */
+var skyTex=makeTex(1024,512,function(g,w,h){
   var gr2=g.createLinearGradient(0,0,0,h);
-  gr2.addColorStop(0,'#0a1226'); gr2.addColorStop(0.7,'#16233f'); gr2.addColorStop(1,'#0a0f1c');
+  gr2.addColorStop(0,'#04060f'); gr2.addColorStop(0.55,'#0c1830'); gr2.addColorStop(0.82,'#1d3355'); gr2.addColorStop(1,'#2c4a6e');
   g.fillStyle=gr2; g.fillRect(0,0,w,h);
-  for(var st=0;st<130;st++){ g.fillStyle='rgba(255,255,255,'+(0.25+Math.random()*0.6)+')';
-    g.fillRect(Math.random()*w,Math.random()*h*0.5,1.6,1.6); }
-  var bx=0;
-  while(bx<w){ var bw=40+Math.random()*90, bh=h*(0.35+Math.random()*0.5);
-    g.fillStyle='#05080f'; g.fillRect(bx,h-bh,bw,bh);
-    for(var wy=h-bh+10;wy<h-12;wy+=16) for(var wx=bx+6;wx<bx+bw-8;wx+=13){
-      if(Math.random()<0.42){ g.fillStyle=Math.random()<0.75?'rgba(255,196,110,0.95)':'rgba(170,210,255,0.9)';
-        g.fillRect(wx,wy,6,8); } }
-    bx+=bw+6; }
+  for(var st=0;st<240;st++){ g.fillStyle='rgba(255,255,255,'+(0.2+Math.random()*0.65)+')';
+    g.fillRect(Math.random()*w,Math.random()*h*0.62,1.5,1.5); }
+  var mx=w*0.74, my=h*0.24;
+  var halo=g.createRadialGradient(mx,my,8,mx,my,86);
+  halo.addColorStop(0,'rgba(230,238,255,0.5)'); halo.addColorStop(1,'rgba(230,238,255,0)');
+  g.fillStyle=halo; g.beginPath(); g.arc(mx,my,86,0,7); g.fill();
+  g.fillStyle='#e9eefb'; g.beginPath(); g.arc(mx,my,27,0,7); g.fill();
+  g.fillStyle='rgba(178,190,214,0.5)'; g.beginPath(); g.arc(mx-9,my-6,5,0,7); g.fill();
+  g.beginPath(); g.arc(mx+8,my+10,4,0,7); g.fill();
+  g.fillStyle='rgba(120,160,220,0.10)'; g.fillRect(0,h*0.86,w,h*0.14); // horizon glow band
 });
+/* tower facades: a dark slab with a window grid, ~40% of the
+   windows lit warm or cool, the rest near-black. One canvas per
+   depth tint; every tower in a row shares it (one GPU upload
+   per row, no per-building textures). */
+function facadeTexFn(base,lit){
+  return makeTex(256,512,function(g,w,h){
+    g.fillStyle=base; g.fillRect(0,0,w,h);
+    var cols=9, rows=22, cw=w/cols, ch=h/rows;
+    for(var ry=0;ry<rows;ry++) for(var cx=0;cx<cols;cx++){
+      var x=cx*cw+cw*0.24, y=ry*ch+ch*0.22, ww=cw*0.52, hh=ch*0.52, r=Math.random();
+      if(r<lit){ g.fillStyle=Math.random()<0.72?'rgba(255,205,130,0.95)':'rgba(175,210,255,0.92)'; }
+      else if(r<lit+0.18){ g.fillStyle='rgba(120,150,190,0.35)'; }
+      else { g.fillStyle='rgba(0,0,0,0.35)'; }
+      g.fillRect(x,y,ww,hh);
+    }
+    g.fillStyle='rgba(0,0,0,0.4)'; g.fillRect(0,0,3,h); g.fillRect(w-3,0,3,h); // edge shade
+  });
+}
+var facadeNearTex=facadeTexFn('#11182a',0.46);
+var facadeMidTex=facadeTexFn('#0d1424',0.40);
+var facadeFarTex=facadeTexFn('#0a1120',0.36);
+/* the street plane far below: near-black with a scatter of
+   streetlight dots and two faint avenue lines */
+var cityGroundTex=makeTex(512,512,function(g,w,h){
+  g.fillStyle='#05070d'; g.fillRect(0,0,w,h);
+  g.strokeStyle='rgba(90,110,150,0.20)'; g.lineWidth=7;
+  g.beginPath(); g.moveTo(0,h*0.3); g.lineTo(w,h*0.38); g.stroke();
+  g.beginPath(); g.moveTo(w*0.22,0); g.lineTo(w*0.3,h); g.stroke();
+  for(var i=0;i<340;i++){ g.fillStyle=Math.random()<0.8?'rgba(255,190,110,'+(0.25+Math.random()*0.55)+')':'rgba(170,205,255,'+(0.2+Math.random()*0.4)+')';
+    g.fillRect(Math.random()*w,Math.random()*h,2.2,2.2); }
+});
+cityGroundTex.wrapS=cityGroundTex.wrapT=THREE.RepeatWrapping; cityGroundTex.repeat.set(6,3);
 function doorSignTex(text){
   return makeTex(512,96,function(g,w,h){
     g.fillStyle='#14100a'; g.fillRect(0,0,w,h);
@@ -2619,6 +2676,58 @@ function buildDoor(x,z,ry,signText,slim){
   var gl=glowSprite(0xffc98a,2.6,0.35); gl.position.set(0,3.6,0.55); grp.add(gl);
   return grp;
 }
+/* v31 — the city outside the window, its own self-contained
+   builder (bedrock rule 1: content talks to the scene through
+   this one function, nothing else reaches in). The group sits
+   at z=-33 — just outside the south wall — so WorldSystem's
+   top-level zone check files the whole city under 'apartment'
+   and it costs nothing while the player is in the garage.
+   Children use LOCAL z: sky -35 (world -68), far towers about
+   -28, mid about -16, near about -6, rooftops about -2.5. The
+   apartment reads as a high floor: the street plane lies at
+   y=-7.5 and towers rise from below eye level, so looking down
+   through the opening shows street, looking up shows sky.
+   Because every layer is real geometry at a real distance,
+   the parallax is not an effect — it is just perspective:
+   near towers sweep across the window frame as you walk,
+   far towers barely move, the sky effectively never does. */
+function buildCitySkyline(){
+  var grp=new THREE.Group(); grp.position.set(0,0,-33); scene.add(grp);
+  var sky=new THREE.Mesh(new THREE.PlaneGeometry(120,46),
+    new THREE.MeshBasicMaterial({map:skyTex,fog:false}));
+  sky.position.set(1.6,11,-35); grp.add(sky);
+  var ground=new THREE.Mesh(new THREE.PlaneGeometry(90,42),
+    new THREE.MeshBasicMaterial({map:cityGroundTex,fog:false}));
+  ground.rotation.x=-Math.PI/2; ground.position.set(1.6,-7.5,-18); grp.add(ground);
+  var roofMat=new THREE.MeshBasicMaterial({color:0x090d17,fog:false});
+  var nearMat=new THREE.MeshBasicMaterial({map:facadeNearTex,fog:false});
+  var midMat=new THREE.MeshBasicMaterial({map:facadeMidTex,fog:false});
+  var farMat=new THREE.MeshBasicMaterial({map:facadeFarTex,fog:false,color:0x9db1d6}); // distance haze, baked as a tint
+  function tower(x,lz,w,h,d,base,mat){
+    var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),[mat,mat,roofMat,roofMat,mat,mat]);
+    m.position.set(x,base+h/2,lz); grp.add(m); return m;
+  }
+  // far row (world z about -61): tallest, haziest, slowest-moving
+  tower(-24,-28,7,26,6,-9,farMat); tower(-15,-29,5.5,20,6,-9,farMat);
+  tower(-6,-27.5,8,30,6,-9,farMat);  tower(4,-29,6,22,6,-9,farMat);
+  tower(13,-28,7.5,27,6,-9,farMat);  tower(23,-29,5.5,19,6,-9,farMat);
+  tower(31,-28,7,24,6,-9,farMat);
+  // mid row (world z about -49)
+  tower(-19,-16,5,17,5,-8,midMat); tower(-11,-17,4.2,22,5,-8,midMat);
+  tower(-2,-15.5,5.5,15,5,-8,midMat); tower(7,-16.5,4.5,20,5,-8,midMat);
+  tower(16,-15.5,5,16,5,-8,midMat); tower(25,-16.5,4.2,21,5,-8,midMat);
+  // near row (world z about -39): darkest, widest sweep past the frame
+  tower(-13,-6,4.6,14,4.5,-7.5,nearMat); tower(-4.5,-7,3.8,11,4.5,-7.5,nearMat);
+  tower(9,-6,4.4,15,4.5,-7.5,nearMat);   tower(17.5,-7,3.6,10.5,4.5,-7.5,nearMat);
+  // foreground rooftops (world z about -35.5): low silhouettes
+  // below eye level — the fastest-moving layer of all
+  tower(-7,-2.5,6,5.5,3,-7.5,nearMat); tower(13,-2.5,7,6.5,3,-7.5,nearMat);
+  // red aircraft beacons on the two tallest far towers
+  [[-6,21.6,-27.5],[13,18.6,-28]].forEach(function(b){
+    var s=glowSprite(0xff3b30,1.5,0.75); s.position.set(b[0],b[1],b[2]); grp.add(s);
+  });
+  return grp;
+}
 /* the apartment itself: one room, normal scale, built from
    the same box() helper as the garage's in-engine furniture.
    Everything is a direct scene child at z < -20, so the
@@ -2642,7 +2751,15 @@ function buildApartment(){
   var fl=box(11,0.1,8,floorMat,0,-0.05,-29); fl.receiveShadow=true;
   box(11,0.1,8,ceilMat,0,2.75,-29);
   box(11.4,2.7,0.2,wallMat,0,1.35,-25.1);
-  box(11.4,2.7,0.2,wallMat,0,1.35,-32.9);
+  // v31: the south wall is built AROUND a real window opening
+  // (x 0.0..3.2, y 0.95..2.35) instead of one solid slab — four
+  // segments: west of the window, east of it, the sill wall
+  // under it and the header over it. Through the opening you
+  // see buildCitySkyline's real 3D city, not a texture.
+  box(5.7,2.7,0.2,wallMat,-2.85,1.35,-32.9);   // west segment
+  box(2.5,2.7,0.2,wallMat,4.45,1.35,-32.9);    // east segment
+  box(3.2,0.95,0.2,wallMat,1.6,0.475,-32.9);   // sill wall
+  box(3.2,0.35,0.2,wallMat,1.6,2.525,-32.9);   // header
   box(0.2,2.7,8.2,wallMat,-5.6,1.35,-29);
   box(0.2,2.7,8.2,wallMat,5.6,1.35,-29);
   // v25 trim: baseboards + crown strips — the two cheap lines that
@@ -2655,13 +2772,24 @@ function buildApartment(){
   var fixMat=new THREE.MeshStandardMaterial({color:0xf8f4e8,emissive:0xffe9c4,emissiveIntensity:1.6,roughness:0.5});
   box(1.7,0.06,0.55,fixMat,0,2.68,-29);
   var aptLight=new THREE.PointLight(0xffd9b0,16,14,1.8); aptLight.position.set(0,2.4,-29); scene.add(aptLight);
-  // night-city window on the south wall, curtains at its sides
-  box(3.3,1.5,0.08,darkWood,1.6,1.65,-32.78);
-  var cityMat=new THREE.MeshStandardMaterial({map:cityTex,emissive:0xffffff,emissiveMap:cityTex,emissiveIntensity:0.95,color:0x222222,roughness:0.4});
-  box(3.1,1.3,0.04,cityMat,1.6,1.65,-32.72);
+  // v31: the window — a real framed opening onto the 3D city.
+  // Dark-wood frame bars sit in the opening's depth, a centre
+  // mullion cross divides it into four panes, and one sheet of
+  // near-invisible glass (7% opacity, a whisper of env sheen)
+  // sits mid-depth so the view stays true 3D behind it.
+  box(3.38,0.09,0.14,darkWood,1.6,2.375,-32.86);  // frame head
+  box(3.46,0.07,0.26,darkWood,1.6,0.925,-32.83);  // sill, proud of the wall
+  box(0.09,1.5,0.14,darkWood,-0.02,1.65,-32.86);  // frame jambs
+  box(0.09,1.5,0.14,darkWood,3.22,1.65,-32.86);
+  box(0.05,1.4,0.06,darkWood,1.6,1.65,-32.88);    // mullions
+  box(3.2,0.05,0.06,darkWood,1.6,1.65,-32.88);
+  var glass=new THREE.Mesh(new THREE.PlaneGeometry(3.2,1.4),
+    new THREE.MeshStandardMaterial({color:0xaec6e2,transparent:true,opacity:0.07,roughness:0.06,metalness:0.1,envMapIntensity:1.4,depthWrite:false}));
+  glass.position.set(1.6,1.65,-32.9); scene.add(glass);
+  buildCitySkyline();
   var curtain=new THREE.MeshStandardMaterial({map:fabricTex,color:0x8a6a58,roughness:1});
-  box(0.42,1.8,0.07,curtain,0.08,1.6,-32.7);
-  box(0.42,1.8,0.07,curtain,3.12,1.6,-32.7);
+  box(0.42,1.8,0.07,curtain,-0.18,1.6,-32.68);
+  box(0.42,1.8,0.07,curtain,3.38,1.6,-32.68);
   // v25 window light: a cool city-glow spill pooled on the floor
   // in front of the window + one dim point light to sell it. The
   // light is a scene child at z < -20, so zone culling switches
@@ -2792,51 +2920,39 @@ function buildApartment(){
   box(0.56,0.045,0.05,new THREE.MeshStandardMaterial({color:0xfff1d6,emissive:0xffd9a0,emissiveIntensity:2.4,roughness:0.5}),0,2.68,0.05,rDoor,false); // sconce
   var doorGlow=glowSprite(0xffc98a,2.2,0.3); doorGlow.position.set(0,2.5,0.32); rDoor.add(doorGlow); // world z -25.53: the halo hugs the door instead of floating mid-room
   var doorLight=new THREE.PointLight(0xffd9a8,4,5.5,1.8); doorLight.position.set(0,2.15,-25.9); scene.add(doorLight);
-  // v27: framed canvas prints — the walls were bare. Four pieces,
-  // procedural canvas art in dark-wood frames: a terracotta sun
-  // landscape, a boho arch, gold contour lines on deep teal, and
-  // charcoal brush arcs.
-  function artTex(kind){
-    return makeTex(512,640,function(g,w,h){
-      if(kind==='sun'){
-        var gr=g.createLinearGradient(0,0,0,h); gr.addColorStop(0,'#e8c39a'); gr.addColorStop(0.62,'#d98e5f'); gr.addColorStop(1,'#b85c38');
-        g.fillStyle=gr; g.fillRect(0,0,w,h);
-        g.fillStyle='#f3e3c2'; g.beginPath(); g.arc(w/2,h*0.42,86,0,7); g.fill();
-        g.fillStyle='#a34a2e'; g.beginPath(); g.moveTo(0,h*0.78); g.quadraticCurveTo(w*0.3,h*0.6,w,h*0.8); g.lineTo(w,h); g.lineTo(0,h); g.fill();
-        g.fillStyle='#7e3b26'; g.beginPath(); g.moveTo(0,h*0.9); g.quadraticCurveTo(w*0.6,h*0.74,w,h*0.92); g.lineTo(w,h); g.lineTo(0,h); g.fill();
-      } else if(kind==='arch'){
-        g.fillStyle='#efe6d8'; g.fillRect(0,0,w,h);
-        g.fillStyle='#c96f4a'; g.beginPath(); g.moveTo(w*0.22,h*0.92); g.lineTo(w*0.22,h*0.42);
-        g.quadraticCurveTo(w*0.22,h*0.14,w*0.5,h*0.14); g.quadraticCurveTo(w*0.78,h*0.14,w*0.78,h*0.42);
-        g.lineTo(w*0.78,h*0.92); g.closePath(); g.fill();
-        g.fillStyle='#2e2a26'; g.beginPath(); g.arc(w*0.68,h*0.3,44,0,7); g.fill();
-        g.strokeStyle='#2e2a26'; g.lineWidth=7; g.beginPath(); g.moveTo(w*0.14,h*0.92); g.lineTo(w*0.86,h*0.92); g.stroke();
-      } else if(kind==='contour'){
-        g.fillStyle='#173f3a'; g.fillRect(0,0,w,h);
-        g.strokeStyle='#d9b36a'; g.lineWidth=4;
-        for(var i=0;i<7;i++){ g.beginPath();
-          for(var x=0;x<=w;x+=8){ var y=h*0.16+i*h*0.11+Math.sin(x*0.012+i*1.7)*22+Math.sin(x*0.03+i)*7; if(x===0)g.moveTo(x,y); else g.lineTo(x,y); }
-          g.stroke(); }
-        g.fillStyle='#e9d9ae'; g.beginPath(); g.arc(w*0.76,h*0.2,26,0,7); g.fill();
-      } else {
-        g.fillStyle='#e9e4da'; g.fillRect(0,0,w,h);
-        g.strokeStyle='#33302b'; g.lineCap='round';
-        [0.3,0.46,0.62].forEach(function(r,i){ g.lineWidth=15-i*3; g.beginPath(); g.arc(w*0.5,h*0.58,w*r,Math.PI*1.08,Math.PI*1.92); g.stroke(); });
-        g.fillStyle='#b4552d'; g.beginPath(); g.arc(w*0.5,h*0.62,30,0,7); g.fill();
-      }
-    });
-  }
-  function framedArt(kind,x,y,z,ry,aw,ah){
+  // v31: SERIOUS wall art — the procedural boho canvases are
+  // gone. In their place, four real public-domain masterpieces
+  // shipped as image files in assets/ (Wikimedia Commons) and
+  // hung like real framed prints in a good apartment: a dark
+  // walnut frame, a thin gilt inner trim, a cream mat, the
+  // painting itself at its true aspect ratio (never stretched),
+  // a small brass caption plate under it, and a brass picture
+  // light over it with a soft warm glow. All four hang with
+  // their centres at eye level (~1.6 m). The paintings:
+  //   Van Gogh, The Starry Night (1889) — north wall
+  //   Vermeer, Girl with a Pearl Earring (c.1665) — north wall
+  //   Hokusai, The Great Wave off Kanagawa (c.1831) — south wall
+  //   Cézanne, The Basket of Apples (c.1893) — east wall
+  var frameWood=new THREE.MeshStandardMaterial({color:0x2b1d12,roughness:0.42,metalness:0.08,envMapIntensity:0.8});
+  var giltTrim=new THREE.MeshStandardMaterial({color:0xb08d4f,roughness:0.32,metalness:0.9,envMapIntensity:1.2});
+  var matBoard=new THREE.MeshStandardMaterial({color:0xf2ebdb,roughness:0.92});
+  function framedArt(path,x,y,z,ry,aw,ah){
     var g2=new THREE.Group(); g2.position.set(x,y,z); g2.rotation.y=ry; scene.add(g2);
-    box(aw+0.1,ah+0.1,0.045,darkWood,0,0,0,g2,false);
+    box(aw+0.17,ah+0.17,0.055,frameWood,0,0,0,g2,false);        // walnut frame
+    box(aw+0.09,ah+0.09,0.06,giltTrim,0,0,0,g2,false);         // gilt trim, front proud of the frame
+    var mat=new THREE.Mesh(new THREE.PlaneGeometry(aw+0.05,ah+0.05),matBoard);
+    mat.position.z=0.031; g2.add(mat);                          // cream mat
     var cv=new THREE.Mesh(new THREE.PlaneGeometry(aw,ah),
-      new THREE.MeshStandardMaterial({map:artTex(kind),roughness:0.85}));
-    cv.position.z=0.026; g2.add(cv);
+      new THREE.MeshStandardMaterial({map:photoTex(path),roughness:0.82,envMapIntensity:0.35}));
+    cv.position.z=0.033; g2.add(cv);                            // the painting
+    box(0.17,0.028,0.006,giltTrim,0,-(ah/2+0.048),0.032,g2,false); // caption plate on the mat's lower border… centred under the art
+    box(Math.min(aw*0.55,0.62),0.03,0.035,giltTrim,0,ah/2+0.145,0.055,g2,false); // picture-light bar
+    var pg=glowSprite(0xffd9a0,0.85,0.13); pg.position.set(0,ah/2+0.13,0.14); g2.add(pg); // its warm spill
   }
-  framedArt('sun',-2.9,1.62,-25.24,Math.PI,0.95,1.2);    // north wall, west of the door (v28: was -25.03, inside the wall box like the door — now proud of the -25.2 face)
-  framedArt('arch',2.7,1.62,-25.24,Math.PI,0.8,1.0);     // north wall, east of the door
-  framedArt('contour',-2.4,1.66,-32.77,0,1.1,0.85);      // south wall, west of the window (canvas faces +z, into the room)
-  framedArt('arcs',5.47,1.66,-26.6,-Math.PI/2,0.95,1.15); // east wall, over the dresser
+  framedArt('assets/art-starry.webp',-2.9,1.62,-25.24,Math.PI,1.32,1.04);   // Starry Night — north wall, west of the door
+  framedArt('assets/art-pearl.webp',2.7,1.64,-25.24,Math.PI,0.82,0.97);     // Girl with a Pearl Earring — north wall, east of the door
+  framedArt('assets/art-wave.webp',-2.55,1.66,-32.76,0,1.42,0.97);          // The Great Wave — south wall, west of the window
+  framedArt('assets/art-apples.webp',5.47,1.7,-26.6,-Math.PI/2,1.14,0.91);  // The Basket of Apples — east wall, over the dresser
 }
 /* v25 — the bong: clean beaker-style glass built from primitives
    (no download, ~14 small meshes, no shadows). Sits on the island
@@ -3013,15 +3129,44 @@ function toggleInter(it){
    so the effect CANNOT get stuck on: when the seconds run
    out the wash fades, the chip hides and the FOV is restored
    exactly. Visuals are DOM gradients + a whisper of camera
-   roll/FOV breathing: no post chain, no backdrop blur, so it
-   costs the same on every quality tier. */
+   roll/FOV breathing + (the latest addition) a smooth wave
+   warp: an SVG displacement filter on the canvas element,
+   driven from _wave() below. Still no post chain and no
+   backdrop blur, so it costs the same on every quality tier. */
 var HighSystem={
-  remaining:0, intensity:0, _lastShown:-1, _fovApplied:false,
+  remaining:0, intensity:0, _lastShown:-1, _fovApplied:false, _waveOn:false, _waveTick:0,
   chip:document.getElementById('highChip'), timeEl:document.getElementById('highTime'),
   fx:document.getElementById('highFx'),
+  turb:document.getElementById('highTurb'), disp:document.getElementById('highDisp'),
   addHit:function(){
     this.remaining=Math.min(this.remaining+45,270);
     this.fx.style.display='block'; this.chip.style.display='block';
+  },
+  /* the wave warp: displacement scale + a slow drift of the
+     turbulence frequency, written at most every other frame.
+     Strength follows the STACK, not just the on/off intensity:
+     stackFrac is remaining/cap, so more stacked hits (up to
+     the 4:30 cap) push the warp harder, and as the seconds
+     burn down the warp eases off with them — then the shared
+     last-5-seconds intensity fade takes it to exactly zero
+     and _waveOff() unhooks the filter. The motion is all slow
+     sines (0.09–0.5 Hz): a rolling swell, never a jitter. */
+  _wave:function(I,t){
+    var stackFrac=Math.min(1,this.remaining/270);
+    var amp=(0.5+0.5*stackFrac)*(reduceMotion?0.35:1);
+    if(!this._waveOn){ canvas.style.filter='url(#highWave)'; this._waveOn=true; }
+    canvas.style.transform='scale('+(1+0.05*I*amp).toFixed(4)+')';
+    if((this._waveTick++&1)===0){
+      this.disp.setAttribute('scale',(I*amp*24*(0.85+0.15*Math.sin(t*0.5))).toFixed(1));
+      this.turb.setAttribute('baseFrequency',
+        (0.012+0.004*Math.sin(t*0.11)).toFixed(4)+' '+(0.019+0.005*Math.sin(t*0.09+1.3)).toFixed(4));
+    }
+  },
+  _waveOff:function(){
+    if(!this._waveOn) return;
+    this._waveOn=false;
+    canvas.style.filter=''; canvas.style.transform='';
+    this.disp.setAttribute('scale','0');
   },
   update:function(dt,t){
     if(this.remaining>0){ this.remaining-=dt; if(this.remaining<0)this.remaining=0; }
@@ -3031,10 +3176,12 @@ var HighSystem={
     if(this.remaining<=0&&this.intensity<0.02){
       this.intensity=0;
       if(this.fx.style.display!=='none') this.fx.style.display='none';
+      this._waveOff();
       if(this._fovApplied){ camera.fov=72; camera.updateProjectionMatrix(); this._fovApplied=false; }
       return;
     }
     var I=this.intensity;
+    this._wave(I,t);
     this.fx.style.opacity=(I*0.92).toFixed(3);
     this.fx.style.transform='scale(1.05) rotate('+(Math.sin(t*0.21)*0.7*I).toFixed(3)+'deg) translate('
       +(Math.sin(t*0.13)*6*I).toFixed(1)+'px,'+(Math.cos(t*0.17)*5*I).toFixed(1)+'px)';
