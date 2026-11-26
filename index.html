@@ -127,45 +127,77 @@
   body.playing:not(.touch) #keysHint{display:block;}
   #keysHint b{color:var(--ink);font-weight:600;}
 
-  /* ---------- start card ---------- */
+  /* ---------- console startup (v46) ---------- */
   #vignette{position:fixed;inset:0;z-index:4;pointer-events:none;
     background:radial-gradient(ellipse at 50% 42%,transparent 52%,rgba(0,0,0,.38) 100%),
                linear-gradient(rgba(0,0,0,.14),transparent 18%,transparent 84%,rgba(0,0,0,.22));}
-  /* start menu: big title, the objective in one line, the three
-     cars by bay, one button. The button reads LOADING while the
-     game preloads behind it and turns into START when the load
-     settles. */
-  #startCard{position:fixed;z-index:10;left:50%;top:50%;transform:translate(-50%,-50%);
-    width:min(452px,calc(100vw - 40px));max-height:calc(100dvh - 32px);overflow-y:auto;border:1px solid var(--line);border-radius:10px;
-    background:linear-gradient(165deg,rgba(17,18,21,.95),rgba(8,9,11,.92));padding:30px 30px 22px;text-align:left;
-    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 24px 70px rgba(0,0,0,.55);}
-  #startCard h1{margin:0;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:clamp(52px,13vw,72px);
-    font-weight:700;letter-spacing:.03em;line-height:.92;text-shadow:0 2px 14px rgba(0,0,0,.85);}
-  #startCard h1 span{color:var(--amber);}
-  #startCard .tagline{margin:12px 0 0;font-size:15px;line-height:1.5;color:#cfccc2;}
-  #startCard .tagline b{color:var(--amber);font-weight:600;}
-  #lineup{margin:18px 0 2px;border-top:1px solid var(--line);}
-  #lineup .carRow{display:flex;align-items:baseline;gap:12px;padding:9px 2px;border-bottom:1px solid var(--line);}
-  #lineup .bayNo{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:12.5px;font-weight:700;letter-spacing:.18em;color:var(--amber);white-space:nowrap;}
-  #lineup .carName{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:19px;font-weight:600;letter-spacing:.03em;line-height:1.1;}
-  #lineup .carTag{margin-left:auto;font-size:12px;color:var(--dim);white-space:nowrap;}
-  #enterBtn{margin-top:20px;width:100%;min-height:54px;background:var(--amber);color:#161616;border:0;border-radius:6px;
-    font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:22px;font-weight:700;letter-spacing:.16em;}
-  #enterBtn:active{background:#ffc35e;}
-  #enterBtn:disabled{background:#33363c;color:#8f8c84;cursor:wait;}
-  #startCard .controls{margin:14px 0 0;font-size:12.5px;line-height:1.6;color:var(--dim);}
-  #startCard .controls b{color:var(--ink);font-weight:600;}
-  #startCard .credits{margin:12px 0 0;font-size:10px;line-height:1.55;color:#7d7a71;}
-  @media (max-height:520px){
-    #startCard{padding:18px 22px 14px;}
-    #startCard h1{font-size:44px;}
-    #startCard .tagline{display:none;}
-    #lineup{margin-top:10px;}
-    #lineup .carRow{padding:6px 2px;}
-    #enterBtn{margin-top:12px;min-height:46px;}
-    #startCard .controls{display:none;}
+  /* A PS3/360-era boot: black splash with the cross and a
+     loading bar, then a full-art title screen (PRESS START),
+     then the console menu. Opaque and full-screen — it IS
+     the game's front door, not a card over the page. */
+  #consoleUI{position:fixed;inset:0;z-index:30;background:#000;color:var(--ink);
+    font-family:"Barlow Condensed","Arial Narrow",sans-serif;overflow:hidden;}
+  body.playing #consoleUI{display:none;}
+  #consoleUI .hidden{display:none!important;}
+  /* stage 1: boot splash */
+  #bootScr{position:absolute;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;}
+  #bootCross{width:92px;height:92px;object-fit:contain;opacity:0;animation:bootIn 1.1s ease .15s forwards;}
+  #bootName{font-size:15px;font-weight:600;letter-spacing:.52em;text-indent:.52em;color:#8f8c84;opacity:0;animation:bootIn 1.1s ease .35s forwards;}
+  #bootBarWrap{width:min(300px,62vw);height:3px;background:#26262a;margin-top:16px;}
+  #bootBar{height:100%;width:0%;background:var(--amber);transition:width .25s ease;}
+  #bootMsg{font-size:12.5px;letter-spacing:.34em;text-indent:.34em;color:#5d5b54;}
+  @keyframes bootIn{to{opacity:1;}}
+  /* stage 2: title screen */
+  #titleScr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;
+    background:linear-gradient(rgba(5,5,8,.38),rgba(5,5,8,.30) 40%,rgba(5,5,8,.82)),url(assets/garage-hero.webp) center/cover no-repeat;}
+  .ttlKicker{font-size:clamp(12px,2.6vw,16px);font-weight:600;letter-spacing:.5em;text-indent:.5em;color:#d8d4c8;text-shadow:0 2px 10px rgba(0,0,0,.9);}
+  .ttlLogo{margin:10px 0 0;font-size:clamp(64px,15vw,124px);font-weight:700;letter-spacing:.02em;line-height:.9;color:#f4f1e8;
+    text-shadow:0 1px 0 #9a968c,0 2px 0 #6d6a61,0 4px 6px rgba(0,0,0,.55),0 10px 34px rgba(0,0,0,.8);}
+  .ttlLogo span{color:var(--amber);text-shadow:0 1px 0 #a86e14,0 2px 0 #7a4d0c,0 4px 6px rgba(0,0,0,.55),0 10px 34px rgba(0,0,0,.8);}
+  #pressStart{margin-top:9vh;font-size:clamp(19px,4.4vw,27px);font-weight:600;letter-spacing:.34em;text-indent:.34em;color:#fff;
+    text-shadow:0 2px 12px rgba(0,0,0,.95);animation:pressBlink 1.15s steps(2,start) infinite;}
+  @keyframes pressBlink{50%{opacity:0;}}
+  @media (prefers-reduced-motion: reduce){ #pressStart{animation:none;} #bootCross,#bootName{animation-duration:.01s;} }
+  .ttlFoot{position:absolute;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom));display:flex;justify-content:space-between;padding:0 20px;
+    font-size:12px;letter-spacing:.22em;color:rgba(230,226,216,.66);}
+  /* stage 3: the menu */
+  #menuScr{position:absolute;inset:0;display:flex;flex-direction:column;padding:calc(20px + env(safe-area-inset-top)) 22px calc(14px + env(safe-area-inset-bottom));
+    background:linear-gradient(rgba(5,5,8,.66),rgba(5,5,8,.86)),url(assets/garage-hero.webp) center/cover no-repeat;}
+  .menuHead{font-size:clamp(30px,6vw,44px);font-weight:700;letter-spacing:.03em;line-height:1;color:#f4f1e8;text-shadow:0 3px 14px rgba(0,0,0,.8);}
+  .menuHead span{color:var(--amber);}
+  .menuCols{flex:1;display:flex;gap:34px;margin-top:4.5vh;min-height:0;}
+  #menuList{list-style:none;margin:0;padding:0;min-width:218px;}
+  #menuList li{position:relative;font-size:clamp(21px,4.6vw,29px);font-weight:600;letter-spacing:.1em;line-height:1.25;
+    padding:7px 10px 7px 20px;color:#b9b5aa;cursor:pointer;white-space:nowrap;}
+  #menuList li .mNote{display:block;font-size:11.5px;letter-spacing:.24em;color:#6d6a61;padding-top:1px;}
+  #menuList li.sel{color:#fff;}
+  #menuList li.sel::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:5px;background:var(--amber);}
+  #menuList li.disabled{color:#5d5b54;cursor:default;}
+  #menuList li.disabled.sel{color:#8f8c84;}
+  #menuPanel{flex:1;max-width:520px;overflow-y:auto;font-family:inherit;font-size:15.5px;line-height:1.55;color:#cfccc2;
+    border-left:1px solid rgba(255,255,255,.14);padding:4px 0 10px 26px;}
+  #menuPanel h3{margin:0 0 10px;font-size:14px;letter-spacing:.3em;color:var(--amber);font-weight:700;}
+  #menuPanel .tagline{margin:0 0 6px;}
+  #menuPanel .tagline b{color:var(--amber);font-weight:600;}
+  #menuPanel .carRow{display:flex;align-items:baseline;gap:12px;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.10);}
+  #menuPanel .bayNo{font-size:12px;font-weight:700;letter-spacing:.18em;color:var(--amber);white-space:nowrap;}
+  #menuPanel .carName{font-size:18.5px;font-weight:600;letter-spacing:.03em;line-height:1.1;}
+  #menuPanel .carTag{margin-left:auto;font-size:12px;color:var(--dim);white-space:nowrap;}
+  #menuPanel .optRow{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:9px 8px;cursor:pointer;color:#b9b5aa;}
+  #menuPanel .optRow .optVal{color:#fff;font-weight:600;letter-spacing:.08em;white-space:nowrap;}
+  #menuPanel .optRow.sel{background:rgba(255,176,58,.13);color:#fff;box-shadow:inset 3px 0 0 var(--amber);}
+  #menuPanel .ctlRow{display:flex;gap:14px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.07);}
+  #menuPanel .ctlRow b{min-width:118px;color:#fff;font-weight:600;letter-spacing:.06em;}
+  #menuPanel .credits{font-size:11px;line-height:1.6;color:#8f8c84;font-family:inherit;}
+  .menuFoot{display:flex;gap:26px;font-size:13.5px;letter-spacing:.26em;color:#b9b5aa;padding-top:12px;}
+  .menuFoot .fb{color:var(--amber);font-weight:700;}
+  @media (max-width:640px){
+    .menuCols{flex-direction:column;gap:16px;margin-top:3vh;}
+    #menuList{min-width:0;}
+    #menuList li{padding-top:5px;padding-bottom:5px;}
+    #menuPanel{border-left:0;border-top:1px solid rgba(255,255,255,.14);padding:14px 0 6px;max-width:none;}
+    .ttlFoot #ttlVer{display:none;}
   }
-  body.playing #startCard{display:none;}
 
   #errBox{position:fixed;z-index:50;left:12px;right:12px;top:12px;background:#3d0f0a;border:1px solid var(--red);
     color:#ffd9d2;padding:10px 14px;font-size:13px;display:none;white-space:pre-wrap;}
@@ -211,19 +243,33 @@
 
 <div id="keysHint"><b>WASD</b> walk / drive &nbsp;<b>Mouse</b> look &nbsp;<b>E</b> interact / get in &amp; out &nbsp;<b>Shift</b> run &nbsp;<b>Click scene</b> lock mouse</div>
 
-<div id="startCard">
-  <h1>THE <span>GARAGE</span></h1>
-  <p class="tagline">Three bays, ten interactions hiding in plain sight — <b>flip the lights, start the engines</b>, then take the back door into <b>the apartment</b> and make yourself at home. Or roll up a bay door, <b>drive out into town</b>, and help yourself to a passing Prius.</p>
-  <div id="lineup">
-    <div class="carRow"><span class="bayNo">BAY 2</span><span class="carName">Nissan Silvia S15</span><span class="carTag">drift build</span></div>
-    <div class="carRow"><span class="bayNo">BAY 3</span><span class="carName">1998 Honda Civic</span><span class="carTag">your car</span></div>
-    <div class="carRow"><span class="bayNo">BAY 4</span><span class="carName">Lamborghini Gallardo</span><span class="carTag">V10</span></div>
-    <div class="carRow"><span class="bayNo">DOOR</span><span class="carName">The Apartment</span><span class="carTag">back wall · 4 more finds</span></div>
-    <div class="carRow"><span class="bayNo">TOWN</span><span class="carName">The Borough Outside</span><span class="carTag">steal anything · dodge cops</span></div>
+<div id="consoleUI">
+  <div id="bootScr">
+    <img id="bootCross" src="assets/emblem-cross.webp" alt="">
+    <div id="bootName">DYING TO LIVE</div>
+    <div id="bootBarWrap"><div id="bootBar"></div></div>
+    <div id="bootMsg">LOADING</div>
   </div>
-  <button id="enterBtn" disabled>LOADING&hellip;</button>
-  <p class="controls"><b>WASD</b> walk &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>E</b> interact &nbsp;·&nbsp; <b>Shift</b> run &nbsp;—&nbsp; on touch, use the stick and buttons.</p>
-  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — all CC BY 4.0 · HDRI: Poly Haven CC0 · Apartment wall art: Van Gogh · Vermeer · Hokusai · Cézanne — public domain via Wikimedia Commons · Traffic car: "Toyota Prius 2012" by Doz3 (Sketchfab) — CC BY 4.0 · The driver: "Soldier" character by Mixamo, via the three.js examples · PBR surface textures (oak floor, concrete, diamond plate): Poly Haven — CC0</p>
+  <div id="titleScr" class="hidden">
+    <div class="ttlKicker">DYING TO LIVE PRESENTS</div>
+    <h1 class="ttlLogo">THE <span>GARAGE</span></h1>
+    <div id="pressStart">PRESS START</div>
+    <div class="ttlFoot"><span>&copy; 2026 DYING TO LIVE</span><span id="ttlVer">A GARAGE &middot; AN APARTMENT &middot; A WHOLE BOROUGH</span></div>
+  </div>
+  <div id="menuScr" class="hidden">
+    <div class="menuHead">THE <span>GARAGE</span></div>
+    <div class="menuCols">
+      <ul id="menuList">
+        <li data-act="continue" class="disabled">CONTINUE<span class="mNote">NO SAVE DATA</span></li>
+        <li data-act="newgame" class="sel">NEW GAME</li>
+        <li data-act="options">OPTIONS</li>
+        <li data-act="controls">CONTROLS</li>
+        <li data-act="credits">CREDITS</li>
+      </ul>
+      <div id="menuPanel"></div>
+    </div>
+    <div class="menuFoot"><span><span class="fb">&#10005;</span> SELECT</span><span><span class="fb">&#9719;</span> BACK</span></div>
+  </div>
 </div>
 
 <div id="errBox"></div>
@@ -705,28 +751,21 @@ function boot(){
    starts at 'balanced' — the post chain is earned, never assumed. */
 AssetSystem.install();
 var quality='balanced';
-/* ENTER is wired before any heavy scene work: if a later step fails on a
-   weak device, the button still responds and the error box says why,
-   instead of a dead black screen. */
-document.getElementById('enterBtn').addEventListener('click',function(){
-  try{ audio(); }catch(e){}
-  document.body.classList.add('playing');
-});
-/* ---- preload gate: the minimal menu's button starts disabled as
-   LOADING… and becomes START only once the game's loads settle.
-   Every GLTF/texture load in this file flows through three's
-   DefaultLoadingManager, so its progress is the game's progress:
-   enable on a full drain (after a 2 s floor, so late-queued loads
-   count), or after 1.2 s of load silence past that floor — with a
-   15 s hard fallback so a slow device is never locked out. ---- */
-var startBtn=document.getElementById('enterBtn');
-var startReady=false, bootT=performance.now(), lastLoadAct=performance.now();
+/* ---- preload gate (v46: feeds the console boot screen).
+   The boot splash's loading bar and the title screen's PRESS
+   START both key off this: startReady flips once the game's
+   loads settle. Every GLTF/texture load in this file flows
+   through three's DefaultLoadingManager, so its progress is
+   the game's progress: ready on a full drain (after a 2 s
+   floor, so late-queued loads count), or after 1.2 s of load
+   silence past that floor — with a 15 s hard fallback so a
+   slow device is never locked out. ---- */
+var startReady=false, loadFrac=0, bootT=performance.now(), lastLoadAct=performance.now();
 function enableStart(){
-  if(startReady) return; startReady=true;
-  startBtn.disabled=false; startBtn.textContent='START';
+  if(startReady) return; startReady=true; loadFrac=1;
 }
 if(THREE.DefaultLoadingManager){
-  THREE.DefaultLoadingManager.onProgress=function(){ lastLoadAct=performance.now(); };
+  THREE.DefaultLoadingManager.onProgress=function(url,loaded,total){ lastLoadAct=performance.now(); if(total>0) loadFrac=Math.max(loadFrac,loaded/total); };
   THREE.DefaultLoadingManager.onLoad=function(){
     lastLoadAct=performance.now();
     if(performance.now()-bootT>2000) enableStart();
@@ -3612,11 +3651,46 @@ window.__WAVE_SYS__=WaveSystem;
    and explicitly reset the legs to bind whenever no leg pose
    is active, so a composed pose can never stick or stack. */
 var LEG_TRACK_RE=/^CC_Base_[LR]_(Thigh|ThighTwist|Calf|CalfTwist|Foot|ToeBase|ToeBaseShareBone|KneeShareBone|PinkyToe1|RingToe1|MidToe1|IndexToe1|BigToe1)/;
+/* v46: the clip ALSO loses its Hip and BoneRoot rotation
+   tracks — the two tracks at the very root of the leg chain.
+   With them playing, the whole pelvis (and both legs hanging
+   off it) inherits whatever pitch the captured motion puts
+   through the hips, while the waist/spine tracks counter-
+   pitch the chest back upright — legs kicked out behind a
+   straight-looking torso, feet off the floor: exactly the
+   pose in Collin's screenshot. The pelvis itself has no
+   track in the clip, so with Hip/BoneRoot stripped the legs
+   hang from a BIND pelvis and no clip frame can pitch the
+   leg chain at all. The torso keeps its life from the
+   Waist/Spine/Neck/Head tracks above the pelvis. */
+var ROOT_TRACK_RE=/^CC_Base_(Hip|BoneRoot)_/;
 var LEG_KEYS={lThigh:1,rThigh:1,lCalf:1,rCalf:1,lFoot:1,rFoot:1};
+/* v47: POSE_HELD_KEYS — the bones whose baseQ must stay at BIND
+   forever: the six leg bones (v44) AND the pelvis. The pelvis
+   has no track in the filtered clip (v46 verified: its channels
+   are Hip/BoneRoot, both stripped, and Pelvis itself has none),
+   so the mixer never resets it — but the baseQ refresh loops
+   below copy the pelvis's CURRENT quaternion into baseQ on every
+   mixer step, and _applyGait composes its hip sway ON TOP of
+   baseQ. The refresh therefore fed the gait's own output back
+   as the next frame's base: the sway COMPOUNDED, step after
+   step, winding her pelvis further and further over — and both
+   legs hang off the pelvis, so they swung out sideways together,
+   feet off the floor, while the clip's waist/spine tracks kept
+   her torso looking upright. Exactly the pose in Collin's
+   screenshot: it appears after she walks and stops (the frozen
+   gait phase keeps the compounding one-signed), and it never
+   unwinds, because nothing ever wrote the pelvis back to bind.
+   Holding the pelvis's baseQ at bind — the same treatment the
+   legs already had — makes the sway a bounded offset on a known
+   base again: ±0.08 rad while she walks, zero when she stops. */
+var POSE_HELD_KEYS={lThigh:1,rThigh:1,lCalf:1,rCalf:1,lFoot:1,rFoot:1,pelvis:1};
 function girlClipTracks(src){
   return src.tracks.filter(function(t){
     if(!(/\.quaternion$/.test(t.name)||/\.weights$/.test(t.name))) return false;
-    return !LEG_TRACK_RE.test(t.name); // v44: legs are procedural now — see the rebuild note above
+    if(LEG_TRACK_RE.test(t.name)) return false; // v44: legs are procedural — see the rebuild note above
+    if(/\.quaternion$/.test(t.name)&&ROOT_TRACK_RE.test(t.name)) return false; // v46: the leg chain's root stays bind too
+    return true;
   });
 }
 
@@ -3702,7 +3776,7 @@ var FollowerSystem={
   laidDown:false, clothing:[], blob:null, _saved:null, BED_Y:0.63, BED_PITCH:0.125, _bedT:0,
   x:2.4, z:7.6, yaw:-Math.PI/2,
   FOLLOW_START:3.2, STOP_DIST:1.9, MINSEP:1.5,
-  bones:null, baseQ:null, baseY:0, gaitPhase:0, gaitAmp:0, moving:false, following:false, speedNow:0, tx:0, tz:0,
+  bones:null, baseQ:null, baseY:0, baseAnkleY:0.08, gaitPhase:0, gaitAmp:0, moving:false, following:false, speedNow:0, tx:0, tz:0,
   _ppx:null, _ppz:0, _pSpd:0, _pvx:0, _pvz:0, _placed:false,
   rideVeh:null, rideMode:null, seatBlend:0, // v39: 'walk' (heading for the passenger door) | 'riding' (seated) | null; v44: seatBlend eases the seated leg pose in
   load:function(){
@@ -3795,6 +3869,12 @@ var FollowerSystem={
     root.position.set(this.x,0,this.z);
     root.rotation.set(0,this.yaw,0);
     scene.add(root);
+    /* v46: her bind ankle height, measured on the real rig —
+       the ground snap's target. Whatever the pose stack does
+       above her, the lower ankle is held to this height over
+       the floor, so her feet can never float or sink. */
+    root.updateMatrixWorld(true);
+    if(this.bones.lFoot){ var _aw=new THREE.Vector3(); this.bones.lFoot.getWorldPosition(_aw); this.baseAnkleY=_aw.y; }
     this.root=root; this.model=model; this.ready=true;
     renderer.shadowMap.needsUpdate=true;
   },
@@ -4124,10 +4204,37 @@ var FollowerSystem={
      legs each frame any more — so whenever no leg pose is
      active (not walking, not seated, not in bed) the legs are
      put back to bind explicitly. A composed pose can never
-     stick to her legs or stack under the next one. */
+     stick to her legs or stack under the next one.
+     v47: the pelvis is reset here too — it carries the gait's
+     hip sway, the clip never writes it, and baseQ now holds it
+     at bind (POSE_HELD_KEYS), so copying baseQ back leaves her
+     standing on a level, bind pelvis the moment she stops. */
   _resetLegs:function(){
     if(!this.bones||!this.baseQ) return;
-    for(var k in LEG_KEYS){ var b=this.bones[k]; if(b&&this.baseQ[k]) b.quaternion.copy(this.baseQ[k]); }
+    for(var k in POSE_HELD_KEYS){ var b=this.bones[k]; if(b&&this.baseQ[k]) b.quaternion.copy(this.baseQ[k]); }
+  },
+  /* v46: THE GROUND SNAP — the closed loop the old stack
+     never had. Every earlier fix reasoned open-loop about
+     angles; this one MEASURES the posed ankles in world
+     space (the same matrices the renderer skins from) and
+     shifts the model so the lower ankle rests exactly at
+     its bind height over the floor. Standing, the offset is
+     zero and nothing changes. Walking, the stance foot is
+     pinned to the floor every frame while the swing foot
+     lifts — feet plant, never float, never sink, whatever
+     the clip or the gait does above them. The correction is
+     clamped so it can only ever be a grounding, never a
+     launch. Standing/walking branches only: the bed and
+     the car seat own her height explicitly. */
+  _v1:new THREE.Vector3(), _v2:new THREE.Vector3(),
+  _groundSnap:function(){
+    if(!this.bones||!this.model||!this.bones.lFoot||!this.bones.rFoot) return;
+    this.bones.lFoot.getWorldPosition(this._v1);
+    this.bones.rFoot.getWorldPosition(this._v2);
+    var low=Math.min(this._v1.y,this._v2.y);
+    var dy=this.baseAnkleY-low;
+    if(dy>0.12) dy=0.12; else if(dy<-0.30) dy=-0.30;
+    if(dy>0.0005||dy<-0.0005) this.model.position.y+=dy;
   },
   /* v44: the seated leg pose she never had. Until now she rode
      with standing legs dipped under the car — straight, and at
@@ -4177,7 +4284,7 @@ var FollowerSystem={
     var amp=this.gaitAmp; if(amp<0.003) return;
     var p=this.gaitPhase, B=this.bones, Q=this.baseQ, sq=this._swingQ;
     var XA=this._xAxis, YA=this._yAxis, ZA=this._zAxis;
-    var thighAmp=(0.42+0.12*Math.min(1,this.speedNow/3.2))*amp; // v44 retune: ±31° of thigh at a run, ±24° at a walk — the old 0.50+0.14 marched
+    var thighAmp=(0.29+0.09*Math.min(1,this.speedNow/3.2))*amp; // v46 retune: a natural short stride — ±17° of thigh at a walk, ±22° hurrying (the v44 ±31° split her legs fore/aft and, with the old bob, floated both feet through the passing pose)
     var sL=Math.sin(p), sR=Math.sin(p+Math.PI);
     var sway=Math.sin(p)*amp; // one sway cycle per full stride, peaking as each foot lands
     function set(k,ax,ay,az){
@@ -4187,8 +4294,8 @@ var FollowerSystem={
       if(ay){ sq.setFromAxisAngle(YA,ay); b.quaternion.multiply(sq); }
       if(az){ sq.setFromAxisAngle(ZA,az); b.quaternion.multiply(sq); }
     }
-    var bendL=Math.pow(Math.max(0,Math.cos(p-0.45)),1.4)*0.72*amp; // v44 retune: peak flexion 41°, phased 0.45 after the thigh starts forward — flexion now peaks mid-swing instead of while the foot is still planted behind her (the heel-kick)
-    var bendR=Math.pow(Math.max(0,Math.cos(p+Math.PI-0.45)),1.4)*0.72*amp;
+    var bendL=Math.pow(Math.max(0,Math.cos(p-0.45)),1.4)*0.52*amp; // v46: peak flexion 30°, still phased mid-swing — a relaxed knee, not a kick
+    var bendR=Math.pow(Math.max(0,Math.cos(p+Math.PI-0.45)),1.4)*0.52*amp;
     // the hips lead: roll + twist on the pelvis, countered up the spine
     set('pelvis',0,sway*0.075,sway*0.080);
     set('waist',0,-sway*0.050,-sway*0.048);
@@ -4197,8 +4304,8 @@ var FollowerSystem={
     set('head',0,sway*0.012,-sway*0.030); // head stays near level while the hips move under it
     set('lThigh',sL*thighAmp,0,-0.045*amp); set('rThigh',sR*thighAmp,0,0.045*amp);
     set('lCalf',-bendL,0,0); set('rCalf',-bendR,0,0);
-    set('lFoot',-(sL*thighAmp-bendL)*0.5+Math.sin(p-0.6)*0.10*amp,0,0);
-    set('rFoot',-(sR*thighAmp-bendR)*0.5+Math.sin(p+Math.PI-0.6)*0.10*amp,0,0);
+    set('lFoot',-(sL*thighAmp-bendL)*0.85+Math.sin(p-0.6)*0.08*amp,0,0); // v46: the foot counter-rotates 85% of the leg's net pitch, so the stance foot lands flat instead of toe-first
+    set('rFoot',-(sR*thighAmp-bendR)*0.85+Math.sin(p+Math.PI-0.6)*0.08*amp,0,0);
     set('lArm',sR*0.30*amp,0,0.07*amp); set('rArm',sL*0.30*amp,0,-0.07*amp); // arms counter-swing the legs, hanging loose
     set('lFore',0.18*amp+sR*0.13*amp,0,0); set('rFore',0.18*amp+sL*0.13*amp,0,0); // a soft, relaxed elbow bend
   },
@@ -4263,15 +4370,16 @@ var FollowerSystem={
         this.root.rotation.set(0,this.yaw,0);
         var wstepped=this.mixer?SimulationSystem.mixerStep(this.mixer,this.root,player,dt,3):0;
         if(wmoved>0){
-          var wstride=Math.max(0.45,Math.min(0.98,0.42+0.17*this.speedNow)); // v41: a longer, lazier stride — casual, not hurried
+          var wstride=Math.max(0.42,Math.min(0.72,0.34+0.10*this.speedNow)); // v46: stride matched to the shorter swing so her feet track the ground
           this.gaitPhase+=wmoved/wstride*Math.PI;
         }
         var wampT=this.moving?1:0;
         this.gaitAmp+=(wampT-this.gaitAmp)*Math.min(1,dt*(wampT>this.gaitAmp?5:4));
         if(this.gaitAmp<0.003&&!this.moving) this.gaitAmp=0;
-        if(wstepped&&this.bones){ for(var wk in this.bones){ if(this.bones[wk]&&!LEG_KEYS[wk]) this.baseQ[wk].copy(this.bones[wk].quaternion); } } // v44: leg baseQ stays bind forever
-        if(this.model) this.model.position.y=this.baseY+(this.gaitAmp>0?(0.5-0.5*Math.cos(this.gaitPhase*2))*0.042*this.gaitAmp:0);
+        if(wstepped&&this.bones){ for(var wk in this.bones){ if(this.bones[wk]&&!POSE_HELD_KEYS[wk]) this.baseQ[wk].copy(this.bones[wk].quaternion); } } // v44/v47: leg + pelvis baseQ stays bind forever (see POSE_HELD_KEYS)
+        if(this.model) this.model.position.y=this.baseY; // v46: no bob — the ground snap owns her height now
         if(this.gaitAmp>=0.003) this._applyGait(); else this._resetLegs(); // v44: legs are procedural — an idle girl gets bind legs, not a frozen stride
+        this._groundSnap(); // v46: feet on the floor, measured, every frame
         this._ppx=px; this._ppz=pz;
         return;
       }
@@ -4283,9 +4391,10 @@ var FollowerSystem={
       this.root.position.set(this.x,0,this.z);
       this.root.rotation.set(0,this.yaw,0); // the hard upright lock holds while she waits, too
       var wst2=this.mixer?SimulationSystem.mixerStep(this.mixer,this.root,player,dt,3):0;
-      if(wst2&&this.bones){ for(var k2 in this.bones){ if(this.bones[k2]&&!LEG_KEYS[k2]) this.baseQ[k2].copy(this.bones[k2].quaternion); } }
+      if(wst2&&this.bones){ for(var k2 in this.bones){ if(this.bones[k2]&&!POSE_HELD_KEYS[k2]) this.baseQ[k2].copy(this.bones[k2].quaternion); } } // v47: pelvis baseQ held at bind here too
       if(this.gaitAmp>=0.003) this._applyGait(); else this._resetLegs(); // v44: this branch never composed the gait before — the clip used to clear her legs for it. Now the legs are procedural, so the envelope closes here explicitly and bind legs take over when it shuts
       if(this.model) this.model.position.y=this.baseY;
+      this._groundSnap(); // v46
       return;
     }
     /* the player's own speed, measured from his real movement
@@ -4362,15 +4471,16 @@ var FollowerSystem={
        owns the pose outright. The base-pose snapshot refreshes on
        every mixer step, before the gait is composed on top. */
     if(moved>0){
-      var stride=Math.max(0.45,Math.min(0.98,0.42+0.17*this.speedNow)); // v41: a longer, lazier stride — casual, not hurried
+      var stride=Math.max(0.42,Math.min(0.72,0.34+0.10*this.speedNow)); // v46: stride matched to the shorter swing so her feet track the ground
       this.gaitPhase+=moved/stride*Math.PI;
     }
     var ampT=this.moving?1:0;
     this.gaitAmp+=(ampT-this.gaitAmp)*Math.min(1,dt*(ampT>this.gaitAmp?5:4));
     if(this.gaitAmp<0.003&&!this.moving) this.gaitAmp=0;
-    if(stepped&&this.bones){ for(var k in this.bones){ if(this.bones[k]&&!LEG_KEYS[k]) this.baseQ[k].copy(this.bones[k].quaternion); } } // v44: leg baseQ stays bind forever
-    if(this.model) this.model.position.y=this.baseY+(this.gaitAmp>0?(0.5-0.5*Math.cos(this.gaitPhase*2))*0.042*this.gaitAmp:0);
+    if(stepped&&this.bones){ for(var k in this.bones){ if(this.bones[k]&&!POSE_HELD_KEYS[k]) this.baseQ[k].copy(this.bones[k].quaternion); } } // v44/v47: leg + pelvis baseQ stays bind forever (see POSE_HELD_KEYS)
+    if(this.model) this.model.position.y=this.baseY; // v46: no bob — the ground snap owns her height now
     if(this.gaitAmp>=0.003) this._applyGait(); else this._resetLegs(); // v44: legs are procedural — an idle girl gets bind legs, not a frozen stride
+    this._groundSnap(); // v46: feet on the floor, measured, every frame
   }
 };
 FollowerSystem.load();
@@ -5076,7 +5186,8 @@ CitySystem.update(0);
    the neon trim pulses. Self-contained: it reads only the
    pole's fixed spot (stage centre, placed by TownSystem). */
 var ClubSystem=(function(){
-  var root=null, model=null, mixer=null, bones=null, baseQ={}, t=0, ready=false;
+  var root=null, model=null, mixer=null, bones=null, baseQ={}, t=0, ready=false, ankleRel=0.08;
+  var _sv1=new THREE.Vector3(), _sv2=new THREE.Vector3();
   var POLE={x:47,z:66.35}, STAGE_Y=0.45;
   var _sq=new THREE.Quaternion(), _xa=new THREE.Vector3(1,0,0), _ya=new THREE.Vector3(0,1,0), _za=new THREE.Vector3(0,0,1);
   function build(gltf){
@@ -5107,7 +5218,8 @@ var ClubSystem=(function(){
       lArm:/^CC_Base_L_Upperarm_\d/,rArm:/^CC_Base_R_Upperarm_\d/,
       lFore:/^CC_Base_L_Forearm_\d/,rFore:/^CC_Base_R_Forearm_\d/,
       lThigh:/^CC_Base_L_Thigh_\d/,rThigh:/^CC_Base_R_Thigh_\d/,
-      lCalf:/^CC_Base_L_Calf_\d/,rCalf:/^CC_Base_R_Calf_\d/};
+      lCalf:/^CC_Base_L_Calf_\d/,rCalf:/^CC_Base_R_Calf_\d/,
+      lFoot:/^CC_Base_L_Foot_\d/,rFoot:/^CC_Base_R_Foot_\d/};
     model.traverse(function(o){
       if(!o.isBone) return;
       for(var k in wanted){ if(!bones[k]&&wanted[k].test(o.name)){ bones[k]=o; baseQ[k]=o.quaternion.clone(); } }
@@ -5117,6 +5229,10 @@ var ClubSystem=(function(){
     blob.rotation.x=-Math.PI/2; blob.position.y=0.013; blob.renderOrder=1; root.add(blob);
     root.position.set(POLE.x+0.36,STAGE_Y,POLE.z);
     scene.add(root);
+    /* v46: her bind ankle height over the stage — the snap
+       target, same closed loop as Alina's ground snap */
+    root.updateMatrixWorld(true);
+    if(bones.lFoot){ var _aw=new THREE.Vector3(); bones.lFoot.getWorldPosition(_aw); ankleRel=_aw.y-STAGE_Y; }
     ready=true;
     renderer.shadowMap.needsUpdate=true;
   }
@@ -5144,7 +5260,7 @@ var ClubSystem=(function(){
     for(var i=0;i<CLUB_FX.trimMats.length;i++) CLUB_FX.trimMats[i].emissiveIntensity=1.8+0.5*Math.sin(t*2.2);
     if(!ready||!root) return;
     var stepped=mixer?SimulationSystem.mixerStep(mixer,root,player,dt,5):0;
-    if(stepped&&bones){ for(var k in bones){ if(bones[k]&&!LEG_KEYS[k]) baseQ[k].copy(bones[k].quaternion); } } // v44: leg baseQ stays bind forever
+    if(stepped&&bones){ for(var k in bones){ if(bones[k]&&!POSE_HELD_KEYS[k]) baseQ[k].copy(bones[k].quaternion); } } // v44: leg baseQ stays bind forever — v48: pelvis held at bind too, same as Alina (POSE_HELD_KEYS). Her setB('pelvis',…) sway composed ON TOP of a baseQ this loop had just refreshed from the posed pelvis, so the roll/yaw fed back and compounded frame over frame — the identical kick-out pattern split 1 fixed on Alina. Held at bind, the sway is a bounded offset again.
     // she works the pole: a slow sway around it, always facing
     // it, hips rolling against the beat, one hand up on the
     // pole, knees softening in turns
@@ -5166,6 +5282,17 @@ var ClubSystem=(function(){
     setB('rThigh',0.14+Math.max(0,-sway)*0.16,0,-0.05);
     setB('lCalf',-0.22-Math.max(0,sway)*0.14,0,0);
     setB('rCalf',-0.22-Math.max(0,-sway)*0.14,0,0);
+    /* v46: stage snap — her lower ankle is held at its bind
+       height over the stage boards, measured from the posed
+       bones, so the dance can sway but her feet stay planted
+       (replaces the old fixed +2 cm fudge) */
+    if(bones.lFoot&&bones.rFoot){
+      bones.lFoot.getWorldPosition(_sv1); bones.rFoot.getWorldPosition(_sv2);
+      var lowA=Math.min(_sv1.y,_sv2.y);
+      var dyA=(root.position.y+ankleRel)-lowA;
+      if(dyA>0.12) dyA=0.12; else if(dyA<-0.30) dyA=-0.30;
+      if(dyA>0.0005||dyA<-0.0005) root.position.y+=dyA;
+    }
   }
   return { update:update, dancer:function(){ return root; } };
 })();
@@ -5682,30 +5809,126 @@ var TrafficSystem=(function(){
     [[-57.7,49.5],[-35.4,49.5],[-35.4,79.5],[-57.7,79.5]],
     [[35.4,17.6],[65,17.6],[65,49.5],[35.4,49.5]]
   ];
-  var PED_COLS=[0x5a4632,0x37414a,0x6e2434,0x2e4a3a,0x555c66,0x71563a,0x3a3f5e,0x66424e];
+  /* v46: the parody parade — the eight walkers are now
+     off-brand lookalikes of famous game heroes, each readable
+     at a glance from colours + one or two cheap props, with a
+     little name tag overhead. Same walker skeleton as before
+     (two hip pivots, a body group, a blob shadow), same loops,
+     same knockdown — only the dressing is new. Materials are
+     shared from a cache and every prop is one small box, cone
+     or sphere, so the whole cast costs less than one car. */
+  var PED_NAMES=['PIPE PETE','TURBO HOG','LINQ','MINER MIKE','VOLTY','PUFFY','MAJOR BLAST','CAP KID'];
+  var pedMatCache={};
+  function pedMat(c){ if(!pedMatCache[c]) pedMatCache[c]=new THREE.MeshStandardMaterial({color:c,roughness:0.92}); return pedMatCache[c]; }
+  function pedTag(name){
+    var tex=makeTex(256,56,function(g2,w,h){
+      g2.fillStyle='rgba(8,9,12,0.78)'; g2.fillRect(28,6,w-56,h-12);
+      g2.fillStyle='#ffb03a'; g2.fillRect(28,h-11,w-56,3);
+      g2.font='700 27px "Barlow Condensed","Arial Narrow",sans-serif';
+      g2.textAlign='center'; g2.textBaseline='middle';
+      g2.fillStyle='#f2ead8'; g2.fillText(name,w/2,h/2-2);
+    });
+    var spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false,opacity:0.92}));
+    spr.scale.set(1.30,0.285,1);
+    return spr;
+  }
   function makeAmbPed(li,off){
+    var ci=li*2+off; // the character index, 0..7
     var grp=new THREE.Group();
     var blob=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.62),
       new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false,opacity:0.85}));
     blob.rotation.x=-Math.PI/2; blob.position.y=0.013; blob.renderOrder=1; grp.add(blob);
     var body=new THREE.Group(); grp.add(body);
-    var legMat=new THREE.MeshStandardMaterial({color:0x23252a,roughness:0.95});
-    function hip(x){
+    function bx(w,h,d,c,x,y,z,p){ var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),pedMat(c)); m.position.set(x,y,z); (p||body).add(m); return m; }
+    function sp(r,c,x,y,z,p,sx,sy,sz){ var m=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),pedMat(c)); m.position.set(x,y,z); if(sx) m.scale.set(sx,sy,sz); (p||body).add(m); return m; }
+    function cone(r,h,c,x,y,z,p,rx,rz){ var m=new THREE.Mesh(new THREE.ConeGeometry(r,h,9),pedMat(c)); m.position.set(x,y,z); if(rx) m.rotation.x=rx; if(rz) m.rotation.z=rz; (p||body).add(m); return m; }
+    function capS(r,len,c,x,y,z,p){ var m=new THREE.Mesh(new THREE.CapsuleGeometry(r,len,3,10),pedMat(c)); m.position.set(x,y,z); (p||body).add(m); return m; }
+    function hip(x,legC,shoeC,bigShoe){
       var hg=new THREE.Group(); hg.position.set(x,0.8,0); body.add(hg);
-      var leg=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.78,0.15),legMat);
+      var leg=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.78,0.15),pedMat(legC));
       leg.position.y=-0.39; hg.add(leg);
-      return hg;
+      var shoe=bx(bigShoe?0.15:0.14,0.07,bigShoe?0.27:0.21,shoeC,0,-0.755,bigShoe?0.05:0.03,hg);
+      return {g:hg,leg:leg,shoe:shoe};
     }
-    var hipL=hip(0.09), hipR=hip(-0.09);
-    var torso=new THREE.Mesh(new THREE.CapsuleGeometry(0.155,0.42,3,10),
-      new THREE.MeshStandardMaterial({color:PED_COLS[(li*2+off)%PED_COLS.length],roughness:0.92}));
-    torso.position.y=1.16; body.add(torso);
-    var head=new THREE.Mesh(new THREE.SphereGeometry(0.105,12,10),
-      new THREE.MeshStandardMaterial({color:0xc9a189,roughness:0.65}));
-    head.position.y=1.64; body.add(head);
+    var SKIN=0xc9a189, tagY=1.98, hipL, hipR, torso, head;
+    if(ci===0){ // PIPE PETE — the red-overalls plumber (shirt red, overalls blue)
+      hipL=hip(0.09,0x2456c8,0x5a3a22); hipR=hip(-0.09,0x2456c8,0x5a3a22);
+      torso=capS(0.155,0.42,0xd23b2e,0,1.16,0);
+      bx(0.25,0.34,0.05,0x2456c8,0,1.10,0.135); // the overalls bib
+      head=sp(0.105,SKIN,0,1.64,0);
+      var cap0=new THREE.Mesh(new THREE.CylinderGeometry(0.118,0.118,0.075,12),pedMat(0xd23b2e)); cap0.position.y=1.755; body.add(cap0);
+      bx(0.17,0.02,0.13,0xd23b2e,0,1.725,0.13); // brim
+      bx(0.12,0.028,0.02,0x3a2a1c,0,1.575,0.10); // moustache
+    } else if(ci===1){ // TURBO HOG — the blue speedy runner
+      hipL=hip(0.09,0x2456d6,0xd23b2e,true); hipR=hip(-0.09,0x2456d6,0xd23b2e,true); // big red shoes
+      torso=capS(0.155,0.42,0x2456d6,0,1.16,0);
+      sp(0.115,0xe8c39a,0,1.13,0.115,null,1,1.25,0.5); // tan belly
+      head=sp(0.105,0x2456d6,0,1.64,0);
+      cone(0.045,0.20,0x2456d6,0.05,1.80,-0.03,null,-1.15,0.25); // swept-back spikes
+      cone(0.045,0.22,0x2456d6,-0.05,1.81,-0.04,null,-1.25,-0.25);
+      cone(0.04,0.18,0x2456d6,0,1.82,-0.06,null,-1.45,0);
+      cone(0.035,0.10,0x2456d6,0.075,1.76,0.02,null,0,0.3); // ears
+      cone(0.035,0.10,0x2456d6,-0.075,1.76,0.02,null,0,-0.3);
+      sp(0.055,0xe8c39a,0,1.575,0.075,null,1.15,0.8,0.7); // muzzle
+    } else if(ci===2){ // LINQ — the green-tunic elf
+      hipL=hip(0.09,0x6b4a2f,0x4a3220); hipR=hip(-0.09,0x6b4a2f,0x4a3220);
+      torso=capS(0.155,0.42,0x2e7d3a,0,1.16,0);
+      bx(0.31,0.06,0.31,0x5a3a22,0,0.97,0); // belt
+      head=sp(0.105,SKIN,0,1.64,0);
+      sp(0.112,0xe8c95a,0,1.665,-0.018,null,1,1.02,1); // blond hair behind the face
+      cone(0.125,0.44,0x2e7d3a,0,1.93,-0.05,null,-0.38,0); // the long pointy hat, flopped back
+      var sw=bx(0.035,0.52,0.014,0xb9c1c9,-0.26,0.92,0); sw.rotation.z=0.13; // little sword at his side
+      var swg=bx(0.10,0.03,0.03,0x8a6d2f,-0.245,1.20,0); swg.rotation.z=0.13;
+      bx(0.03,0.12,0.03,0x5a3a22,-0.235,1.30,0);
+    } else if(ci===3){ // MINER MIKE — the blocky pixel miner (all cubes)
+      hipL=hip(0.09,0x3a4a9e,0x555c66); hipR=hip(-0.09,0x3a4a9e,0x555c66);
+      torso=bx(0.42,0.58,0.22,0x2a9d8f,0,1.13,0); // teal shirt, a box like everything else
+      bx(0.11,0.52,0.13,0x2a9d8f,0.27,1.13,0); bx(0.11,0.52,0.13,0x2a9d8f,-0.27,1.13,0); // blocky arms
+      head=bx(0.24,0.24,0.24,SKIN,0,1.63,0);
+      bx(0.25,0.07,0.25,0x4a3220,0,1.775,0); // hair slab
+      bx(0.25,0.16,0.03,0x4a3220,0,1.68,-0.115);
+      bx(0.035,0.05,0.012,0x22242a,0.055,1.65,0.122); bx(0.035,0.05,0.012,0x22242a,-0.055,1.65,0.122); // pixel eyes
+    } else if(ci===4){ // VOLTY — the yellow electric mouse (small, round, long ears)
+      body.scale.setScalar(0.84); tagY=1.66;
+      hipL=hip(0.09,0xf7c948,0xf7c948); hipR=hip(-0.09,0xf7c948,0xf7c948);
+      torso=sp(0.215,0xf7c948,0,0.98,0,null,1,1.12,0.95);
+      head=sp(0.16,0xf7c948,0,1.36,0);
+      cone(0.048,0.32,0xf7c948,0.11,1.58,0,null,0,0.38); cone(0.048,0.32,0xf7c948,-0.11,1.58,0,null,0,-0.38); // ears
+      cone(0.030,0.12,0x22242a,0.175,1.70,0,null,0,0.38); cone(0.030,0.12,0x22242a,-0.175,1.70,0,null,0,-0.38); // black ear tips
+      sp(0.038,0xd23b2e,0.135,1.31,0.105); sp(0.038,0xd23b2e,-0.135,1.31,0.105); // cheek sparks
+      var t1=bx(0.16,0.05,0.05,0x8a5a22,0,1.02,-0.21); t1.rotation.y=0.5; // zigzag tail
+      var t2=bx(0.13,0.05,0.05,0x8a5a22,0.07,1.10,-0.27); t2.rotation.y=-0.4;
+    } else if(ci===5){ // PUFFY — the pink puffball (one big ball, red feet)
+      tagY=1.32;
+      hipL=hip(0.13,0xf78fb3,0xe83a4e); hipR=hip(-0.13,0xf78fb3,0xe83a4e);
+      hipL.leg.visible=false; hipR.leg.visible=false; // no legs — just feet under the ball
+      hipL.shoe.visible=false; hipR.shoe.visible=false;
+      var fL=sp(0.105,0xe83a4e,0,-0.79,0.03,hipL.g,null,1,0.62,1.55), fR=sp(0.105,0xe83a4e,0,-0.79,0.03,hipR.g,null,1,0.62,1.55);
+      torso=sp(0.40,0xf78fb3,0,0.74,0,null,1,0.95,1); // the whole body is the ball
+      head=torso;
+      sp(0.085,0xf78fb3,0.40,0.80,0); sp(0.085,0xf78fb3,-0.40,0.80,0); // stubby arms
+      bx(0.035,0.07,0.02,0x22242a,0.12,0.86,0.365); bx(0.035,0.07,0.02,0x22242a,-0.12,0.86,0.365); // eyes
+    } else if(ci===6){ // MAJOR BLAST — the space marine (green armour, gold visor)
+      hipL=hip(0.09,0x4a5548,0x2e332c); hipR=hip(-0.09,0x4a5548,0x2e332c);
+      torso=capS(0.178,0.42,0x3f5a36,0,1.16,0);
+      sp(0.105,0x3f5a36,0.245,1.42,0); sp(0.105,0x3f5a36,-0.245,1.42,0); // shoulder pads
+      head=sp(0.128,0x3f5a36,0,1.66,0); // helmet
+      bx(0.18,0.05,0.02,0xf2b21b,0,1.665,0.118); // gold visor
+    } else { // CAP KID — the cap-wearing monster trainer
+      hipL=hip(0.09,0x2c3550,0xe8e6df); hipR=hip(-0.09,0x2c3550,0xe8e6df);
+      torso=capS(0.155,0.42,0x2a4d9e,0,1.16,0);
+      bx(0.16,0.30,0.05,0xe8e6df,0,1.15,0.132); // shirt front
+      bx(0.30,0.37,0.14,0x3f7a3a,0,1.17,-0.21); // backpack
+      head=sp(0.105,SKIN,0,1.64,0);
+      sp(0.112,0x1c1c22,0,1.665,-0.016,null,1,1.02,1); // black hair behind the face
+      var cap7=new THREE.Mesh(new THREE.CylinderGeometry(0.118,0.118,0.075,12),pedMat(0xe8e6df)); cap7.position.y=1.755; body.add(cap7);
+      bx(0.17,0.02,0.13,0xd23b2e,0,1.725,0.13); // red brim
+    }
+    hipL=hipL.g||hipL; hipR=hipR.g||hipR; // the update loop swings the hip GROUPS
+    var tag=pedTag(PED_NAMES[ci]); tag.position.y=tagY; grp.add(tag);
     scene.add(grp);
     var loop=PED_LOOPS[li%PED_LOOPS.length];
-    var ped={grp:grp,body:body,hipL:hipL,hipR:hipR,loop:loop,wp:(off*2)%loop.length,
+    var ped={grp:grp,body:body,hipL:hipL,hipR:hipR,tag:tag,loop:loop,wp:(off*2)%loop.length,
       phase:Math.random()*6,down:0,speed:1.2+((li+off)%3)*0.14};
     grp.position.set(loop[ped.wp][0],0,loop[ped.wp][1]);
     ped.wp=(ped.wp+1)%loop.length;
@@ -5826,6 +6049,7 @@ var TrafficSystem=(function(){
     // v45: ambient pedestrians on their sidewalk loops
     for(i=0;i<ambPeds.length;i++){
       var ap=ambPeds[i];
+      if(ap.tag) ap.tag.visible=!(ap.down>0); // v46: no name tag floating over a knocked-down hero
       if(ap.down>0){
         ap.down-=dt;
         ap.body.rotation.x=-Math.PI/2*0.92; ap.body.position.y=0.12;
@@ -6100,6 +6324,7 @@ var GTASystem=(function(){
   var money=200, wanted=0, peakWanted=0;
   var decayT=0, recklessT=0, recklessCd=0, crashCd=0, bustMeter=0, bustLock=0;
   var lastFound=0, prevSpeed=0, mapT=0, siren=null, sirenT=0;
+  var wasInGarage=false, bustPX=null, bustPZ=0; // v46: safe-zone edge trigger + the on-foot speed tracker
   var moneyEl=document.getElementById('gtaMoney');
   var starsEl=document.getElementById('gtaStars');
   var starSpans=starsEl?starsEl.children:[];
@@ -6152,6 +6377,20 @@ var GTASystem=(function(){
     scene.remove(c.group);
     var i=cops.indexOf(c); if(i>=0) cops.splice(i,1);
   }
+  /* v46: THE GARAGE IS A SAFE ZONE. Inside the walls (the
+     footprint below), the heat cannot touch him: cops will
+     not follow him in — they pull up at the bay doors and
+     wait outside, and the wanted level cools off while he
+     stays in (see update()). Outside, the cops are a fair
+     GTA-style challenge, not a swarm: a touch slower than
+     before, gentler acceleration, and a hard top speed
+     below what his cars can do, so a clean drive or a good
+     line on foot can always shake them. */
+  function inGarage(x,z){ return x>-12.9&&x<12.9&&z>-9.9&&z<10.1; }
+  function targetInGarage(){
+    if(DriveSystem.driving&&DriveSystem.veh){ var vp=DriveSystem.veh.group.position; return inGarage(vp.x,vp.z); }
+    return inGarage(player.x,player.z);
+  }
   function copStep(c,dt,t){
     var gp=c.group.position;
     if(c.offDuty){
@@ -6162,11 +6401,15 @@ var GTASystem=(function(){
     } else {
       var tx=player.x, tz=player.z;
       if(DriveSystem.driving&&DriveSystem.veh){ tx=DriveSystem.veh.group.position.x; tz=DriveSystem.veh.group.position.z; }
+      var safe=targetInGarage();
+      if(safe){ tx=Math.max(-10.5,Math.min(10.5,gp.x)); tz=12.6; } // v46: pull up outside the bay doors and wait there
       var dx=tx-gp.x, dz=tz-gp.z, dist=Math.sqrt(dx*dx+dz*dz);
       var turn=angWrap(Math.atan2(dx,dz)-c.heading);
       c.heading+=Math.max(-1.9*dt,Math.min(1.9*dt,turn));
-      var target=dist>14?16.5:(dist>6?11:Math.max(0,(dist-3.4)*1.7));
-      c.speed+=(target-c.speed)*Math.min(1,dt*1.8);
+      var target;
+      if(safe) target=dist>10?12:(dist>3?6:Math.max(0,(dist-1.2)*2)); // roll up to the doors, then stop
+      else target=dist>14?15.5:(dist>6?10.5:Math.max(0,(dist-3.4)*1.7)); // v46: fair pace — his cars top out at 23, a cop does 15.5 on the straight
+      c.speed+=(target-c.speed)*Math.min(1,dt*1.5);
       if(c.lightMats){
         var ph=Math.sin(t*13)>0;
         c.lightMats[0].emissiveIntensity=ph?3.2:0.12;
@@ -6187,6 +6430,16 @@ var GTASystem=(function(){
       if(d2>=cr*cr) continue;
       if(d2>0.000001){ var dd=Math.sqrt(d2); gp.x+=ddx/dd*(cr-dd); gp.z+=ddz/dd*(cr-dd); }
       else gp.x=b.maxX+cr;
+    }
+    /* v46: the safe-zone line. While he is inside the garage,
+       a cop gets no further than just outside the bay doors:
+       the door gaps in the wall colliders stop mattering, and
+       a cop caught mid-garage the moment he ducks in is put
+       back outside the line. The rule is absolute — inside
+       the garage, no chase, ever. */
+    if(targetInGarage()){
+      if(inGarage(gp.x,gp.z)){ gp.z=11.6; c.speed*=0.3; }
+      else if(gp.z<11.6&&gp.z>6&&gp.x>-13.4&&gp.x<13.4){ gp.z=11.6; if(c.speed>0) c.speed*=0.4; }
     }
     gp.x=Math.max(-70.4,Math.min(70.4,gp.x));
     gp.z=Math.max(-9.2,Math.min(98.4,gp.z));
@@ -6308,7 +6561,7 @@ var GTASystem=(function(){
     /* police presence follows the wanted level */
     var onDuty=[], i;
     for(i=0;i<cops.length;i++) if(!cops[i].offDuty) onDuty.push(cops[i]);
-    var wantCops=wanted===0?0:(wanted>=3?2:1);
+    var wantCops=wanted===0?0:(wanted>=4?3:(wanted>=2?2:1)); // v46: presence scales with the stars, capped at 3 — pressure, not a swarm
     if(player.z>-20) while(onDuty.length<wantCops){ onDuty.push(spawnCop()); }
     if(onDuty.length>wantCops) for(i=wantCops;i<onDuty.length;i++){ onDuty[i].offDuty=true; onDuty[i].goneT=2.2; }
     var minCopD=999;
@@ -6316,18 +6569,38 @@ var GTASystem=(function(){
       var cI=cops[i], d=copStep(cI,dt,t); // copStep may despawn (splice) an off-duty cop
       if(cops.indexOf(cI)>=0&&!cI.offDuty&&d<minCopD) minCopD=d;
     }
+    /* v46: the safe zone, felt — ducking into the garage with
+       heat on gets a word of confirmation, and while he stays
+       inside the stars cool off three times faster than the
+       open-street rule, cop distance irrelevant: they can
+       wait outside all night, it still cools. */
+    var pInG=targetInGarage();
+    if(pInG&&!wasInGarage&&wanted>0) toast('SAFE — the heat can\'t follow you into the garage.',2600);
+    wasInGarage=pInG;
     /* wanted decay: keep every cop 30 m away for 16 s and a
        star falls off; clearing a real heat pays the bonus */
     if(wanted>0){
-      if(minCopD>30){ decayT+=dt; if(decayT>16){ setWanted(wanted-1); decayT=0; } }
+      if(pInG){ decayT+=dt; if(decayT>6){ setWanted(wanted-1); decayT=0; } }
+      else if(minCopD>30){ decayT+=dt; if(decayT>16){ setWanted(wanted-1); decayT=0; } }
       else decayT=0;
     }
     if(wanted===0&&peakWanted>=2){ earn(100); toast('EVADED — you lost the heat. +$100',2600); peakWanted=0; }
     /* BUSTED: an on-duty cop within 5.5 m while you are stopped
-       (or on foot) fills the meter; a full meter ends the run */
+       fills the meter; a full meter ends the run. v46 fairness:
+       your REAL speed counts — car or feet. Sprinting away on
+       foot used to read as "stopped" (only driving speed was
+       measured) and filled the meter while you ran; now the
+       meter only fills when you are genuinely pinned or
+       standing — and never inside the garage. */
     var pSpeed=DriveSystem.driving?Math.abs(DriveSystem.speed):0;
-    if(wanted>0&&minCopD<5.5&&pSpeed<2.2&&player.z>-20&&bustLock<=0) bustMeter+=dt/2.6;
-    else bustMeter=Math.max(0,bustMeter-dt*0.7);
+    if(!DriveSystem.driving&&dt>0){
+      if(bustPX===null){ bustPX=player.x; bustPZ=player.z; }
+      var fdx=player.x-bustPX, fdz=player.z-bustPZ;
+      pSpeed=Math.min(9,Math.sqrt(fdx*fdx+fdz*fdz)/dt);
+      bustPX=player.x; bustPZ=player.z;
+    }
+    if(wanted>0&&minCopD<5.5&&pSpeed<2.2&&player.z>-20&&bustLock<=0&&!pInG) bustMeter+=dt/2.6;
+    else bustMeter=Math.max(0,bustMeter-dt*(pInG?2.2:0.7));
     if(bustMeter>=1&&bustLock<=0) doBusted();
     /* driving crimes + damage */
     if(DriveSystem.driving&&DriveSystem.veh){
@@ -6580,11 +6853,132 @@ function hold(id,set){
 hold('btnTurnL',function(v){turnL=v;}); hold('btnTurnR',function(v){turnR=v;}); hold('btnRun',function(v){runBtn=v;});
 document.getElementById('btnInteract').addEventListener('pointerdown',function(e){ e.preventDefault(); e.stopPropagation(); doInteract(); });
 
-/* ---- start ---- */
-document.getElementById('enterBtn').addEventListener('click',function(){
-  audio(); started=true; document.body.classList.add('playing');
+/* ---- start: the console front door (v46) ----
+   Boot splash → title (PRESS START) → menu (CONTINUE greyed
+   with NO SAVE DATA, NEW GAME, OPTIONS, CONTROLS, CREDITS),
+   driven like a console: arrows/W-S move, Enter/click/tap
+   selects (✕), Esc goes back (○). OPTIONS is live: SOUND
+   drives the same mute the HUD button does, QUALITY drives
+   QualitySystem's tiers. NEW GAME is the old START, exactly:
+   audio up, started=true, into the garage. If any of this
+   throws on a weak device, the fallback is a plain button
+   that starts the game the same way — never a dead screen. */
+function startGame(){
+  if(started) return;
+  try{ audio(); }catch(e){}
+  started=true; document.body.classList.add('playing');
   toast('Your Civic is in Bay 3 — start there.',2600);
-});
+}
+var ConsoleUI=null;
+try{ ConsoleUI=(function(){
+  var ui=document.getElementById('consoleUI');
+  if(!ui) return {start:startGame};
+  var bootScr=document.getElementById('bootScr'), titleScr=document.getElementById('titleScr'), menuScr=document.getElementById('menuScr');
+  var bootBar=document.getElementById('bootBar'), bootMsg=document.getElementById('bootMsg'), pressEl=document.getElementById('pressStart');
+  var listEl=document.getElementById('menuList'), panelEl=document.getElementById('menuPanel');
+  var items=[].slice.call(listEl.children);
+  var stage='boot', sel=1, level='menu', optSel=0, t0=performance.now();
+  var QUALS=['AUTO','HIGH','BALANCED','LOW'], qualIdx=0;
+  if(isTouch&&pressEl) pressEl.textContent='TAP TO START';
+  var LINEUP='<h3>TONIGHT AT THE SHOP</h3>'
+    +'<p class="tagline">Three bays, ten interactions hiding in plain sight — <b>flip the lights, start the engines</b>, then take the back door into <b>the apartment</b> and make yourself at home. Or roll up a bay door, <b>drive out into town</b>, and help yourself to a passing Prius.</p>'
+    +'<div class="carRow"><span class="bayNo">BAY 2</span><span class="carName">Nissan Silvia S15</span><span class="carTag">drift build</span></div>'
+    +'<div class="carRow"><span class="bayNo">BAY 3</span><span class="carName">1998 Honda Civic</span><span class="carTag">your car</span></div>'
+    +'<div class="carRow"><span class="bayNo">BAY 4</span><span class="carName">Lamborghini Gallardo</span><span class="carTag">V10</span></div>'
+    +'<div class="carRow"><span class="bayNo">DOOR</span><span class="carName">The Apartment</span><span class="carTag">back wall · 4 more finds</span></div>'
+    +'<div class="carRow"><span class="bayNo">TOWN</span><span class="carName">The Borough Outside</span><span class="carTag">steal anything · dodge cops</span></div>';
+  var CONTROLS='<h3>CONTROLS</h3>'
+    +'<div class="ctlRow"><b>WASD / STICK</b><span>Walk · drive</span></div>'
+    +'<div class="ctlRow"><b>MOUSE / DRAG</b><span>Look around</span></div>'
+    +'<div class="ctlRow"><b>E / INTERACT</b><span>Use · get in &amp; out of cars</span></div>'
+    +'<div class="ctlRow"><b>SHIFT / RUN</b><span>Run</span></div>'
+    +'<div class="ctlRow"><b>ARROWS / &#9664; &#9654;</b><span>Turn (touch)</span></div>'
+    +'<p class="tagline" style="margin-top:12px">Find all <b>10 interactions</b>. The garage is a safe zone — the heat can\'t follow you in.</p>';
+  var CREDITS='<h3>CREDITS</h3>'
+    +'<p class="tagline">A DYING TO LIVE production. Built in a browser, best with the sound on.</p>'
+    +'<p class="credits">Cars: blender aboba · Socksthecat · Artem P — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — all CC BY 4.0 · HDRI: Poly Haven CC0 · Apartment wall art: Van Gogh · Vermeer · Hokusai · Cézanne — public domain via Wikimedia Commons · Traffic car: "Toyota Prius 2012" by Doz3 (Sketchfab) — CC BY 4.0 · The driver: "Soldier" character by Mixamo, via the three.js examples · PBR surface textures (oak floor, concrete, diamond plate): Poly Haven — CC0</p>';
+  function optHTML(){
+    return '<h3>OPTIONS</h3>'
+      +'<div class="optRow'+(optSel===0?' sel':'')+'" data-opt="0"><span>SOUND</span><span class="optVal">'+(MUTED?'OFF':'ON')+'</span></div>'
+      +'<div class="optRow'+(optSel===1?' sel':'')+'" data-opt="1"><span>QUALITY</span><span class="optVal">'+QUALS[qualIdx]+'</span></div>'
+      +'<p class="tagline" style="margin-top:12px">Select a row to change it. Quality applies at once; AUTO lets the game adapt on its own.</p>';
+  }
+  function renderPanel(){
+    var act=items[sel].getAttribute('data-act');
+    if(act==='options') panelEl.innerHTML=optHTML();
+    else if(act==='controls') panelEl.innerHTML=CONTROLS;
+    else if(act==='credits') panelEl.innerHTML=CREDITS;
+    else if(act==='continue') panelEl.innerHTML='<h3>CONTINUE</h3><p class="tagline">No save data on this console. Start a <b>NEW GAME</b> — the shop is exactly how you left it: unlocked, lit, and full of other people\'s cars.</p>';
+    else panelEl.innerHTML=LINEUP+(startReady?'':'<p class="tagline" style="margin-top:10px"><b>LOADING…</b> the shop is still rolling in.</p>');
+    if(act==='options'){
+      var rows=panelEl.querySelectorAll('.optRow');
+      for(var i=0;i<rows.length;i++)(function(r){
+        r.addEventListener('click',function(){ optSel=parseInt(r.getAttribute('data-opt'),10); level='options'; cycleOpt(); });
+      })(rows[i]);
+    }
+  }
+  function paintSel(){
+    for(var i=0;i<items.length;i++) items[i].classList.toggle('sel',i===sel);
+    renderPanel();
+  }
+  function showTitle(){ stage='title'; bootScr.classList.add('hidden'); titleScr.classList.remove('hidden'); }
+  function showMenu(){ stage='menu'; titleScr.classList.add('hidden'); menuScr.classList.remove('hidden'); paintSel(); }
+  function cycleOpt(){
+    if(optSel===0){ setMuted(!MUTED); }
+    else {
+      qualIdx=(qualIdx+1)%QUALS.length;
+      var q=QUALS[qualIdx];
+      if(q==='HIGH') QualitySystem.setTier('full','menu');
+      else if(q==='BALANCED') QualitySystem.setTier('balanced','menu');
+      else if(q==='LOW') QualitySystem.setTier('lean','menu');
+    }
+    renderPanel();
+  }
+  function select(){
+    var act=items[sel].getAttribute('data-act');
+    if(act==='continue') return; // greyed: no save data
+    if(act==='newgame'){ if(startReady) startGame(); return; }
+    if(act==='options'){ level='options'; renderPanel(); return; }
+    paintSel();
+  }
+  function back(){ if(level==='options'){ level='menu'; renderPanel(); } }
+  function move(d){
+    if(level==='options'){ optSel=(optSel+d+2)%2; renderPanel(); return; }
+    sel=(sel+d+items.length)%items.length; paintSel();
+  }
+  var tick=setInterval(function(){
+    if(started){ clearInterval(tick); return; }
+    if(stage==='boot'){
+      var el=performance.now()-t0;
+      var frac=startReady?1:Math.max(loadFrac,Math.min(0.92,el/15000));
+      bootBar.style.width=Math.round(frac*100)+'%';
+      bootMsg.textContent=startReady?'READY':('LOADING '+Math.round(frac*100)+'%');
+      if(startReady&&el>1350) showTitle();
+    }
+  },120);
+  titleScr.addEventListener('click',function(){ if(stage==='title') showMenu(); });
+  for(var i=0;i<items.length;i++)(function(li,idx){
+    li.addEventListener('click',function(){ if(stage!=='menu') return; sel=idx; level='menu'; paintSel(); select(); });
+    li.addEventListener('mouseenter',function(){ if(stage==='menu'&&level==='menu'&&sel!==idx){ sel=idx; paintSel(); } });
+  })(items[i],i);
+  window.addEventListener('keydown',function(e){
+    if(started||stage==='boot') return;
+    if(stage==='title'){ if(e.key==='Enter'||e.key===' '||e.key.indexOf('Arrow')===0){ e.preventDefault(); showMenu(); } return; }
+    if(stage==='menu'){
+      if(e.key==='ArrowDown'||e.key==='s'||e.key==='S'){ e.preventDefault(); move(1); }
+      else if(e.key==='ArrowUp'||e.key==='w'||e.key==='W'){ e.preventDefault(); move(-1); }
+      else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); if(level==='options') cycleOpt(); else select(); }
+      else if(e.key==='Escape'||e.key==='Backspace'){ e.preventDefault(); back(); }
+    }
+  });
+  return {start:startGame};
+})(); }catch(e){ ErrorGuard.report(e,'console-ui'); }
+if(!ConsoleUI){
+  var fb=document.createElement('button');
+  fb.textContent='START'; fb.setAttribute('style','position:fixed;z-index:40;left:50%;top:50%;transform:translate(-50%,-50%);min-height:54px;padding:0 44px;background:#ffb03a;color:#161616;border:0;border-radius:6px;font-size:22px;font-weight:700;letter-spacing:.16em;');
+  fb.addEventListener('click',startGame);
+  document.body.appendChild(fb);
+}
 PROX={cars:cars,player:player,isStarted:function(){return started;}};
 /* Headless verification hook, same spirit as __GARAGE_PERF__:
    the probe reads her real position/upright state from here. */
@@ -6593,12 +6987,14 @@ window.__FOLLOWER__={sys:FollowerSystem,player:player};
    engines, proximity idles, clunks and clicks — goes quiet at
    once, and resumes exactly where it was. ---- */
 var muteBtn=document.getElementById('muteBtn');
+function setMuted(v){ // v46: one mute path — the HUD button and the console OPTIONS row both drive it
+  MUTED=!!v;
+  if(muteBtn){ muteBtn.textContent=MUTED?'SOUND OFF':'SOUND ON'; muteBtn.setAttribute('aria-label',MUTED?'Unmute sound':'Mute sound'); }
+  if(AC){ if(MUTED) AC.suspend(); else AC.resume(); }
+}
 muteBtn.addEventListener('click',function(e){
   e.stopPropagation();
-  MUTED=!MUTED;
-  muteBtn.textContent=MUTED?'SOUND OFF':'SOUND ON';
-  muteBtn.setAttribute('aria-label',MUTED?'Unmute sound':'Mute sound');
-  if(AC){ if(MUTED) AC.suspend(); else AC.resume(); }
+  setMuted(!MUTED);
 });
 muteBtn.addEventListener('pointerdown',function(e){ e.stopPropagation(); });
 
