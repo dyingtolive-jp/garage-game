@@ -6367,7 +6367,7 @@ var GTASystem=(function(){
     if(Math.abs(bx-px)<Math.abs(bz-pz)) px=bx+2; else pz=bz+2; // his lane, not the centre line
     px=Math.max(-68,Math.min(68,px)); pz=Math.max(13,Math.min(96,pz));
     var c={group:built.group,spinWheels:built.spinWheels,wheelFL:built.wheelFL,wheelFR:built.wheelFR,
-      lightMats:built.lightMats,heading:Math.atan2(player.x-px,player.z-pz),speed:0,offDuty:false,goneT:0};
+      lightMats:built.lightMats,heading:Math.atan2(player.x-px,player.z-pz),speed:0,offDuty:false,goneT:0,stuckT:0,lastX:px,lastZ:pz};
     c.group.position.set(px,0,pz); c.group.rotation.y=c.heading;
     scene.add(c.group);
     cops.push(c);
@@ -6440,6 +6440,27 @@ var GTASystem=(function(){
     if(targetInGarage()){
       if(inGarage(gp.x,gp.z)){ gp.z=11.6; c.speed*=0.3; }
       else if(gp.z<11.6&&gp.z>6&&gp.x>-13.4&&gp.x<13.4){ gp.z=11.6; if(c.speed>0) c.speed*=0.4; }
+    }
+    /* stuck detector + street snap: an on-duty cop that is
+       trying to move (target speed above 2) but barely moved
+       this step is wedged — most often on a building collider
+       while its straight line to the bay doors crosses the
+       building. After three seconds genuinely stuck, snap it
+       onto the nearest street centreline (whichever coordinate
+       is closer to its street value) so it can re-approach on
+       the road. Heading and speed are left alone. */
+    var moved=Math.hypot(gp.x-(c.lastX??gp.x),gp.z-(c.lastZ??gp.z));
+    if(!c.offDuty&&(typeof target!=='undefined'?target:0)>2&&moved<0.01){ c.stuckT=(c.stuckT||0)+dt; }
+    else { c.stuckT=0; }
+    c.lastX=gp.x; c.lastZ=gp.z;
+    if((c.stuckT||0)>3){
+      c.stuckT=0;
+      var sxs=[-30,0,30], szs=[22,52,82], sNx=sxs[0], sNz=szs[0], sbdx=1e9, sbdz=1e9, sI, sA;
+      for(sI=0;sI<3;sI++){ sA=Math.abs(sxs[sI]-gp.x); if(sA<sbdx){ sbdx=sA; sNx=sxs[sI]; } }
+      for(sI=0;sI<3;sI++){ sA=Math.abs(szs[sI]-gp.z); if(sA<sbdz){ sbdz=sA; sNz=szs[sI]; } }
+      if(sbdx<sbdz) gp.x=sNx; else gp.z=sNz;
+      if(gp.x>-12.9&&gp.x<12.9&&gp.z>-9.9&&gp.z<10.1) gp.z=11.6;
+      c.lastX=gp.x; c.lastZ=gp.z;
     }
     gp.x=Math.max(-70.4,Math.min(70.4,gp.x));
     gp.z=Math.max(-9.2,Math.min(98.4,gp.z));
