@@ -76,6 +76,25 @@
     backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
   #toast.show{opacity:1;transform:translate(-50%,0);}
 
+  /* ---------- v45 GTA HUD: money, wanted stars, minimap ---------- */
+  #gtaHud{position:absolute;top:calc(118px + env(safe-area-inset-top));right:12px;text-align:right;display:none;}
+  body.playing #gtaHud{display:block;}
+  #gtaMoney{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:24px;font-weight:700;letter-spacing:.04em;
+    color:#7dd87d;text-shadow:0 1px 3px rgba(0,0,0,.8),0 0 12px rgba(0,0,0,.5);}
+  #gtaStars{font-size:19px;letter-spacing:.14em;line-height:1.1;color:rgba(255,255,255,.18);text-shadow:0 1px 3px rgba(0,0,0,.8);}
+  #gtaStars .on{color:#ffc933;text-shadow:0 0 8px rgba(255,180,0,.75),0 1px 3px rgba(0,0,0,.8);}
+  #gtaStars.hot{animation:starFlash .5s steps(2) 4;}
+  @keyframes starFlash{50%{opacity:.25;}}
+  #minimap{position:absolute;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));width:148px;height:148px;border-radius:50%;
+    border:3px solid rgba(12,13,16,.9);outline:1px solid rgba(255,255,255,.22);background:#10151c;display:none;
+    box-shadow:0 6px 22px rgba(0,0,0,.5);}
+  body.playing #minimap{display:block;}
+  body.touch.playing #minimap{left:auto;right:12px;bottom:calc(228px + env(safe-area-inset-bottom));width:112px;height:112px;}
+  #busted{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%) scale(.92);font-family:"Barlow Condensed","Arial Narrow",sans-serif;
+    font-size:clamp(44px,11vw,76px);font-weight:700;letter-spacing:.14em;color:#e8e6df;opacity:0;pointer-events:none;
+    text-shadow:0 0 26px rgba(200,30,30,.85),0 3px 10px rgba(0,0,0,.9);transition:opacity .25s,transform .25s;}
+  #busted.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+
   /* high effect (v25): a warm, hazy full-screen wash + soft edge
      vignette, driven by HighSystem. Pure DOM gradients — no
      backdrop blur, so it costs nothing on the GPU. The layer is
@@ -177,6 +196,9 @@
   <button id="muteBtn" aria-label="Mute sound">SOUND ON</button>
   <div id="prompt"><span class="key">E</span><span class="txt" id="promptTxt">Interact</span></div>
   <div id="toast"></div>
+  <div id="gtaHud"><div id="gtaStars"><span>&#9733;</span><span>&#9733;</span><span>&#9733;</span><span>&#9733;</span><span>&#9733;</span></div><div id="gtaMoney">$200</div></div>
+  <canvas id="minimap" width="296" height="296"></canvas>
+  <div id="busted">BUSTED</div>
 </div>
 
 <div id="touchUI">
@@ -197,11 +219,11 @@
     <div class="carRow"><span class="bayNo">BAY 3</span><span class="carName">1998 Honda Civic</span><span class="carTag">your car</span></div>
     <div class="carRow"><span class="bayNo">BAY 4</span><span class="carName">Lamborghini Gallardo</span><span class="carTag">V10</span></div>
     <div class="carRow"><span class="bayNo">DOOR</span><span class="carName">The Apartment</span><span class="carTag">back wall · 4 more finds</span></div>
-    <div class="carRow"><span class="bayNo">TOWN</span><span class="carName">The Town Outside</span><span class="carTag">drive out · steal a Prius</span></div>
+    <div class="carRow"><span class="bayNo">TOWN</span><span class="carName">The Borough Outside</span><span class="carTag">steal anything · dodge cops</span></div>
   </div>
   <button id="enterBtn" disabled>LOADING&hellip;</button>
   <p class="controls"><b>WASD</b> walk &nbsp;·&nbsp; <b>Mouse</b> look &nbsp;·&nbsp; <b>E</b> interact &nbsp;·&nbsp; <b>Shift</b> run &nbsp;—&nbsp; on touch, use the stick and buttons.</p>
-  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — all CC BY 4.0 · HDRI: Poly Haven CC0 · Apartment wall art: Van Gogh · Vermeer · Hokusai · Cézanne — public domain via Wikimedia Commons · Traffic car: "Toyota Prius 2012" by Doz3 (Sketchfab) — CC BY 4.0 · The driver: "Soldier" character by Mixamo, via the three.js examples</p>
+  <p class="credits">Cars: blender aboba · Socksthecat · Artem P — Shop gear: jjchalupnik · jimbogies · Sargone · dinoxwave · ZiemniaQ · farsmok · blackalder · sousinho · PILIGRIMGames · kryik1023 — all CC BY 4.0 · HDRI: Poly Haven CC0 · Apartment wall art: Van Gogh · Vermeer · Hokusai · Cézanne — public domain via Wikimedia Commons · Traffic car: "Toyota Prius 2012" by Doz3 (Sketchfab) — CC BY 4.0 · The driver: "Soldier" character by Mixamo, via the three.js examples · PBR surface textures (oak floor, concrete, diamond plate): Poly Haven — CC0</p>
 </div>
 
 <div id="errBox"></div>
@@ -730,7 +752,7 @@ renderer.toneMapping=THREE.ACESFilmicToneMapping;
    the first thing this scene clipped to white under the key spot,
    while the cars' darker, saturated paint survived. The whole
    light rig below is rebalanced with it. */
-renderer.toneMappingExposure=1.12; /* v21 polish: a touch more exposure again — v20's real engine bays and the apartment's warm wood both read richer, highlights still hold */
+renderer.toneMappingExposure=1.17; /* v43 revamp: lifted again for the warmer cinematic grade — the new PBR surfaces (oak, concrete relief, diamond plate) hold their highlights at this level */
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 /* Software renderers (SwiftShader / llvmpipe — CI rigs, VMs, ancient
    laptops) can't carry the post chain or transmissive glass at any
@@ -746,8 +768,8 @@ try{
 if(softwareGL){ renderer.setPixelRatio(0.5); renderer.shadowMap.enabled=false; }
 
 var scene=new THREE.Scene();
-scene.background=new THREE.Color(0x0d1016);
-scene.fog=new THREE.Fog(0x0d1016,30,150); // v38: pushed way out — the town beyond the bay doors needs the depth (the garage interior spans ~35 m corner to corner, so it barely feels this)
+scene.background=new THREE.Color(0x39424e); // v45: GTA IV dusk — a grey-blue slate over the borough instead of void black; the garage interior is enclosed, so only the town feels it
+scene.fog=new THREE.Fog(0x39424e,26,148); // v38: pushed way out — the town beyond the bay doors needs the depth (the garage interior spans ~35 m corner to corner, so it barely feels this). v45: dusk haze colour, so distance in town reads as city smog, not darkness
 
 var camera=new THREE.PerspectiveCamera(72,1,0.05,80);
 
@@ -804,14 +826,14 @@ function parseRGBE(buf){
 if(softwareGL){ scene.environment=null; }
 else{
   scene.environment=pmrem.fromScene(new THREE.RoomEnvironment(),0.04).texture;
-  scene.environmentIntensity=0.22;
+  scene.environmentIntensity=0.27;
 }
 if(!softwareGL) fetch('assets/garage_1k.hdr').then(function(r){ if(!r.ok) throw new Error('hdr'); return r.arrayBuffer(); })
   .then(function(buf){
     var tex=parseRGBE(buf); if(!tex) return;
     var rt=pmrem.fromEquirectangular(tex);
     scene.environment=rt.texture;
-    scene.environmentIntensity=0.28;
+    scene.environmentIntensity=0.35;
     tex.dispose();
   }).catch(function(){ /* RoomEnvironment stays */ });
 
@@ -2802,6 +2824,317 @@ function buildBong(bx,by,bz){
 }
 buildPolish(); buildApartment();
 
+/* ================= v43 REVAMP — GARAGE + APARTMENT, WHOLE NEW LEVEL =================
+   The visual revamp Collin asked for once the asset accounts
+   existed. Real PBR surface sets baked into assets/ at build
+   time from Poly Haven (CC0, the same source as the garage
+   HDRI): an oak plank floor for the apartment, photographic
+   concrete roughness + normal detail for the garage floor, and
+   diamond-plate relief for the bay mats. BlenderKit / Fab /
+   Meshy models need per-asset manual export, so the new props
+   are built in-engine in the game's existing style instead —
+   but EVERYTHING here obeys the bedrock rules: this is one
+   self-contained IIFE, content reaches the scene only through
+   the existing helpers (box, glowSprite, floorGlow, photoLoader,
+   addCollider), every prop is a direct scene child at its real
+   position so WorldSystem zone culling files it correctly,
+   textures are <=1024px and shared, exactly two real lights are
+   added (one per zone), and no interactable is added or moved —
+   the objective stays FIND ALL 10. */
+(function(){
+  function phTex(path,srgb,rx,ry){
+    var t=photoLoader.load(path);
+    if(srgb) t.colorSpace=THREE.SRGBColorSpace;
+    t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(rx||1,ry||1); t.anisotropy=8;
+    return t;
+  }
+  var phWoodDiff=phTex('assets/ph-wood-diff.jpg',true,3,2);
+  var phWoodRough=phTex('assets/ph-wood-rough.jpg',false,3,2);
+  var phWoodNor=phTex('assets/ph-wood-nor.jpg',false,3,2);
+  var phConcRough=phTex('assets/ph-conc-rough.jpg',false,6,5);
+  var phConcNor=phTex('assets/ph-conc-nor.jpg',false,6,5);
+  var phMetalNor=phTex('assets/ph-metal-nor.jpg',false,3,4);
+  var phMetalRough=phTex('assets/ph-metal-rough.jpg',false,3,4);
+
+  /* ---- surface upgrades on the two hero floors ---- */
+  // garage: photographic concrete micro-relief + gloss variation
+  // under the painted bay markings (the canvas diffuse, with its
+  // bay boxes, stays — only the data maps are swapped in)
+  floor.material.roughnessMap=phConcRough;
+  floor.material.normalMap=phConcNor;
+  floor.material.normalScale=new THREE.Vector2(0.32,0.32);
+  floor.material.metalness=0.27; floor.material.envMapIntensity=1.08;
+  floor.material.needsUpdate=true;
+  // apartment: the real oak floor — found by its canvas wood map,
+  // the only material in the game that uses it
+  scene.traverse(function(o){
+    if(o.isMesh&&o.material&&o.material.map===woodTex){
+      var m=o.material;
+      m.map=phWoodDiff; m.roughnessMap=phWoodRough; m.normalMap=phWoodNor;
+      m.normalScale=new THREE.Vector2(0.85,0.85);
+      m.bumpMap=null; m.roughness=1.0; m.metalness=0.0; m.envMapIntensity=1.05;
+      m.needsUpdate=true;
+    }
+  });
+
+  /* ---- shared revamp materials / helpers ---- */
+  var rvSteel=new THREE.MeshStandardMaterial({color:0x8f959c,roughness:0.38,metalness:0.85,envMapIntensity:1.1});
+  var rvDarkSteel=new THREE.MeshStandardMaterial({color:0x2e3138,roughness:0.5,metalness:0.7,envMapIntensity:0.9});
+  var rvBlackMetal=new THREE.MeshStandardMaterial({color:0x17181c,roughness:0.55,metalness:0.6});
+  var rvDrawer=new THREE.MeshStandardMaterial({color:0x7d1518,roughness:0.42,metalness:0.4});
+  var rvCardboard=new THREE.MeshStandardMaterial({color:0x8a6b48,roughness:0.92});
+  var rvDarkWood=new THREE.MeshStandardMaterial({color:0x4a3421,roughness:0.6,envMapIntensity:0.7});
+  var rvBrass=new THREE.MeshStandardMaterial({color:0xb08d4f,roughness:0.3,metalness:1,envMapIntensity:1.25});
+  var rvBulb=new THREE.MeshStandardMaterial({color:0x201a10,emissive:0xffd9a0,emissiveIntensity:3,roughness:0.4});
+  function rvCyl(rt,rb,h,mat,x,y,z,seg){
+    var m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg||18),mat);
+    m.position.set(x,y,z); m.castShadow=true; m.receiveShadow=true; scene.add(m); return m;
+  }
+  function rvTire(x,y,z,flat){
+    var m=new THREE.Mesh(new THREE.CylinderGeometry(0.33,0.33,0.24,26),[treadMat,sidewallMat,sidewallMat]);
+    m.position.set(x,y,z); if(!flat) m.rotation.z=Math.PI/2;
+    m.castShadow=true; m.receiveShadow=true; scene.add(m); return m;
+  }
+  function rvBooks(x,y,z,n,ry){
+    var cols=[0x7a2e2a,0x2a4a6b,0xc9a24d,0x3f5a3a,0x22242a,0x6b3a5a];
+    for(var i=0;i<n;i++){
+      var b=box(0.24+((i*37)%10)*0.008,0.032,0.17,new THREE.MeshStandardMaterial({color:cols[i%cols.length],roughness:0.8}),x,y+0.017+i*0.034,z,scene,false);
+      b.rotation.y=(ry||0)+((i%2)?0.14:-0.1);
+    }
+  }
+  function rvPlant(x,y,z,s){
+    var pot=rvCyl(0.09*s,0.07*s,0.16*s,new THREE.MeshStandardMaterial({color:0x8a4a34,roughness:0.85}),x,y+0.08*s,z,12);
+    var leaf=new THREE.MeshStandardMaterial({color:0x3f7a3a,roughness:0.9});
+    [[0,0.34,0,0.13],[0.09,0.46,0.04,0.09],[-0.08,0.44,-0.03,0.08]].forEach(function(p){
+      var b=new THREE.Mesh(new THREE.IcosahedronGeometry(p[3]*s,1),leaf);
+      b.position.set(x+p[0]*s,y+p[1]*s,z+p[2]*s); scene.add(b);
+    });
+    return pot;
+  }
+
+  /* ================= GARAGE ================= */
+  // diamond-plate steel mats under the three bays — real relief
+  // from the Poly Haven normal map, dark steel colour of our own
+  var bayMat=new THREE.MeshStandardMaterial({color:0x3a3d44,metalness:0.72,roughness:0.6,
+    roughnessMap:phMetalRough,normalMap:phMetalNor,normalScale:new THREE.Vector2(0.65,0.65),
+    envMapIntensity:1.05,polygonOffset:true,polygonOffsetFactor:-1});
+  [-5,0,5].forEach(function(cx){
+    var m=new THREE.Mesh(new THREE.PlaneGeometry(3.3,5.7),bayMat);
+    m.rotation.x=-Math.PI/2; m.position.set(cx,0.006,-2); m.receiveShadow=true; scene.add(m);
+  });
+  // tire rack on the left wall: two rails of upright tires
+  [-12.58,-12.32].forEach(function(rx){
+    box(0.05,0.05,2.85,rvDarkSteel,rx,0.10,1.67,scene,false);
+    box(0.05,0.05,2.85,rvDarkSteel,rx,0.78,1.67,scene,false);
+  });
+  [0.28,3.06].forEach(function(pz){ box(0.09,1.5,0.09,rvDarkSteel,-12.45,0.75,pz); });
+  [0.62,1.32,2.02,2.72].forEach(function(tz){ rvTire(-12.45,0.44,tz); rvTire(-12.45,1.12,tz); });
+  addCollider(-12.45,1.67,0.5,1.5);
+  // a pair of red roller cabinets on the back wall, drawers,
+  // chrome pulls, oil bottles and shop gear on top
+  [-6.6,-3.4].forEach(function(cx){
+    box(1.5,1.02,0.55,redCab,cx,0.53,-9.58);
+    for(var d=0;d<4;d++){
+      box(1.36,0.19,0.02,rvDrawer,cx,0.24+d*0.235,-9.29,scene,false);
+      box(0.55,0.025,0.025,chromeMat,cx,0.24+d*0.235,-9.27,scene,false);
+    }
+    box(1.56,0.04,0.6,rvBlackMetal,cx,1.06,-9.58);
+    addCollider(cx,-9.58,0.82,0.35);
+  });
+  [[-7.0,0xd78a1e],[-6.85,0x2456a6],[-6.7,0x30333a]].forEach(function(b){
+    rvCyl(0.045,0.045,0.17,new THREE.MeshStandardMaterial({color:b[1],roughness:0.35,metalness:0.3}),b[0],1.165,-9.6,12);
+    rvCyl(0.02,0.02,0.04,rvBlackMetal,b[0],1.27,-9.6,8);
+  });
+  box(0.5,0.18,0.3,rvSteel,-3.55,1.17,-9.58);
+  box(0.3,0.02,0.24,new THREE.MeshStandardMaterial({color:0x3a5a8c,roughness:1}),-3.05,1.09,-9.55,scene,false);
+  // service menu board + a big shop clock on the back wall
+  var serviceTex=makeTex(512,320,function(g,w,h){
+    g.fillStyle='#17181c'; g.fillRect(0,0,w,h);
+    g.strokeStyle='#ffb03a'; g.lineWidth=5; g.strokeRect(10,10,w-20,h-20);
+    g.fillStyle='#ffb03a'; g.font='700 44px Barlow Condensed, sans-serif'; g.textAlign='center';
+    g.fillText('SERVICE & DETAIL MENU',w/2,62);
+    g.font='600 30px Barlow Condensed, sans-serif'; g.fillStyle='#f2f0ea'; g.textAlign='left';
+    var rows=[['OIL CHANGE','$89'],['TIRE ROTATION','$45'],['WHEEL BALANCE','$60'],['ALIGNMENT','$120'],['FULL DETAIL','$180']];
+    rows.forEach(function(r,i){ g.fillText(r[0],44,118+i*38); g.textAlign='right'; g.fillText(r[1],w-44,118+i*38); g.textAlign='left'; });
+  });
+  box(1.9,1.22,0.04,rvBlackMetal,-11.35,2.45,-9.92,scene,false); // pro-review fix: at -9.6 the board hung OVER the framed R34 print (x -9.82..-6.78, y 1.58..3.66) — its left third covered the poster. It now hangs in the free stretch west of it, over the decor shelf
+  var board=new THREE.Mesh(new THREE.PlaneGeometry(1.8,1.12),
+    new THREE.MeshStandardMaterial({map:serviceTex,roughness:0.7,envMapIntensity:0.4}));
+  board.position.set(-11.35,2.45,-9.89); scene.add(board);
+  var clockTex=makeTex(256,256,function(g,w,h){
+    g.fillStyle='#f2efe6'; g.beginPath(); g.arc(128,128,124,0,7); g.fill();
+    g.fillStyle='#17181c'; g.textAlign='center';
+    for(var i=0;i<12;i++){ var a=i/12*Math.PI*2;
+      g.save(); g.translate(128+Math.cos(a)*106,128+Math.sin(a)*106); g.rotate(a+Math.PI/2); g.fillRect(-3,-11,6,22); g.restore(); }
+    g.strokeStyle='#17181c'; g.lineWidth=11; g.lineCap='round';
+    g.beginPath(); g.moveTo(128,128); g.lineTo(128+Math.cos(-2.36)*58,128+Math.sin(-2.36)*58); g.stroke();
+    g.lineWidth=7; g.beginPath(); g.moveTo(128,128); g.lineTo(128+Math.cos(0.42)*88,128+Math.sin(0.42)*88); g.stroke();
+    g.fillStyle='#ffb03a'; g.beginPath(); g.arc(128,128,11,0,7); g.fill();
+    g.fillStyle='#17181c'; g.font='700 25px Barlow Condensed, sans-serif'; g.fillText('DTL GARAGE',128,182);
+  });
+  var clockBack=rvCyl(0.4,0.4,0.04,rvBlackMetal,8.6,3.85,-9.92,28); clockBack.rotation.x=Math.PI/2;
+  var clockFace=new THREE.Mesh(new THREE.CircleGeometry(0.385,28),
+    new THREE.MeshStandardMaterial({map:clockTex,roughness:0.4,envMapIntensity:0.5}));
+  clockFace.position.set(8.6,3.85,-9.89); scene.add(clockFace);
+  // fire extinguisher mounted by the apartment door
+  rvCyl(0.07,0.07,0.4,new THREE.MeshStandardMaterial({color:0xc22418,roughness:0.35,metalness:0.3}),8.95,1.32,-9.78,14); // pro-review fix: it stood on the floor at z -9.78 — inside the decor workbench's measured footprint (x 5.95..9.25, z -9.62..-8.98, back gap to the wall), where the bench hides/clips it. Now wall-mounted over the bench by the apartment door, as shops actually hang them
+  rvCyl(0.02,0.02,0.07,rvBlackMetal,8.95,1.545,-9.78,8);
+  box(0.16,0.05,0.1,rvBlackMetal,8.95,1.44,-9.86,scene,false);
+  // no floor collider: it hangs at head height over the bench, whose own collider already guards that strip of floor
+  // detailing cart + bucket in the aisle by the Civic's nose
+  [[-0.33,-0.23],[0.33,-0.23],[-0.33,0.23],[0.33,0.23]].forEach(function(p){
+    box(0.04,0.85,0.04,rvDarkSteel,2.65+p[0],0.425,2.0+p[1],scene,false); });
+  box(0.72,0.04,0.5,rvDarkSteel,2.65,0.3,2.0); box(0.72,0.04,0.5,rvDarkSteel,2.65,0.82,2.0);
+  [[0xd78a1e,2.45],[0x2456a6,2.65],[0xe8e6df,2.85]].forEach(function(b){
+    rvCyl(0.035,0.035,0.16,new THREE.MeshStandardMaterial({color:b[0],roughness:0.4}),b[1],0.92,2.0,10);
+    box(0.07,0.04,0.03,rvBlackMetal,b[1],1.02,2.0,scene,false);
+  });
+  rvCyl(0.17,0.14,0.3,new THREE.MeshStandardMaterial({color:0x2456a6,roughness:0.5}),3.3,0.15,2.35,18);
+  addCollider(2.65,2.0,0.42,0.32); addCollider(3.3,2.35,0.2,0.2);
+  // floor jack + a pair of stands in the gap between the S15
+  // and Civic bays — a car mid-job. Pro-review fix: the first
+  // spot (-7.7, 0.75) sat INSIDE the decor engine hoist's
+  // measured footprint (x -8.95..-6.45, z -0.17..1.97), jack
+  // and stands interpenetrating its frame. The bay gap at
+  // x -2.5 is open floor, clear of both drive lanes (car
+  // circles reach x -4.05 from the S15, -0.95 from the Civic)
+  box(0.6,0.13,0.26,darkMetal,-2.5,0.1,0.9);
+  var jackArm=box(0.4,0.05,0.08,darkMetal,-2.55,0.22,0.9,scene,false); jackArm.rotation.z=0.35;
+  var jackHandle=rvCyl(0.016,0.016,0.8,rvSteel,-2.88,0.36,0.9,8); jackHandle.rotation.z=1.1;
+  [[-1.85,0.3],[-3.15,0.35]].forEach(function(p){
+    box(0.26,0.04,0.26,redCab,p[0],0.02,p[1],scene,false);
+    box(0.12,0.3,0.12,redCab,p[0],0.19,p[1],scene,false);
+    box(0.2,0.04,0.08,rvDarkSteel,p[0],0.36,p[1],scene,false);
+  });
+  addCollider(-2.5,0.6,0.8,0.55);
+  // parts corner by the bay doors: stacked boxes + spare tires
+  var cb1=box(0.85,0.5,0.85,rvCardboard,12.0,0.25,7.7); cb1.rotation.y=0.12;
+  var cb2=box(0.75,0.45,0.75,rvCardboard,12.0,0.72,7.7); cb2.rotation.y=0.42;
+  var cb3=box(0.6,0.4,0.6,rvCardboard,12.0,1.14,7.7); cb3.rotation.y=-0.15;
+  var cbLabel=box(0.2,0.14,0.01,new THREE.MeshStandardMaterial({color:0xe8e6df,roughness:0.8}),12.156,0.72,8.049,scene,false); cbLabel.rotation.y=0.42; // pro-review fix: the shipping label was unrotated while the box under it is turned 0.42 — its corners sank into the face / hovered off it. Now coplanar with the face, 8 mm proud at its centre
+  rvTire(11.25,0.13,6.55,true); rvTire(11.25,0.37,6.55,true);
+  addCollider(11.65,7.15,1.0,1.05);
+  // three enamel pendants over the front aisle + one warm light
+  var shadeMat=new THREE.MeshStandardMaterial({color:0x1d2b26,roughness:0.4,metalness:0.4,side:THREE.DoubleSide});
+  [-5,0,5].forEach(function(px){
+    rvCyl(0.012,0.012,1.05,rvBlackMetal,px,4.67,5.6,8);
+    var sh=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.32,0.24,20,1,true),shadeMat);
+    sh.position.set(px,4.05,5.6); scene.add(sh);
+    var bulb=new THREE.Mesh(new THREE.SphereGeometry(0.045,12,10),rvBulb);
+    bulb.position.set(px,3.95,5.6); scene.add(bulb);
+    var gl=glowSprite(0xffc98a,1.7,0.3); gl.position.set(px,3.95,5.6); scene.add(gl);
+    floorGlow(px,5.6,3.4,3.4,0xffc98a,0.05);
+  });
+  var aisleLight=new THREE.PointLight(0xffc98a,13,13,1.8); aisleLight.position.set(0,3.75,5.6); scene.add(aisleLight);
+
+  /* ================= APARTMENT ================= */
+  // two brass pendants over the island + their warm light
+  [-30.25,-29.15].forEach(function(pz){
+    rvCyl(0.01,0.01,0.72,rvBlackMetal,-3.55,2.34,pz,8);
+    var sh2=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.17,0.15,18,1,true),
+      new THREE.MeshStandardMaterial({color:0x8a6a34,roughness:0.35,metalness:1,envMapIntensity:1.2,side:THREE.DoubleSide}));
+    sh2.position.set(-3.55,1.94,pz); scene.add(sh2);
+    var b2=new THREE.Mesh(new THREE.SphereGeometry(0.032,12,10),rvBulb);
+    b2.position.set(-3.55,1.88,pz); scene.add(b2);
+    var g2=glowSprite(0xffc98a,0.95,0.3); g2.position.set(-3.55,1.88,pz); scene.add(g2);
+  });
+  var islandLight=new THREE.PointLight(0xffc98a,5.5,5.5,1.8); islandLight.position.set(-3.55,1.9,-29.7); scene.add(islandLight);
+  // kitchen, dressed: runner, board, knives, coffee, towels, pans
+  box(0.95,0.016,3.1,new THREE.MeshStandardMaterial({map:fabricTex,color:0x39545c,roughness:1}),-4.52,0.009,-29.7,scene,false);
+  var board2=box(0.02,0.42,0.34,new THREE.MeshStandardMaterial({color:0xb08c5a,roughness:0.7}),-5.42,1.13,-30.3,scene,false); board2.rotation.z=-0.18;
+  box(0.14,0.24,0.22,rvDarkWood,-5.25,1.03,-31.55);
+  [-31.62,-31.55,-31.48].forEach(function(kz){ box(0.02,0.09,0.03,rvBlackMetal,-5.25,1.18,kz,scene,false); });
+  box(0.26,0.3,0.28,rvBlackMetal,-5.18,1.06,-27.55);
+  rvCyl(0.045,0.045,0.11,new THREE.MeshStandardMaterial({color:0x2a3438,roughness:0.15,metalness:0.2}),-5.02,0.965,-27.55,12);
+  rvCyl(0.035,0.035,0.07,new THREE.MeshStandardMaterial({color:0xe8e6df,roughness:0.5}),-5.1,0.945,-27.2,12);
+  rvCyl(0.07,0.07,0.012,rvSteel,-5.32,0.916,-27.95,14);
+  rvCyl(0.055,0.055,0.24,new THREE.MeshStandardMaterial({color:0xf0eee8,roughness:0.9}),-5.32,1.03,-27.95,14);
+  rvCyl(0.025,0.025,0.12,new THREE.MeshStandardMaterial({color:0x2e6f6a,roughness:0.4}),-5.0,0.97,-28.15,10);
+  box(0.09,0.03,0.06,new THREE.MeshStandardMaterial({color:0xd8b93a,roughness:0.95}),-5.05,0.925,-28.55,scene,false);
+  rvCyl(0.13,0.13,0.035,rvBlackMetal,-5.16,0.928,-30.9,20);
+  box(0.16,0.015,0.03,rvBlackMetal,-4.98,0.93,-30.9,scene,false);
+  [[1.5,-32.4,0xff5a4a],[1.32,-32.15,0xffc93a],[1.62,-32.05,0x4a9e5a],[1.15,-32.35,0x4a7ec9],[1.45,-31.95,0xf2f0ea]].forEach(function(mg){
+    box(0.006,0.05,0.05,new THREE.MeshStandardMaterial({color:mg[2],roughness:0.5}),-4.7415,mg[0],mg[1],scene,false); }); // pro-review fix: magnets hovered 7 mm off the fridge face (-4.745) — now flush on it
+  // island top: fruit bowl + a potted herb by the bong
+  rvCyl(0.13,0.07,0.05,rvDarkSteel,-3.45,0.955,-29.35,18);
+  [[-3.5,0.99,-29.32,0xe07b24],[-3.4,0.99,-29.4,0xb03030],[-3.44,0.99,-29.26,0xe3c93a],[-3.52,0.985,-29.42,0x7aa63a],[-3.46,1.02,-29.35,0xe07b24]].forEach(function(f){
+    var s=new THREE.Mesh(new THREE.SphereGeometry(0.034,12,10),
+      new THREE.MeshStandardMaterial({color:f[3],roughness:0.45}));
+    s.position.set(f[0],f[1],f[2]); scene.add(s);
+  });
+  rvPlant(-3.3,0.93,-30.42,0.55);
+  // living room: floor lamp, books + remote on the coffee table,
+  // a throw over the couch arm, cushions, soundbar, a big plant
+  rvCyl(0.14,0.15,0.02,rvBlackMetal,-0.55,0.01,-30.5,16);
+  rvCyl(0.016,0.016,1.5,rvBlackMetal,-0.55,0.77,-30.5,8);
+  var lampShade=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.14,0.2,16,1,true),
+    new THREE.MeshStandardMaterial({color:0xf5e6c8,emissive:0xffc37a,emissiveIntensity:0.35,roughness:0.8,side:THREE.DoubleSide}));
+  lampShade.position.set(-0.55,1.58,-30.5); scene.add(lampShade);
+  var lg=glowSprite(0xffc37a,0.85,0.22); lg.position.set(-0.55,1.58,-30.5); scene.add(lg);
+  addCollider(-0.55,-30.5,0.16,0.16);
+  rvBooks(1.58,0.385,-29.25,2,0.2);
+  box(0.16,0.02,0.05,rvBlackMetal,1.95,0.395,-28.8,scene,false);
+  box(0.7,0.03,0.3,new THREE.MeshStandardMaterial({map:fabricTex,color:0xd2691e,roughness:0.95}),0.35,0.795,-27.86,scene,false);
+  var cush1=box(0.34,0.34,0.12,new THREE.MeshStandardMaterial({map:fabricTex,color:0x2e6f6a,roughness:1}),0.18,0.82,-29.55,scene,false); cush1.rotation.z=0.16; cush1.rotation.x=-0.2;
+  var cush2=box(0.34,0.34,0.12,new THREE.MeshStandardMaterial({map:fabricTex,color:0xc9a24d,roughness:1}),0.18,0.82,-28.45,scene,false); cush2.rotation.z=0.13; cush2.rotation.x=0.18;
+  box(0.16,0.06,1.35,new THREE.MeshStandardMaterial({color:0x0c0c0e,roughness:0.3,metalness:0.3}),5.2,0.455,-28.9,scene,false);
+  box(0.012,0.012,0.012,new THREE.MeshStandardMaterial({color:0x0a1a0a,emissive:0x51ff7a,emissiveIntensity:2}),5.11,0.455,-28.9,scene,false);
+  rvPlant(-0.75,0,-32.35,1.5); addCollider(-0.75,-32.35,0.24,0.24);
+  // entry: shoe rack with three pairs, coat hooks + jacket, mirror
+  box(0.95,0.03,0.3,rvDarkWood,-1.6,0.12,-25.38); box(0.95,0.03,0.3,rvDarkWood,-1.6,0.42,-25.38);
+  box(0.03,0.45,0.3,rvDarkWood,-2.06,0.225,-25.38,scene,false); box(0.03,0.45,0.3,rvDarkWood,-1.14,0.225,-25.38,scene,false); // pro-review fix: the two shelf boards hovered — no legs, no sides, and the whole rack floated 0.37 m off the north wall. Side panels ground it and it now stands against the wall (back edge -25.23 at the -25.2 face)
+  [[0xe8e6df,0.135,-1.85],[0xb03030,0.135,-1.38],[0x22242a,0.435,-1.62]].forEach(function(sh3){
+    box(0.09,0.07,0.26,new THREE.MeshStandardMaterial({color:sh3[0],roughness:0.7}),sh3[2]-0.06,sh3[1]+0.035,-25.38,scene,false);
+    box(0.09,0.07,0.26,new THREE.MeshStandardMaterial({color:sh3[0],roughness:0.7}),sh3[2]+0.06,sh3[1]+0.035,-25.38,scene,false);
+  });
+  addCollider(-1.6,-25.38,0.52,0.2);
+  box(0.7,0.07,0.04,rvDarkWood,1.02,1.72,-25.225,scene,false); // pro-review fix: the coat bar floated 4 cm off the wall face — now 5 mm proud of it, with the pegs passing through it
+  [0.82,1.02,1.22].forEach(function(px){ var peg=rvCyl(0.014,0.014,0.09,rvBrass,px,1.68,-25.22,8); peg.rotation.x=Math.PI/2; });
+  box(0.36,0.58,0.1,new THREE.MeshStandardMaterial({color:0x33414f,roughness:0.95}),1.02,1.32,-25.3,scene,false);
+  var mirrorFace=new THREE.Mesh(new THREE.CircleGeometry(0.3,26),
+    new THREE.MeshStandardMaterial({color:0xcfdce6,roughness:0.06,metalness:1,envMapIntensity:1.7}));
+  mirrorFace.position.set(1.84,1.66,-25.22); scene.add(mirrorFace);
+  var mirrorRim=new THREE.Mesh(new THREE.TorusGeometry(0.31,0.025,10,30),rvBrass);
+  mirrorRim.position.set(1.84,1.66,-25.22); scene.add(mirrorRim);
+  // a shelf over the dresser run: standing books + a vase
+  box(1.1,0.04,0.24,rvDarkWood,4.35,1.98,-25.24,scene,false);
+  [0x7a2e2a,0x2a4a6b,0xc9a24d,0x3f5a3a].forEach(function(c,i){
+    box(0.04,0.26,0.16,new THREE.MeshStandardMaterial({color:c,roughness:0.8}),4.02+i*0.055,2.13,-25.24,scene,false); });
+  rvCyl(0.05,0.065,0.2,new THREE.MeshStandardMaterial({color:0x2e6f6a,roughness:0.5}),4.62,2.1,-25.24,12);
+  // window sill: two books + a tiny plant in the city light
+  rvBooks(2.62,0.96,-32.83,2,0.1);
+  rvPlant(0.45,0.96,-32.83,0.5);
+  // bedroom: rug under the bed, throw at the foot, extra pillow,
+  // an alarm clock + water glass on the nightstand, dresser
+  // dressing, and a laundry basket in the corner
+  box(2.9,0.016,2.3,new THREE.MeshStandardMaterial({map:fabricTex,color:0x5a6a7a,roughness:1}),4.0,0.009,-31.6,scene,false); // pro-review fix: the first cut (2.6x3.0 at -31.3) ran z -32.8..-29.8 — half a metre of rug sliced THROUGH the north partition into the living room and 0.15 into the east wall. Fitted to the room now: x 2.55..5.45, z -32.75..-30.45, clear of both partitions and the east wall, still proud of the bed on the walkway side
+  box(1.5,0.03,0.4,new THREE.MeshStandardMaterial({map:fabricTex,color:0xd2691e,roughness:0.95}),4.55,0.545,-30.68,scene,false); // pro-review fix: was centred -30.52, cantilevering 0.13 past the mattress foot with air under the overhang — now lies fully on the blanket (blanket spans z -31.72..-30.46)
+  var xp=box(0.5,0.1,0.34,new THREE.MeshStandardMaterial({color:0xfaf7f0,roughness:0.95}),4.55,0.53,-32.08,scene,false); xp.rotation.x=0.15;
+  var alarmTex=makeTex(128,64,function(g,w,h){
+    g.fillStyle='#050807'; g.fillRect(0,0,w,h);
+    g.fillStyle='#51ff7a'; g.font='700 42px Courier New, monospace'; g.textAlign='center';
+    g.fillText('7:42',w/2,45);
+  });
+  box(0.045,0.1,0.17,rvBlackMetal,3.32,0.475,-32.52,scene,false);
+  var alarmFace=new THREE.Mesh(new THREE.PlaneGeometry(0.15,0.08),
+    new THREE.MeshStandardMaterial({map:alarmTex,emissive:0xffffff,emissiveMap:alarmTex,emissiveIntensity:0.7,color:0x222222}));
+  alarmFace.rotation.y=Math.PI/2; alarmFace.position.set(3.345,0.475,-32.52); scene.add(alarmFace);
+  rvCyl(0.03,0.03,0.09,new THREE.MeshPhysicalMaterial({color:0xd6ecec,transparent:true,opacity:0.3,roughness:0.08,envMapIntensity:1.4}),3.05,0.465,-32.58,12);
+  rvBooks(5.3,0.8,-26.15,2,-0.3);
+  rvPlant(5.26,0.8,-27.02,0.6);
+  box(0.03,0.24,0.3,new THREE.MeshStandardMaterial({color:0x2b1d12,roughness:0.5}),5.4,0.93,-26.62,scene,false);
+  var miniArt=new THREE.Mesh(new THREE.PlaneGeometry(0.24,0.17),
+    new THREE.MeshStandardMaterial({map:photoTex('assets/poster-civic.webp'),roughness:0.6}));
+  miniArt.rotation.y=-Math.PI/2; miniArt.position.set(5.38,0.93,-26.62); scene.add(miniArt);
+  rvCyl(0.24,0.2,0.5,new THREE.MeshStandardMaterial({map:fabricTex,color:0x9ea5ac,roughness:1}),2.62,0.25,-32.58,16);
+  var heap=new THREE.Mesh(new THREE.SphereGeometry(0.19,12,10),
+    new THREE.MeshStandardMaterial({color:0xe8e6df,roughness:1}));
+  heap.scale.y=0.5; heap.position.set(2.62,0.5,-32.58); scene.add(heap);
+  addCollider(2.62,-32.58,0.27,0.24);
+
+  renderer.shadowMap.needsUpdate=true;
+})();
+
 /* ================= INTERACTABLES ================= */
 var interactables=[];
 var foundCount=0, TOTAL=10;
@@ -3245,6 +3578,48 @@ var WaveSystem={
 };
 window.__WAVE_SYS__=WaveSystem;
 
+/* ================= v44: THE LEG REBUILD (shared) =================
+   Collin's verdict on v43: "her legs are glitched everywhere" —
+   walking, getting in the car, on the bed, and the club dancer
+   too. One shared cause, measured headlessly on the real rig
+   (three.js + the shipped alina.glb, FK-sampled): her standing
+   clip is NOT leg-neutral. Its thigh tracks swing 47°/67° off
+   bind, its knees bend to ~50°, its feet travel half a metre —
+   it is a gesturing full-body motion whose LEGS step, cross
+   and scissor on their own. Every leg system in the game
+   composes its own bounded angles ON TOP of that base (gait
+   ±37° of thigh and 49° of knee, the bed poses, the dancer's
+   sway), so the stack regularly folded her knees to a measured
+   178° — a full kick-out — in all four places at once. The bed
+   froze whatever scissor the clip was mid-way through, and the
+   car had no leg pose at all: clip legs, dipped under the car.
+   THE FIX, at the root: the legs no longer come from the clip
+   at all. Both characters filter every leg-chain track out of
+   the clip (thighs, calves, feet, toes and their twist/share
+   helpers), so a leg's base pose is its BIND pose — straight,
+   still, known — and every leg motion is the game's own
+   procedural work composed on bind: the walk gait (retuned to
+   a natural ±31° thigh / ≤43° knee, flexion peaking just after
+   the leg starts forward instead of while it is still planted
+   back), the bed poses, the dancer's sway, and a NEW seated
+   pose for the car (thigh 1.45 / calf -0.29 / foot -0.80,
+   FK-solved so her ankles rest at floorboard height, feet
+   forward and flat, instead of straight legs under the car).
+   The torso, arms and head keep the clip — its waist/spine
+   motion is calm (5–15°) and it is her standing life. Because
+   the mixer no longer resets the legs, the two systems pin
+   leg baseQ to bind forever (the refresh loops skip leg keys)
+   and explicitly reset the legs to bind whenever no leg pose
+   is active, so a composed pose can never stick or stack. */
+var LEG_TRACK_RE=/^CC_Base_[LR]_(Thigh|ThighTwist|Calf|CalfTwist|Foot|ToeBase|ToeBaseShareBone|KneeShareBone|PinkyToe1|RingToe1|MidToe1|IndexToe1|BigToe1)/;
+var LEG_KEYS={lThigh:1,rThigh:1,lCalf:1,rCalf:1,lFoot:1,rFoot:1};
+function girlClipTracks(src){
+  return src.tracks.filter(function(t){
+    if(!(/\.quaternion$/.test(t.name)||/\.weights$/.test(t.name))) return false;
+    return !LEG_TRACK_RE.test(t.name); // v44: legs are procedural now — see the rebuild note above
+  });
+}
+
 /* ================= v30: FollowerSystem (Alina) =================
    The game's ONLY girl. v30 fixes the v29 phone verdict — "she
    shouldn't be attached to the camera like that. it should be
@@ -3297,6 +3672,12 @@ window.__WAVE_SYS__=WaveSystem;
      pose every step (the swing axis and sign were measured
      in-game on this rig: thigh rotateX +0.6 moves the foot
      +0.47 m forward in root space, rotateZ moves it sideways).
+     v44 CORRECTION: that clip's pose is only a safe base for
+     the TORSO — its own leg tracks swing the thighs 47–67°
+     and bend the knees ~50°, which is why her legs kicked in
+     every system that composed on it. The legs now compose
+     on BIND, with the clip's leg tracks filtered out — see
+     the leg rebuild note above this module.
      The phase advances by the distance she actually travels, so
      her feet match the ground — no slide. Amplitude envelopes to
      zero when she stops, leaving the pure standing clip: she
@@ -3323,7 +3704,7 @@ var FollowerSystem={
   FOLLOW_START:3.2, STOP_DIST:1.9, MINSEP:1.5,
   bones:null, baseQ:null, baseY:0, gaitPhase:0, gaitAmp:0, moving:false, following:false, speedNow:0, tx:0, tz:0,
   _ppx:null, _ppz:0, _pSpd:0, _pvx:0, _pvz:0, _placed:false,
-  rideVeh:null, rideMode:null, // v39: 'walk' (heading for the passenger door) | 'riding' (seated) | null
+  rideVeh:null, rideMode:null, seatBlend:0, // v39: 'walk' (heading for the passenger door) | 'riding' (seated) | null; v44: seatBlend eases the seated leg pose in
   load:function(){
     var self=this;
     try{
@@ -3372,7 +3753,7 @@ var FollowerSystem={
     var src=null;
     (gltf.animations||[]).forEach(function(a){ if(a.name==='5359960820992_TempMotion') src=a; });
     if(src){
-      var tracks=src.tracks.filter(function(t){ return /\.quaternion$/.test(t.name)||/\.weights$/.test(t.name); });
+      var tracks=girlClipTracks(src); // v44: leg tracks dropped — her legs are 100% procedural on bind (see the leg rebuild note)
       if(tracks.length){
         var clip=new THREE.AnimationClip('alina-standing',src.duration,tracks);
         this.mixer=new THREE.AnimationMixer(model);
@@ -3544,7 +3925,7 @@ var FollowerSystem={
         rArm:[2.55,0,-0.28], rFore:[1.15,0,0],
         lArm:[0.48,0,0.16], lFore:[1.30,0,0],
         lThigh:[0.95,0,0.12], lCalf:[-2.05,0,0], lFoot:[0.45,0,0],
-        rThigh:[0.10,0,-0.09], rCalf:[-0.14,0,0], rFoot:[0.38,0,0]
+        rThigh:[0.02,0,-0.09], rCalf:[-0.14,0,0], rFoot:[0.22,0,0] // v44: the long leg, settled — on bind legs the old angles held its skin 15 cm over the blanket (lowest vertex 0.682 vs blanket 0.535); flattened, it rests at 0.609
       }
     },
     { // 2 — legs long and swept together to one side, one hand
@@ -3556,8 +3937,8 @@ var FollowerSystem={
         neck:[0,-0.13,-0.04], head:[0,-0.26,-0.07],
         rArm:[0.55,0,-0.14], rFore:[1.15,0,0],
         lArm:[2.45,0,0.24], lFore:[1.05,0,0],
-        lThigh:[0.16,0,0.20], lCalf:[-0.20,0,0], lFoot:[0.50,0,0],
-        rThigh:[0.24,0,0.24], rCalf:[-0.28,0,0], rFoot:[0.55,0,0]
+        lThigh:[0.06,0,0.20], lCalf:[-0.20,0,0], lFoot:[0.28,0,0], // v44: both legs long here — settled flatter onto the bed like pose 1's long leg (the sweep to one side, in the Z angles, is untouched)
+        rThigh:[0.10,0,0.24], rCalf:[-0.28,0,0], rFoot:[0.30,0,0]
       }
     },
     { // 3 — both knees bent up with her feet tucked in, both
@@ -3656,6 +4037,7 @@ var FollowerSystem={
   getUp:function(){
     if(!this.laidDown) return;
     this.laidDown=false;
+    this._resetLegs(); // v44: bind legs from the first standing frame — the bed pose never lingers on her legs
     for(var i=0;i<this.clothing.length;i++) this.clothing[i].visible=true;
     if(this.blob) this.blob.visible=true;
     if(this._saved){ this.x=this._saved.x; this.z=this._saved.z; this.yaw=this._saved.yaw; this._saved=null; }
@@ -3687,6 +4069,7 @@ var FollowerSystem={
   },
   beginRide:function(veh){
     if(!this.ready||!this.root||this.laidDown||!veh) return;
+    this.seatBlend=0; // v44: the seat pose blends in fresh each ride
     if(this.z<-20) return; // she's in the apartment; the door re-place handles her when he is back
     var ddx=veh.group.position.x-this.x, ddz=veh.group.position.z-this.z;
     if(ddx*ddx+ddz*ddz>900) this._placeNear(player.x,player.z); // the long-drive catch-up, same as on foot
@@ -3696,6 +4079,7 @@ var FollowerSystem={
     if(!this.rideMode) return;
     var wasRiding=(this.rideMode==='riding');
     this.rideMode=null; this.rideVeh=null;
+    this.seatBlend=0; this._resetLegs(); // v44: she steps out onto bind legs, not the seat pose
     if(this.blob) this.blob.visible=true;
     if(wasRiding&&veh){
       var d=this._passengerDoor(veh);
@@ -3736,6 +4120,38 @@ var FollowerSystem={
     }
   },
   _swingQ:new THREE.Quaternion(), _xAxis:new THREE.Vector3(1,0,0),
+  /* v44: with the clip's leg tracks gone, nothing resets her
+     legs each frame any more — so whenever no leg pose is
+     active (not walking, not seated, not in bed) the legs are
+     put back to bind explicitly. A composed pose can never
+     stick to her legs or stack under the next one. */
+  _resetLegs:function(){
+    if(!this.bones||!this.baseQ) return;
+    for(var k in LEG_KEYS){ var b=this.bones[k]; if(b&&this.baseQ[k]) b.quaternion.copy(this.baseQ[k]); }
+  },
+  /* v44: the seated leg pose she never had. Until now she rode
+     with standing legs dipped under the car — straight, and at
+     the mercy of the clip. Composed on bind like everything
+     else now: thighs pitched forward 1.45, calves folded back
+     -0.29, feet -0.80 — FK-solved on her real rig so her knees
+     sit at seat height, her ankles land at floorboard height
+     (y 0.72 in root space = ~0.14 over the road at the -0.58
+     seat dip) and her feet point forward, flat. b is the
+     blend: the pose eases in over ~0.35 s as she gets in, so
+     there is no snap at the door. */
+  _applySeatPose:function(b){
+    if(!this.bones||!this.baseQ||b<=0) return;
+    var B=this.bones, Q=this.baseQ, sq=this._swingQ, XA=this._xAxis, ZA=this._zAxis;
+    function set(k,ax,az){
+      var bn=B[k]; if(!bn||!Q[k]) return;
+      bn.quaternion.copy(Q[k]);
+      if(ax){ sq.setFromAxisAngle(XA,ax); bn.quaternion.multiply(sq); }
+      if(az){ sq.setFromAxisAngle(ZA,az); bn.quaternion.multiply(sq); }
+    }
+    set('lThigh',1.45*b,-0.05*b); set('rThigh',1.45*b,0.05*b);
+    set('lCalf',-0.29*b,0); set('rCalf',-0.29*b,0);
+    set('lFoot',-0.80*b,0); set('rFoot',-0.80*b,0);
+  },
   _applyGait:function(){
     // compose the walk swing on top of the standing clip's pose:
     // bone.quaternion = clipPose * rotX(angle). Local X is this
@@ -3761,7 +4177,7 @@ var FollowerSystem={
     var amp=this.gaitAmp; if(amp<0.003) return;
     var p=this.gaitPhase, B=this.bones, Q=this.baseQ, sq=this._swingQ;
     var XA=this._xAxis, YA=this._yAxis, ZA=this._zAxis;
-    var thighAmp=(0.50+0.14*Math.min(1,this.speedNow/3.2))*amp;
+    var thighAmp=(0.42+0.12*Math.min(1,this.speedNow/3.2))*amp; // v44 retune: ±31° of thigh at a run, ±24° at a walk — the old 0.50+0.14 marched
     var sL=Math.sin(p), sR=Math.sin(p+Math.PI);
     var sway=Math.sin(p)*amp; // one sway cycle per full stride, peaking as each foot lands
     function set(k,ax,ay,az){
@@ -3771,8 +4187,8 @@ var FollowerSystem={
       if(ay){ sq.setFromAxisAngle(YA,ay); b.quaternion.multiply(sq); }
       if(az){ sq.setFromAxisAngle(ZA,az); b.quaternion.multiply(sq); }
     }
-    var bendL=Math.pow(Math.max(0,Math.cos(p)),1.4)*0.85*amp;
-    var bendR=Math.pow(Math.max(0,Math.cos(p+Math.PI)),1.4)*0.85*amp;
+    var bendL=Math.pow(Math.max(0,Math.cos(p-0.45)),1.4)*0.72*amp; // v44 retune: peak flexion 41°, phased 0.45 after the thigh starts forward — flexion now peaks mid-swing instead of while the foot is still planted behind her (the heel-kick)
+    var bendR=Math.pow(Math.max(0,Math.cos(p+Math.PI-0.45)),1.4)*0.72*amp;
     // the hips lead: roll + twist on the pelvis, countered up the spine
     set('pelvis',0,sway*0.075,sway*0.080);
     set('waist',0,-sway*0.050,-sway*0.048);
@@ -3818,6 +4234,8 @@ var FollowerSystem={
         this.root.rotation.set(0,sp.h,0); // the hard upright lock, facing the way the car faces
         if(this.mixer) SimulationSystem.mixerStep(this.mixer,this.root,player,dt,3);
         if(this.model) this.model.position.y=this.baseY;
+        this.seatBlend=Math.min(1,this.seatBlend+dt/0.35); // v44: her legs fold into the seat over ~0.35 s, no snap at the door
+        this._applySeatPose(this.seatBlend);
         this._ppx=px; this._ppz=pz;
         return;
       }
@@ -3851,9 +4269,9 @@ var FollowerSystem={
         var wampT=this.moving?1:0;
         this.gaitAmp+=(wampT-this.gaitAmp)*Math.min(1,dt*(wampT>this.gaitAmp?5:4));
         if(this.gaitAmp<0.003&&!this.moving) this.gaitAmp=0;
-        if(wstepped&&this.bones){ for(var wk in this.bones){ if(this.bones[wk]) this.baseQ[wk].copy(this.bones[wk].quaternion); } }
+        if(wstepped&&this.bones){ for(var wk in this.bones){ if(this.bones[wk]&&!LEG_KEYS[wk]) this.baseQ[wk].copy(this.bones[wk].quaternion); } } // v44: leg baseQ stays bind forever
         if(this.model) this.model.position.y=this.baseY+(this.gaitAmp>0?(0.5-0.5*Math.cos(this.gaitPhase*2))*0.042*this.gaitAmp:0);
-        this._applyGait();
+        if(this.gaitAmp>=0.003) this._applyGait(); else this._resetLegs(); // v44: legs are procedural — an idle girl gets bind legs, not a frozen stride
         this._ppx=px; this._ppz=pz;
         return;
       }
@@ -3864,7 +4282,9 @@ var FollowerSystem={
       this._ppx=px; this._ppz=pz;
       this.root.position.set(this.x,0,this.z);
       this.root.rotation.set(0,this.yaw,0); // the hard upright lock holds while she waits, too
-      if(this.mixer) SimulationSystem.mixerStep(this.mixer,this.root,player,dt,3);
+      var wst2=this.mixer?SimulationSystem.mixerStep(this.mixer,this.root,player,dt,3):0;
+      if(wst2&&this.bones){ for(var k2 in this.bones){ if(this.bones[k2]&&!LEG_KEYS[k2]) this.baseQ[k2].copy(this.bones[k2].quaternion); } }
+      if(this.gaitAmp>=0.003) this._applyGait(); else this._resetLegs(); // v44: this branch never composed the gait before — the clip used to clear her legs for it. Now the legs are procedural, so the envelope closes here explicitly and bind legs take over when it shuts
       if(this.model) this.model.position.y=this.baseY;
       return;
     }
@@ -3948,9 +4368,9 @@ var FollowerSystem={
     var ampT=this.moving?1:0;
     this.gaitAmp+=(ampT-this.gaitAmp)*Math.min(1,dt*(ampT>this.gaitAmp?5:4));
     if(this.gaitAmp<0.003&&!this.moving) this.gaitAmp=0;
-    if(stepped&&this.bones){ for(var k in this.bones){ if(this.bones[k]) this.baseQ[k].copy(this.bones[k].quaternion); } }
+    if(stepped&&this.bones){ for(var k in this.bones){ if(this.bones[k]&&!LEG_KEYS[k]) this.baseQ[k].copy(this.bones[k].quaternion); } } // v44: leg baseQ stays bind forever
     if(this.model) this.model.position.y=this.baseY+(this.gaitAmp>0?(0.5-0.5*Math.cos(this.gaitPhase*2))*0.042*this.gaitAmp:0);
-    this._applyGait();
+    if(this.gaitAmp>=0.003) this._applyGait(); else this._resetLegs(); // v44: legs are procedural — an idle girl gets bind legs, not a frozen stride
   }
 };
 FollowerSystem.load();
@@ -4088,7 +4508,8 @@ var TownSystem=(function(){
       return grp;
     }
     shop(-15,32,13,4.6,8,'TIRES OF HOUSTON','#ffb03a',0x4a3a30);
-    shop(16,32,11,4.0,8,'DINER','#ff7a5c',0x54423a);
+    // v45: the DINER is no longer a solid shop box — CitySystem
+    // rebuilds it enterable (door gap, counter, tables) below.
     shop(-47,32,12,4.2,8,'MARKET','#9fe08a',0x3c4a3e);
     shop(47,34.5,7,3.2,6,'GAS','#7fd4ff',0x3a3f45);
     // gas station canopy + pumps, out front of the kiosk
@@ -4303,6 +4724,339 @@ var TownSystem=(function(){
 })();
 TownSystem.build();
 
+/* ================= v45: THE BOROUGH (CitySystem) =================
+   The GTA IV revamp of the outside: the sealed town stops being
+   a suburb and becomes a Liberty City-style borough. Denser,
+   taller, grittier — brick tenements and stone office blocks
+   with lit windows rise on the free lots and flank the garage,
+   a hazy skyline ring stands beyond the fence, billboards and
+   traffic lights dress the streets, crosswalks/hydrants/bins/
+   mailboxes fill the sidewalks, and the DINER on Main Street is
+   rebuilt as a real enterable interior like the club. All of it
+   is cheap night geometry in the TownSystem spirit: canvas
+   facades (diffuse + an emissive pass that carries only the lit
+   windows), flat boxes, no shadows cast, colliders hugging the
+   real footprints. Self-contained: it adds meshes to the scene
+   and colliders to the shared list, and its only per-frame job
+   is cycling the traffic lights. */
+var CitySystem=(function(){
+  var lightHeads=[]; // {mats:[r,y,g]} — traffic light heads to cycle
+  function cbox(w,h,d,mat,x,y,z,parent){
+    var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+    m.position.set(x,y,z); (parent||scene).add(m); return m;
+  }
+  /* ---- facades: one diffuse canvas (brick/stone/glass + the
+     window grid, mostly dark) + one emissive canvas (only the
+     lit windows), so a tower reads as a real city block at
+     night instead of a lit billboard of itself ---- */
+  function facadeMats(base,brick,winW,winH,cols,rows,litRatio){
+    var diff=makeTex(256,512,function(g2,w,h){
+      g2.fillStyle=base; g2.fillRect(0,0,w,h);
+      if(brick){ g2.fillStyle='rgba(0,0,0,0.13)';
+        for(var y=6;y<h;y+=11){ g2.fillRect(0,y,w,2); }
+        for(var y2=0;y2<h;y2+=22){ for(var x2=((y2/22)%2)*16;x2<w;x2+=32) g2.fillRect(x2,y2,2,11); }
+      } else { g2.fillStyle='rgba(255,255,255,0.045)';
+        for(var y3=0;y3<h;y3+=26) g2.fillRect(0,y3,w,2); }
+      var cw=w/cols, ch=h/rows;
+      for(var r=0;r<rows;r++) for(var c=0;c<cols;c++){
+        g2.fillStyle='#0d1117'; g2.fillRect(c*cw+cw*0.22,r*ch+ch*0.24,winW,winH);
+      }
+    });
+    var emis=makeTex(256,512,function(g2,w,h){
+      g2.fillStyle='#000'; g2.fillRect(0,0,w,h);
+      var cw=w/cols, ch=h/rows;
+      for(var r=0;r<rows;r++) for(var c=0;c<cols;c++){
+        if(Math.random()<litRatio){
+          g2.fillStyle=Math.random()<0.72?'#ffc37a':'#bcd6ff';
+          g2.fillRect(c*cw+cw*0.22,r*ch+ch*0.24,winW,winH);
+        }
+      }
+    });
+    var side=new THREE.MeshStandardMaterial({map:diff,emissiveMap:emis,emissive:0xffffff,emissiveIntensity:0.95,roughness:0.92});
+    var roof=new THREE.MeshStandardMaterial({color:0x17181c,roughness:1});
+    return [side,side,roof,roof,side,side];
+  }
+  var matsBrick=facadeMats('#4a3428',true,26,20,5,12,0.34);   // red-brick tenement
+  var matsBrown=facadeMats('#3d3230',true,24,18,5,11,0.28);   // brownstone
+  var matsStone=facadeMats('#43454c',false,30,22,6,13,0.38);  // grey stone offices
+  var matsGlass=facadeMats('#232a33',false,34,26,6,14,0.44);  // dark glass tower
+  var allMats=[matsBrick,matsBrown,matsStone,matsGlass];
+  function tower(x,z,w,d,h,mi){
+    var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),allMats[mi%4]);
+    m.position.set(x,h/2,z); scene.add(m);
+    // a parapet cap + a water tower or AC box on some roofs —
+    // the Liberty City rooftop silhouette
+    cbox(w+0.35,0.35,d+0.35,new THREE.MeshStandardMaterial({color:0x1b1c20,roughness:1}),x,h+0.15,z);
+    if((x*7+z*13)%3===0){
+      var wt=new THREE.Mesh(new THREE.CylinderGeometry(0.85,0.95,1.7,9),
+        new THREE.MeshStandardMaterial({color:0x2c2119,roughness:1}));
+      wt.position.set(x+w*0.22,h+1.2,z); scene.add(wt);
+      cbox(0.18,0.6,0.18,new THREE.MeshStandardMaterial({color:0x1b1c20,roughness:1}),x+w*0.22,h+0.3,z);
+    }
+    addCollider(x,z,w/2+0.05,d/2+0.05);
+    return m;
+  }
+  /* the in-town towers: every spot is a free lot checked
+     against the houses, shops, club, gas station and street
+     grid TownSystem already placed */
+  tower(-60,37,11,10,17,0);   // NW block, west of the market
+  tower(44,13.8,16,6,12,1);   // south strip, east of the garage
+  tower(64,13.8,10,6,15,2);
+  tower(-44,13.8,16,6,13,2);  // south strip, west of the garage
+  tower(-64,13.8,10,6,18,3);
+  tower(-63,70,9,11,19,0);    // W block
+  tower(-65,92,8,9,14,1);     // SW corner
+  tower(65,92,9,9,21,3);      // NE corner glass
+  tower(39,92,7,9,11,2);      // N edge
+  tower(64,63,9,10,16,1);     // E block, east of the club
+  tower(39,73,7,9,12,0);      // E block, behind the club
+  /* ---- the skyline ring: hazier, taller silhouettes beyond
+     the fence on the three open sides (the garage/apartment
+     side already has its own skyline). Basic materials + fog
+     do the distance haze for free. ---- */
+  (function(){
+    var skyDiff=makeTex(256,512,function(g2,w,h){
+      g2.fillStyle='#11151d'; g2.fillRect(0,0,w,h);
+      for(var r=0;r<16;r++) for(var c=0;c<6;c++){
+        g2.fillStyle=Math.random()<0.4?(Math.random()<0.7?'#d8a860':'#9fb8dd'):'#0a0d13';
+        g2.fillRect(14+c*40,16+r*30,20,15);
+      }
+    });
+    var skyMat=new THREE.MeshBasicMaterial({map:skyDiff});
+    var roofD=new THREE.MeshBasicMaterial({color:0x0b0e13});
+    var ringMats=[skyMat,skyMat,roofD,roofD,skyMat,skyMat];
+    function sky(x,z,w,h,d){
+      var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),ringMats);
+      m.position.set(x,h/2-2,z); scene.add(m);
+    }
+    sky(-58,116,16,44,10); sky(-34,120,12,58,10); sky(-8,114,18,38,10); sky(20,119,13,52,10);
+    sky(46,115,17,42,10); sky(70,118,12,60,10); sky(96,80,10,48,14); sky(98,44,10,36,12);
+    sky(95,8,10,54,12); sky(-96,76,10,42,14); sky(-98,40,10,56,12); sky(-95,6,10,34,12);
+    // red aircraft beacons on the two tallest
+    [[-34,57,120],[70,59,118]].forEach(function(b){
+      var s=glowSprite(0xff3b30,2.2,0.7); s.position.set(b[0],b[1],b[2]); scene.add(s);
+    });
+  })();
+  /* ---- billboards: two rooftop, one on a pole over Main ---- */
+  function billboard(x,y,z,w,h,ry,draw){
+    var tex=makeTex(512,256,draw);
+    var m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:tex}));
+    m.position.set(x,y,z); m.rotation.y=ry; scene.add(m);
+    var back=cbox(w,0.18,0.18,new THREE.MeshStandardMaterial({color:0x24262a,roughness:0.8,metalness:0.5}),x,y+h/2+0.1,z);
+    back.rotation.y=ry;
+    return m;
+  }
+  billboard(-60,19.6,31.8,10,4.6,0,function(g2,w,h){
+    g2.fillStyle='#0e2a1e'; g2.fillRect(0,0,w,h);
+    g2.fillStyle='#39d353'; g2.font='700 92px "Barlow Condensed","Arial Narrow",sans-serif';
+    g2.textAlign='center'; g2.fillText('NOVA COLA',w/2,108);
+    g2.fillStyle='#cfe8d4'; g2.font='600 40px "Barlow Condensed","Arial Narrow",sans-serif';
+    g2.fillText('TASTE THE CITY',w/2,178);
+  });
+  billboard(64,23.6,87.2,11,5,Math.PI,function(g2,w,h){
+    g2.fillStyle='#1c1410'; g2.fillRect(0,0,w,h);
+    g2.fillStyle='#ffb03a'; g2.font='700 84px "Barlow Condensed","Arial Narrow",sans-serif';
+    g2.textAlign='center'; g2.fillText('HOTEL SEVILLE',w/2,104);
+    g2.fillStyle='#e8ddc8'; g2.font='600 38px "Barlow Condensed","Arial Narrow",sans-serif';
+    g2.fillText('ROOMS BY THE NIGHT · VACANCY',w/2,172);
+  });
+  (function(){
+    var poleMat=new THREE.MeshStandardMaterial({color:0x24262a,roughness:0.7,metalness:0.6});
+    var pole=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.14,7.6,8),poleMat);
+    pole.position.set(-38,3.8,16.5); scene.add(pole);
+    addCollider(-38,16.5,0.16,0.16);
+    billboard(-38,8.6,16.5,9,4.2,0,function(g2,w,h){
+      g2.fillStyle='#101318'; g2.fillRect(0,0,w,h);
+      g2.fillStyle='#e8e6df'; g2.font='700 80px "Barlow Condensed","Arial Narrow",sans-serif';
+      g2.textAlign='center'; g2.fillText('SPRAY KING',w/2,102);
+      g2.fillStyle='#7fd4ff'; g2.font='600 40px "Barlow Condensed","Arial Narrow",sans-serif';
+      g2.fillText('AUTO BODY · SAME DAY',w/2,170);
+    });
+  })();
+  /* ---- traffic lights at the four main intersections ---- */
+  (function(){
+    var poleMat=new THREE.MeshStandardMaterial({color:0x1d1f23,roughness:0.6,metalness:0.6});
+    [[6,16.8,1],[ -36,46.8,1],[36,46.8,-1],[-6,76.8,-1]].forEach(function(L){
+      var pole=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.09,5.2,8),poleMat);
+      pole.position.set(L[0],2.6,L[1]); scene.add(pole);
+      addCollider(L[0],L[1],0.11,0.11);
+      var arm=cbox(0.09,0.09,2.6,poleMat,L[0],5.1,L[1]+L[2]*1.2);
+      var head=cbox(0.34,0.95,0.3,new THREE.MeshStandardMaterial({color:0x141518,roughness:0.5}),L[0],4.55,L[1]+L[2]*2.35);
+      var mats=[];
+      [0xff3524,0xffb03a,0x2fe07a].forEach(function(col,ci){
+        var lm=new THREE.MeshStandardMaterial({color:0x0c0c0e,emissive:col,emissiveIntensity:0.06,roughness:0.3});
+        var lamp=new THREE.Mesh(new THREE.CircleGeometry(0.105,12),lm);
+        lamp.position.set(L[0],4.87-ci*0.32,L[1]+L[2]*2.35-L[2]*0.16);
+        if(L[2]<0) lamp.rotation.y=Math.PI;
+        scene.add(lamp); mats.push(lm);
+      });
+      lightHeads.push({mats:mats,phase:(L[0]+L[1])%2});
+    });
+  })();
+  /* ---- crosswalks: striped planes on the four approaches of
+     the same intersections ---- */
+  (function(){
+    var cwTex=makeTex(128,128,function(g2,w,h){
+      g2.fillStyle='#232529'; g2.fillRect(0,0,w,h);
+      g2.fillStyle='rgba(232,230,223,0.75)';
+      for(var i=0;i<4;i++) g2.fillRect(8+i*31,6,17,h-12);
+    });
+    var cwMat=new THREE.MeshStandardMaterial({map:cwTex,roughness:0.97});
+    [[0,22],[-30,52],[30,52],[0,82]].forEach(function(X){
+      [[0,-6.6,0],[0,6.6,0],[-6.6,0,1],[6.6,0,1]].forEach(function(o){
+        var p=new THREE.Mesh(new THREE.PlaneGeometry(7.6,2.6),cwMat);
+        p.rotation.x=-Math.PI/2; if(o[2]) p.rotation.z=Math.PI/2;
+        p.position.set(X[0]+o[0],0.02,X[1]+o[1]); scene.add(p);
+      });
+    });
+  })();
+  /* ---- street props: hydrants, bins, mailboxes, news boxes,
+     a bus stop — the sidewalk furniture of a real borough.
+     Every spot is on a sidewalk or grass verge, clear of the
+     driveway, the club path and every doorway. ---- */
+  (function(){
+    var hydMat=new THREE.MeshStandardMaterial({color:0x9c2b23,roughness:0.55,metalness:0.3});
+    var binMat=new THREE.MeshStandardMaterial({color:0x27332a,roughness:0.8,metalness:0.3});
+    var mailMat=new THREE.MeshStandardMaterial({color:0x27354e,roughness:0.5,metalness:0.5});
+    [[-36,20],[24,58],[-24,80],[44,24],[8,86],[-52,50]].forEach(function(P){
+      var hyd=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.15,0.52,10),hydMat);
+      hyd.position.set(P[0],0.26,P[1]); scene.add(hyd);
+      var cap=new THREE.Mesh(new THREE.SphereGeometry(0.11,10,8),hydMat);
+      cap.position.set(P[0],0.56,P[1]); scene.add(cap);
+      addCollider(P[0],P[1],0.17,0.17);
+    });
+    [[12,26],[-14,48],[36,58],[-38,76],[18,90],[-8,30],[52,46],[-56,86]].forEach(function(P){
+      var bin=new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.23,0.62,10),binMat);
+      bin.position.set(P[0],0.31,P[1]); scene.add(bin);
+      addCollider(P[0],P[1],0.28,0.28);
+    });
+    [[-44,27],[28,45],[56,77]].forEach(function(P){
+      cbox(0.55,0.5,0.42,mailMat,P[0],0.42,P[1]);
+      cbox(0.5,0.2,0.38,mailMat,P[0],0.75,P[1]);
+      addCollider(P[0],P[1],0.3,0.24);
+    });
+    [[20,20.5],[-20,57]].forEach(function(P){
+      cbox(0.5,0.62,0.35,new THREE.MeshStandardMaterial({color:0x6e2434,roughness:0.6}),P[0],0.31,P[1]);
+      addCollider(P[0],P[1],0.27,0.2);
+    });
+    // bus stop: a pole, a sign, a bench
+    var poleMat2=new THREE.MeshStandardMaterial({color:0x24262a,roughness:0.7,metalness:0.6});
+    var bp=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,2.6,8),poleMat2);
+    bp.position.set(-36.5,1.3,44); scene.add(bp);
+    addCollider(-36.5,44,0.09,0.09);
+    var signTex=makeTex(128,128,function(g2,w,h){
+      g2.fillStyle='#173a5e'; g2.fillRect(0,0,w,h);
+      g2.fillStyle='#fff'; g2.font='700 44px "Barlow Condensed","Arial Narrow",sans-serif';
+      g2.textAlign='center'; g2.fillText('BUS',w/2,58);
+      g2.font='600 30px "Barlow Condensed","Arial Narrow",sans-serif'; g2.fillText('M42',w/2,98);
+    });
+    var bsign=new THREE.Mesh(new THREE.PlaneGeometry(0.55,0.55),new THREE.MeshBasicMaterial({map:signTex,side:THREE.DoubleSide}));
+    bsign.position.set(-36.5,2.25,44); scene.add(bsign);
+    cbox(1.9,0.07,0.45,new THREE.MeshStandardMaterial({color:0x3a3f45,roughness:0.7,metalness:0.4}),-35.2,0.5,44);
+    addCollider(-35.2,44,0.97,0.25);
+  })();
+  /* ---- THE DINER, enterable: the Main Street shop rebuilt
+     with a door gap in the front wall (facing the z=22 street),
+     a counter, tables, stools and warm light inside, and one
+     $12 burger on the interactable machinery. Footprint and
+     sign match the shop it replaces (16,32 / 11×8 / h 4). ---- */
+  (function(){
+    var cx=16, cz=32, W=11, D=8, H=4.0, front=cz-D/2, back=cz+D/2;
+    var wallMat=new THREE.MeshStandardMaterial({color:0x54423a,roughness:0.85});
+    var trimMat=new THREE.MeshStandardMaterial({color:0x241d19,roughness:0.95});
+    cbox(4.7,H,0.3,wallMat,cx-3.15,H/2,front); cbox(4.7,H,0.3,wallMat,cx+3.15,H/2,front);
+    cbox(W,1.1,0.3,wallMat,cx,H-0.55,front);
+    cbox(W,H,0.3,wallMat,cx,H/2,back);
+    cbox(0.3,H,D,wallMat,cx-W/2,H/2,cz); cbox(0.3,H,D,wallMat,cx+W/2,H/2,cz);
+    cbox(W+0.5,0.25,D+0.5,trimMat,cx,H+0.12,cz);
+    addCollider(cx-3.15,front,2.36,0.22); addCollider(cx+3.15,front,2.36,0.22);
+    addCollider(cx,back,W/2,0.22);
+    addCollider(cx-W/2,cz,0.22,D/2); addCollider(cx+W/2,cz,0.22,D/2);
+    // glowing window bands on the front segments (the old shop look)
+    var bandMat=new THREE.MeshStandardMaterial({color:0x2a2f36,emissive:0xffca7a,emissiveIntensity:0.55,roughness:0.4});
+    [-3.15,3.15].forEach(function(off){
+      var band=new THREE.Mesh(new THREE.PlaneGeometry(4.3,1.4),bandMat);
+      band.position.set(cx+off,1.35,front-0.17); band.rotation.y=Math.PI; scene.add(band);
+    });
+    var signTex=makeTex(512,96,function(g2,tw,th){
+      g2.fillStyle='#101114'; g2.fillRect(0,0,tw,th);
+      g2.font='700 52px "Barlow Condensed","Arial Narrow",sans-serif';
+      g2.textAlign='center'; g2.textBaseline='middle';
+      g2.fillStyle='#ff7a5c'; g2.fillText('DINER',tw/2,th/2+3);
+    });
+    var sign=new THREE.Mesh(new THREE.PlaneGeometry(9,1.05),new THREE.MeshBasicMaterial({map:signTex}));
+    sign.position.set(cx,H-0.72,front-0.18); sign.rotation.y=Math.PI; scene.add(sign);
+    var openTex=makeTex(256,64,function(g2,tw,th){
+      g2.fillStyle='#0d0a08'; g2.fillRect(0,0,tw,th);
+      g2.font='700 40px "Barlow Condensed","Arial Narrow",sans-serif';
+      g2.textAlign='center'; g2.textBaseline='middle';
+      g2.fillStyle='#7fe08a'; g2.fillText('OPEN 24 H',tw/2,th/2+2);
+    });
+    var openSign=new THREE.Mesh(new THREE.PlaneGeometry(1.7,0.42),new THREE.MeshBasicMaterial({map:openTex}));
+    openSign.position.set(cx+2.2,2.2,front-0.17); openSign.rotation.y=Math.PI; scene.add(openSign);
+    // interior: floor, counter along the back, tables + stools
+    var floor=new THREE.Mesh(new THREE.PlaneGeometry(W-0.5,D-0.5),
+      new THREE.MeshStandardMaterial({color:0x4c423a,roughness:0.7}));
+    floor.rotation.x=-Math.PI/2; floor.position.set(cx,0.012,cz); scene.add(floor);
+    var counterMat=new THREE.MeshStandardMaterial({color:0x5e2f26,roughness:0.5});
+    var topMat=new THREE.MeshStandardMaterial({color:0xcfc8ba,roughness:0.3,metalness:0.2});
+    cbox(7.6,1.02,0.7,counterMat,cx,0.51,back-1.0);
+    cbox(7.8,0.05,0.85,topMat,cx,1.05,back-1.0);
+    addCollider(cx,back-1.0,3.85,0.4);
+    var menuTex=makeTex(512,160,function(g2,tw,th){
+      g2.fillStyle='#171310'; g2.fillRect(0,0,tw,th);
+      g2.fillStyle='#ffb03a'; g2.font='700 44px "Barlow Condensed","Arial Narrow",sans-serif';
+      g2.textAlign='center'; g2.fillText('— MENU —',tw/2,44);
+      g2.fillStyle='#e8e2d2'; g2.font='500 34px "Barlow Condensed","Arial Narrow",sans-serif';
+      g2.fillText('BURGER $12 · FRIES $5 · SHAKE $6 · COFFEE $3',tw/2,104);
+    });
+    var menu=new THREE.Mesh(new THREE.PlaneGeometry(5.6,1.75),new THREE.MeshBasicMaterial({map:menuTex}));
+    menu.position.set(cx,2.6,back-0.17); menu.rotation.y=Math.PI; scene.add(menu);
+    var stoolMat=new THREE.MeshStandardMaterial({color:0x7a2020,roughness:0.6});
+    for(var si=0;si<4;si++){
+      var sx=cx-2.7+si*1.8;
+      var seat=new THREE.Mesh(new THREE.CylinderGeometry(0.21,0.21,0.07,12),stoolMat);
+      seat.position.set(sx,0.66,back-2.0); scene.add(seat);
+      var leg=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.62,8),topMat);
+      leg.position.set(sx,0.31,back-2.0); scene.add(leg);
+      addCollider(sx,back-2.0,0.23,0.23);
+    }
+    [[cx-3.6,cz-0.6],[cx+3.6,cz-0.6]].forEach(function(tp){
+      var tbl=new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.42,0.05,14),topMat);
+      tbl.position.set(tp[0],0.74,tp[1]); scene.add(tbl);
+      var tleg=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.72,8),counterMat);
+      tleg.position.set(tp[0],0.37,tp[1]); scene.add(tleg);
+      addCollider(tp[0],tp[1],0.44,0.44);
+    });
+    var dl=new THREE.PointLight(0xffc37a,34,12,1.9); dl.position.set(cx,3.1,cz); scene.add(dl);
+    addDecor('diner',function(){ return 'Order a burger — $12'; },
+      new THREE.Vector3(cx,1.0,back-2.6), null,
+      function(it2){
+        it2.on=false; it2.target=0;
+        if(typeof GTASystem!=='undefined'&&GTASystem.spend(12)){
+          toast('One burger, hot off the grill. -$12',2200);
+        } else toast('Not enough cash for a burger.',2000);
+      }, true);
+  })();
+  var lightT=0;
+  function update(dt){
+    // traffic lights: a simple two-phase cycle, NS vs EW offset
+    // by the phase baked in at build; only the emissive
+    // intensities change, at most a few times a second
+    lightT+=dt;
+    var cyc=Math.floor(lightT/4)%2;
+    for(var i=0;i<lightHeads.length;i++){
+      var lh=lightHeads[i], ns=(lh.phase===0);
+      var green=(cyc===0)===ns;
+      lh.mats[0].emissiveIntensity=green?0.06:2.4;
+      lh.mats[1].emissiveIntensity=0.06;
+      lh.mats[2].emissiveIntensity=green?2.4:0.06;
+    }
+  }
+  return { update:update };
+})();
+CitySystem.update(0);
+
 /* ================= v41: THE CLUB (ClubSystem) =================
    The strip club's life: a dancer on the stage and the room's
    moving light. The dancer is a second instance of Alina's
@@ -4340,7 +5094,7 @@ var ClubSystem=(function(){
     var src=null;
     (gltf.animations||[]).forEach(function(a){ if(a.name==='5359960820992_TempMotion') src=a; });
     if(src){
-      var tracks=src.tracks.filter(function(tr){ return /\.quaternion$/.test(tr.name)||/\.weights$/.test(tr.name); });
+      var tracks=girlClipTracks(src); // v44: same leg rebuild as Alina — the dancer's legs are procedural on bind too
       if(tracks.length){
         var clip=new THREE.AnimationClip('club-standing',src.duration,tracks);
         mixer=new THREE.AnimationMixer(model);
@@ -4390,13 +5144,13 @@ var ClubSystem=(function(){
     for(var i=0;i<CLUB_FX.trimMats.length;i++) CLUB_FX.trimMats[i].emissiveIntensity=1.8+0.5*Math.sin(t*2.2);
     if(!ready||!root) return;
     var stepped=mixer?SimulationSystem.mixerStep(mixer,root,player,dt,5):0;
-    if(stepped&&bones){ for(var k in bones){ if(bones[k]) baseQ[k].copy(bones[k].quaternion); } }
+    if(stepped&&bones){ for(var k in bones){ if(bones[k]&&!LEG_KEYS[k]) baseQ[k].copy(bones[k].quaternion); } } // v44: leg baseQ stays bind forever
     // she works the pole: a slow sway around it, always facing
     // it, hips rolling against the beat, one hand up on the
     // pole, knees softening in turns
     var th=Math.sin(t*0.24)*0.85;
     var px=POLE.x+Math.sin(th)*0.36, pz=POLE.z+Math.cos(th)*0.36;
-    root.position.set(px,STAGE_Y+Math.abs(Math.sin(t*1.5))*0.018,pz);
+    root.position.set(px,STAGE_Y+0.02+Math.abs(Math.sin(t*1.5))*0.018,pz); // v44: +2 cm — on bind legs her composed thigh pitch dipped her ankles 18 mm through the stage; the lift keeps her feet on it
     root.rotation.set(0,Math.atan2(POLE.x-px,POLE.z-pz),0);
     var sway=Math.sin(t*1.5);
     setB('pelvis',0,Math.sin(t*0.75)*0.16,sway*0.11);
@@ -4588,6 +5342,106 @@ function buildPrius(color){
   }catch(e){ /* procedural fallback stays */ }
   return built;
 }
+/* v45: the rest of the borough's traffic — procedural sedan,
+   taxi, SUV and police bodies in the same extruded-silhouette
+   language as the Prius fallback, so the streets stop being a
+   one-car town. Same contract as buildPrius: {group, driver,
+   spinWheels, wheelFL, wheelFR, onSwap} plus lightMats on the
+   police car for GTASystem to flash. Shape +X is the nose and
+   maps to +Z, exactly like the Prius. */
+function buildTrafficCar(kind,color){
+  var g=new THREE.Group();
+  var blob=new THREE.Mesh(new THREE.PlaneGeometry(2.7,5.6),
+    new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false}));
+  blob.rotation.x=-Math.PI/2; blob.position.y=0.012; blob.renderOrder=1; g.add(blob);
+  var paintCol=kind==='taxi'?0xf2b21b:(kind==='cop'?0xe8e9ea:color);
+  var paint=paintMat(paintCol);
+  var s=new THREE.Shape();
+  if(kind==='suv'){
+    s.moveTo(-2.42,0.32); s.lineTo(-2.44,1.28);
+    s.quadraticCurveTo(-2.42,1.42,-2.2,1.45);
+    s.lineTo(1.15,1.47);
+    s.quadraticCurveTo(1.95,1.44,2.2,1.05);
+    s.quadraticCurveTo(2.42,0.82,2.44,0.55);
+    s.lineTo(2.44,0.32); s.lineTo(1.9,0.32); s.absarc(1.5,0.32,0.42,0,Math.PI,false);
+    s.lineTo(-1.08,0.32); s.absarc(-1.5,0.32,0.42,0,Math.PI,false);
+    s.lineTo(-2.42,0.32); s.closePath();
+  } else {
+    s.moveTo(-2.36,0.30); s.lineTo(-2.38,0.92);
+    s.quadraticCurveTo(-2.36,1.02,-2.05,1.05);
+    s.quadraticCurveTo(-1.35,1.10,-0.95,1.16);
+    s.quadraticCurveTo(-0.25,1.30,0.45,1.24);
+    s.quadraticCurveTo(1.35,1.05,1.95,0.82);
+    s.quadraticCurveTo(2.36,0.74,2.38,0.52);
+    s.lineTo(2.38,0.30); s.lineTo(1.88,0.30); s.absarc(1.48,0.30,0.40,0,Math.PI,false);
+    s.lineTo(-1.08,0.30); s.absarc(-1.48,0.30,0.40,0,Math.PI,false);
+    s.lineTo(-2.36,0.30); s.closePath();
+  }
+  g.add(extrudeProfile(s,kind==='suv'?1.8:1.66,paint));
+  var glassMatT=new THREE.MeshStandardMaterial({color:0x11161d,roughness:0.08,metalness:0.4,transparent:true,opacity:0.62,envMapIntensity:1.2});
+  var c=new THREE.Shape();
+  if(kind==='suv'){
+    c.moveTo(-2.1,0.95); c.lineTo(1.05,0.98); c.lineTo(1.05,1.38); c.lineTo(-2.1,1.36); c.lineTo(-2.1,0.95); c.closePath();
+  } else {
+    c.moveTo(-1.9,0.86);
+    c.quadraticCurveTo(-1.1,1.06,-0.3,1.19);
+    c.quadraticCurveTo(0.45,1.14,1.05,0.9);
+    c.lineTo(1.55,0.84); c.lineTo(1.55,0.86); c.lineTo(-1.9,0.86); c.closePath();
+  }
+  g.add(extrudeProfile(c,kind==='suv'?1.62:1.34,glassMatT));
+  if(kind==='cop'){
+    // black doors over the white body + the light bar
+    var doorMat=new THREE.MeshStandardMaterial({color:0x14161a,roughness:0.35,metalness:0.15});
+    box(0.02,0.52,1.7,doorMat, 0.845,0.62,0.1,g,false);
+    box(0.02,0.52,1.7,doorMat,-0.845,0.62,0.1,g,false);
+    box(1.0,0.07,0.34,new THREE.MeshStandardMaterial({color:0x1a1c20,roughness:0.4}),0,1.32,0.1,g,false);
+  }
+  var lightMats=null;
+  if(kind==='cop'){
+    var lmR=new THREE.MeshStandardMaterial({color:0x220a0a,emissive:0xff2a20,emissiveIntensity:2.6});
+    var lmB=new THREE.MeshStandardMaterial({color:0x0a0a22,emissive:0x2a5cff,emissiveIntensity:2.6});
+    box(0.44,0.09,0.3,lmR, 0.26,1.4,0.1,g,false);
+    box(0.44,0.09,0.3,lmB,-0.26,1.4,0.1,g,false);
+    lightMats=[lmR,lmB];
+  }
+  if(kind==='taxi'){
+    var signMat=new THREE.MeshStandardMaterial({color:0x2a2110,emissive:0xffca7a,emissiveIntensity:1.1,roughness:0.4});
+    box(0.52,0.13,0.3,signMat,0,1.3,0.05,g,false);
+  }
+  // the driver silhouette, same dressed nerd as the Prius
+  var driver=new THREE.Group();
+  var torso=new THREE.Mesh(new THREE.CapsuleGeometry(0.155,0.42,3,10),
+    new THREE.MeshStandardMaterial({color:0x5c6650,roughness:0.9}));
+  torso.position.y=0.92; driver.add(torso);
+  var head=new THREE.Mesh(new THREE.SphereGeometry(0.105,12,10),
+    new THREE.MeshStandardMaterial({color:0xb98f72,roughness:0.65}));
+  head.position.y=1.33; driver.add(head);
+  driver.position.set(0.38,0,0.15); g.add(driver);
+  var tireMatT=new THREE.MeshStandardMaterial({color:0x0c0c0e,roughness:0.9});
+  var hubMatT=new THREE.MeshStandardMaterial({color:0x9aa0a8,roughness:0.35,metalness:0.8});
+  var wr=kind==='suv'?0.37:0.33;
+  var wheelGeoT=new THREE.CylinderGeometry(wr,wr,0.24,18); wheelGeoT.rotateZ(Math.PI/2);
+  var spinWheels=[], wheelFL=null, wheelFR=null;
+  var wax=kind==='suv'?0.86:0.8, waz=kind==='suv'?1.5:1.48;
+  [[wax,waz,1],[-wax,waz,1],[wax,-waz,0],[-wax,-waz,0]].forEach(function(wp){
+    var steer=new THREE.Group(); steer.position.set(wp[0],wr,wp[1]); g.add(steer);
+    var spin=new THREE.Group(); steer.add(spin);
+    var tire=new THREE.Mesh(wheelGeoT,tireMatT); spin.add(tire);
+    var hub=new THREE.Mesh(new THREE.CylinderGeometry(0.17,0.17,0.25,12),hubMatT);
+    hub.rotation.z=Math.PI/2; spin.add(hub);
+    spinWheels.push(spin);
+    if(wp[2]){ if(wp[0]>0) wheelFL=steer; else wheelFR=steer; }
+  });
+  var headMatT=new THREE.MeshStandardMaterial({color:0xdfe9ff,emissive:0xcfe0ff,emissiveIntensity:1.6});
+  box(0.42,0.1,0.05,headMatT, 0.55,0.72,2.4,g,false);
+  box(0.42,0.1,0.05,headMatT,-0.55,0.72,2.4,g,false);
+  var tailMatT=new THREE.MeshStandardMaterial({color:0x881111,emissive:0xff2a22,emissiveIntensity:0.9});
+  box(1.3,0.09,0.05,tailMatT,0,1.0,-2.4,g,false);
+  var pool=new THREE.Mesh(new THREE.CircleGeometry(1.6,20),
+    new THREE.MeshBasicMaterial({color:0xd8e4f5,transparent:true,opacity:0.10,depthWrite:false,blending:THREE.AdditiveBlending}));
+  pool.rotation.x=-Math.PI/2; pool.position.set(0,0.02,4.4); pool.renderOrder=4; g.add(pool);
+  return {group:g,driver:driver,spinWheels:spinWheels,wheelFL:wheelFL,wheelFR:wheelFR,onSwap:null,lightMats:lightMats};
+}
 var TrafficSystem=(function(){
   var priuses=[], peds=[];
   // right-hand-traffic loops around the blocks: (streetX1,streetZ1)
@@ -4726,16 +5580,32 @@ var TrafficSystem=(function(){
       // the driver steps out of the driver's side and walks off
       var sx=Math.cos(h), sz=-Math.sin(h);
       spawnPed(gp.x+sx*1.1,gp.z+sz*1.1,sx,sz);
-      toast('The driver steps out — the Prius is yours.',2600);
+      toast('The driver steps out — the '+p.spec.short+' is yours.',2600);
     }
+    if(typeof GTASystem!=='undefined') GTASystem.crime('steal'); // v45: grand theft auto earns its stars
     DriveSystem.enter(p);
   }
+  /* v45: traffic is a mix now — the real Prius still runs its
+     loops, joined by taxis, sedans and an SUV on procedural
+     bodies (buildTrafficCar), each with its own drive spec */
+  var KINDS=[
+    {kind:'prius'},{kind:'taxi'},{kind:'prius'},
+    {kind:'suv',color:0x2e3438},{kind:'sedan',color:0x707880},
+    {kind:'prius'},{kind:'taxi'},{kind:'sedan',color:0x4a5a74}
+  ];
+  var SPECS={
+    prius:{id:'prius',name:'Toyota Prius',short:'Prius',W:1.76,L:4.64,idleHz:50,crankHz:27},
+    taxi:{id:'taxi',name:'City Cab',short:'Taxi',W:1.8,L:4.7,idleHz:48,crankHz:26},
+    sedan:{id:'sedan',name:'Grey Sedan',short:'Sedan',W:1.8,L:4.72,idleHz:47,crankHz:26},
+    suv:{id:'suv',name:'Trail SUV',short:'SUV',W:1.94,L:4.86,idleHz:43,crankHz:23}
+  };
   function makePrius(i){
-    var built=buildPrius(COLORS[i%COLORS.length]);
+    var kd=KINDS[i%KINDS.length];
+    var built=kd.kind==='prius'?buildPrius(COLORS[i%COLORS.length]):buildTrafficCar(kd.kind,kd.color||0x707880);
     var loop=LOOPS[i%LOOPS.length];
     var p={ group:built.group, driver:built.driver, spinWheels:built.spinWheels,
       wheelFL:built.wheelFL, wheelFR:built.wheelFR,
-      spec:{id:'prius',name:'Toyota Prius',short:'Prius',W:1.76,L:4.64,idleHz:50,crankHz:27},
+      spec:SPECS[kd.kind],
       loop:loop, wp:i%loop.length, heading:0, speed:5, state:'traffic', engineOn:false, _audio:null, stealIt:null,
       blockTime:0, col:null, driverOut:false };
     // when the real Prius model lands, buildPrius empties the
@@ -4751,7 +5621,7 @@ var TrafficSystem=(function(){
     // box around the moving car; stealing removes it (DriveSystem
     // owns the car's collider from then on)
     p.col={minX:0,maxX:0,minZ:0,maxZ:0}; colliders.push(p.col);
-    var it=addDecor('steal',function(it2){ return it2.priusRef&&it2.priusRef.state==='parked'?'Get in the Prius':'Steal the Prius'; },
+    var it=addDecor('steal',function(it2){ var pr=it2.priusRef; if(!pr) return 'Steal the car'; return pr.state==='parked'?('Get in the '+pr.spec.short):('Steal the '+pr.spec.short); },
       new THREE.Vector3(999,0,999), null,
       function(it2){
         it2.on=false; it2.target=0;
@@ -4763,7 +5633,86 @@ var TrafficSystem=(function(){
     priuses.push(p);
     return p;
   }
-  for(var pi=0;pi<5;pi++) makePrius(pi);
+  for(var pi=0;pi<7;pi++) makePrius(pi);
+  /* v45: parked, stealable cars — they start in the 'parked'
+     state with the driver long gone (driverOut set, so nobody
+     ever climbs out of one), sitting on asphalt pads behind the
+     shops, by the club block and on the west verge. Same prompt
+     machinery as a parked Prius; GTASystem never pays a steal
+     bonus for them (the crime hook lives in stealPrius, which
+     only runs on moving traffic). */
+  function makeParked(kind,color,x,z,heading){
+    var built=buildTrafficCar(kind,color);
+    if(built.driver) built.driver.visible=false;
+    var p={ group:built.group, driver:built.driver, spinWheels:built.spinWheels,
+      wheelFL:built.wheelFL, wheelFR:built.wheelFR, spec:SPECS[kind],
+      loop:null, wp:0, heading:heading, speed:0, state:'parked', engineOn:false, _audio:null, stealIt:null,
+      blockTime:0, col:null, driverOut:true };
+    built.onSwap=function(){ p.wheelFL=null; p.wheelFR=null; };
+    p.group.position.set(x,0,z); p.group.rotation.y=heading;
+    scene.add(p.group);
+    var padGrp=new THREE.Group(); padGrp.position.set(x,0,z); padGrp.rotation.y=heading; scene.add(padGrp);
+    var pad=new THREE.Mesh(new THREE.PlaneGeometry(3.4,6.4),new THREE.MeshStandardMaterial({color:0x232529,roughness:0.97}));
+    pad.rotation.x=-Math.PI/2; pad.position.y=0.014; padGrp.add(pad);
+    p.col={minX:0,maxX:0,minZ:0,maxZ:0}; colliders.push(p.col);
+    var it=addDecor('steal',function(it2){ var pr=it2.priusRef; return pr?('Get in the '+pr.spec.short):'Get in'; },
+      new THREE.Vector3(999,0,999), null,
+      function(it2){
+        it2.on=false; it2.target=0;
+        var pr=it2.priusRef; if(!pr||DriveSystem.driving) return;
+        DriveSystem.enter(pr);
+      }, true);
+    it.priusRef=p; p.stealIt=it;
+    priuses.push(p);
+    return p;
+  }
+  makeParked('sedan',0x707880,-24,39.5,0.06);
+  makeParked('suv',0x37414a,36,59,-0.12);
+  makeParked('taxi',0,-58,50.5,1.62);
+  /* v45: ambient pedestrians — borough foot traffic. Cheap
+     two-leg walkers in muted clothes, each on a rectangular
+     sidewalk loop routed around the houses, shops and towers
+     (the loops were paced off against every collider row).
+     GTASystem can knock one down (ped.down); he stays down a
+     few seconds, then gets up back at his loop's start. */
+  var ambPeds=[];
+  var PED_LOOPS=[
+    [[-35.4,16.6],[5.4,16.6],[5.4,49.5],[-35.4,49.5]],
+    [[-4.2,57.4],[35.4,57.4],[35.4,87.4],[-4.2,87.4]],
+    [[-57.7,49.5],[-35.4,49.5],[-35.4,79.5],[-57.7,79.5]],
+    [[35.4,17.6],[65,17.6],[65,49.5],[35.4,49.5]]
+  ];
+  var PED_COLS=[0x5a4632,0x37414a,0x6e2434,0x2e4a3a,0x555c66,0x71563a,0x3a3f5e,0x66424e];
+  function makeAmbPed(li,off){
+    var grp=new THREE.Group();
+    var blob=new THREE.Mesh(new THREE.PlaneGeometry(0.62,0.62),
+      new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false,opacity:0.85}));
+    blob.rotation.x=-Math.PI/2; blob.position.y=0.013; blob.renderOrder=1; grp.add(blob);
+    var body=new THREE.Group(); grp.add(body);
+    var legMat=new THREE.MeshStandardMaterial({color:0x23252a,roughness:0.95});
+    function hip(x){
+      var hg=new THREE.Group(); hg.position.set(x,0.8,0); body.add(hg);
+      var leg=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.78,0.15),legMat);
+      leg.position.y=-0.39; hg.add(leg);
+      return hg;
+    }
+    var hipL=hip(0.09), hipR=hip(-0.09);
+    var torso=new THREE.Mesh(new THREE.CapsuleGeometry(0.155,0.42,3,10),
+      new THREE.MeshStandardMaterial({color:PED_COLS[(li*2+off)%PED_COLS.length],roughness:0.92}));
+    torso.position.y=1.16; body.add(torso);
+    var head=new THREE.Mesh(new THREE.SphereGeometry(0.105,12,10),
+      new THREE.MeshStandardMaterial({color:0xc9a189,roughness:0.65}));
+    head.position.y=1.64; body.add(head);
+    scene.add(grp);
+    var loop=PED_LOOPS[li%PED_LOOPS.length];
+    var ped={grp:grp,body:body,hipL:hipL,hipR:hipR,loop:loop,wp:(off*2)%loop.length,
+      phase:Math.random()*6,down:0,speed:1.2+((li+off)%3)*0.14};
+    grp.position.set(loop[ped.wp][0],0,loop[ped.wp][1]);
+    ped.wp=(ped.wp+1)%loop.length;
+    ambPeds.push(ped);
+    return ped;
+  }
+  for(var li2=0;li2<4;li2++){ makeAmbPed(li2,0); makeAmbPed(li2,1); }
   function update(dt){
     var i, j, p, gp;
     for(i=0;i<priuses.length;i++){
@@ -4874,12 +5823,38 @@ var TrafficSystem=(function(){
         scene.remove(ped.grp); peds.splice(i,1);
       }
     }
+    // v45: ambient pedestrians on their sidewalk loops
+    for(i=0;i<ambPeds.length;i++){
+      var ap=ambPeds[i];
+      if(ap.down>0){
+        ap.down-=dt;
+        ap.body.rotation.x=-Math.PI/2*0.92; ap.body.position.y=0.12;
+        ap.hipL.rotation.x=0.3; ap.hipR.rotation.x=-0.2;
+        if(ap.down<=0){
+          ap.body.rotation.x=0; ap.body.position.y=0;
+          ap.grp.position.set(ap.loop[0][0],0,ap.loop[0][1]); ap.wp=1;
+        }
+        continue;
+      }
+      var tgt=ap.loop[ap.wp];
+      var adx=tgt[0]-ap.grp.position.x, adz=tgt[1]-ap.grp.position.z;
+      var ad=Math.sqrt(adx*adx+adz*adz);
+      if(ad<0.4){ ap.wp=(ap.wp+1)%ap.loop.length; continue; }
+      ap.grp.position.x+=adx/ad*ap.speed*dt;
+      ap.grp.position.z+=adz/ad*ap.speed*dt;
+      ap.grp.rotation.y=Math.atan2(adx,adz);
+      ap.phase+=dt*7.5;
+      var sw=Math.sin(ap.phase)*0.5;
+      ap.hipL.rotation.x=sw; ap.hipR.rotation.x=-sw;
+      ap.body.position.y=Math.abs(Math.sin(ap.phase))*0.03;
+    }
   }
   return {
     update:update,
     steal:stealPrius,
     vehicles:function(){ return priuses; },
-    peds:function(){ return peds; }
+    peds:function(){ return peds; },
+    ambPeds:function(){ return ambPeds; }
   };
 })();
 
@@ -4957,7 +5932,7 @@ var DriveSystem={
     player.yaw=h; camYaw=h; player.pitch=-0.04; camPitch=-0.04;
     collide();
     if(this._audio){ try{ this._audio.stop(); }catch(e){} this._audio=null; }
-    if(veh.spec.id==='prius'){ if(veh.state==='stolen') veh.state='parked'; }
+    if(veh.state!==undefined){ if(veh.state==='stolen') veh.state='parked'; } // v45: any traffic vehicle (taxi, SUV, sedan…) parks like a Prius; garage cars carry no state field
     else{
       veh.engineOn=false;
       for(var i=0;i<interactables.length;i++){
@@ -5106,6 +6081,321 @@ cars.forEach(function(car){
    the probe drives, steals and parks through here. */
 window.__DRIVE__={drive:DriveSystem,traffic:TrafficSystem};
 window.__CLUB__={sys:ClubSystem,fx:CLUB_FX}; // headless verification hook, same spirit as __DRIVE__
+
+/* ================= v45: THE GTA LAYER (GTASystem) =================
+   Everything that makes the borough a GTA game, in one module
+   that owns no world geometry except two police cars and a
+   pool of smoke sprites: the money + wanted-star HUD, the
+   circular minimap, the wanted level itself (stealing, reckless
+   driving, hard crashes and hitting a pedestrian all earn
+   stars), police that spawn on the street grid and chase, a
+   BUSTED state when they pin you, per-car damage that smokes
+   and eventually caps the car's speed, cash for the objective
+   finds, and an evasion bonus for losing the heat. It talks to
+   the rest of the game only through DriveSystem, TrafficSystem,
+   the shared HUD DOM and the toast — nothing reaches into it
+   except the steal hook in TrafficSystem and the diner till in
+   CitySystem, both through the small API at the bottom. */
+var GTASystem=(function(){
+  var money=200, wanted=0, peakWanted=0;
+  var decayT=0, recklessT=0, recklessCd=0, crashCd=0, bustMeter=0, bustLock=0;
+  var lastFound=0, prevSpeed=0, mapT=0, siren=null, sirenT=0;
+  var moneyEl=document.getElementById('gtaMoney');
+  var starsEl=document.getElementById('gtaStars');
+  var starSpans=starsEl?starsEl.children:[];
+  var bustedEl=document.getElementById('busted');
+  var mapCvs=document.getElementById('minimap');
+  var mg=mapCvs?mapCvs.getContext('2d'):null;
+  function angWrap(a){ return ((a+Math.PI*3)%(Math.PI*2))-Math.PI; }
+  function drawHUD(){
+    if(moneyEl) moneyEl.textContent='$'+money;
+    for(var i=0;i<starSpans.length;i++) starSpans[i].className=i<wanted?'on':'';
+  }
+  function setWanted(n){
+    n=Math.max(0,Math.min(5,n));
+    if(n===wanted) return;
+    var up=n>wanted;
+    wanted=n; if(wanted>peakWanted) peakWanted=wanted;
+    drawHUD();
+    if(up&&starsEl){ starsEl.classList.remove('hot'); void starsEl.offsetWidth; starsEl.classList.add('hot'); }
+    if(wanted===0) bustMeter=0;
+    decayT=0;
+  }
+  function crime(kind){
+    if(kind==='steal'){ setWanted(wanted+2); toast('WANTED — grand theft auto.',1800); }
+    else if(kind==='reckless'){ setWanted(wanted+1); toast('WANTED — reckless driving.',1600); }
+    else if(kind==='crash'){ setWanted(wanted+1); }
+    else if(kind==='ped'){ setWanted(wanted+1); toast('WANTED — you hit a pedestrian.',1800); }
+  }
+  function spend(n){ if(money<n) return false; money-=n; drawHUD(); return true; }
+  function earn(n){ money+=n; drawHUD(); }
+  /* ---- police ---- */
+  var cops=[];
+  function spawnCop(){
+    var built=buildTrafficCar('cop',0);
+    var ang=Math.random()*Math.PI*2;
+    var px=player.x+Math.sin(ang)*36, pz=player.z+Math.cos(ang)*36;
+    var xs=[-30,0,30], zs=[22,52,82], bx=xs[0], bz=zs[0], bd=1e9, i;
+    for(i=0;i<3;i++){ var d1=Math.abs(xs[i]-px); if(d1<bd){ bd=d1; bx=xs[i]; } }
+    bd=1e9;
+    for(i=0;i<3;i++){ var d2=Math.abs(zs[i]-pz); if(d2<bd){ bd=d2; bz=zs[i]; } }
+    if(Math.abs(bx-px)<Math.abs(bz-pz)) px=bx+2; else pz=bz+2; // his lane, not the centre line
+    px=Math.max(-68,Math.min(68,px)); pz=Math.max(13,Math.min(96,pz));
+    var c={group:built.group,spinWheels:built.spinWheels,wheelFL:built.wheelFL,wheelFR:built.wheelFR,
+      lightMats:built.lightMats,heading:Math.atan2(player.x-px,player.z-pz),speed:0,offDuty:false,goneT:0};
+    c.group.position.set(px,0,pz); c.group.rotation.y=c.heading;
+    scene.add(c.group);
+    cops.push(c);
+    return c;
+  }
+  function despawnCop(c){
+    scene.remove(c.group);
+    var i=cops.indexOf(c); if(i>=0) cops.splice(i,1);
+  }
+  function copStep(c,dt,t){
+    var gp=c.group.position;
+    if(c.offDuty){
+      c.speed+=(0-c.speed)*Math.min(1,dt*3);
+      if(c.lightMats){ c.lightMats[0].emissiveIntensity=0.1; c.lightMats[1].emissiveIntensity=0.1; }
+      c.goneT-=dt;
+      if(c.goneT<=0){ despawnCop(c); return 999; }
+    } else {
+      var tx=player.x, tz=player.z;
+      if(DriveSystem.driving&&DriveSystem.veh){ tx=DriveSystem.veh.group.position.x; tz=DriveSystem.veh.group.position.z; }
+      var dx=tx-gp.x, dz=tz-gp.z, dist=Math.sqrt(dx*dx+dz*dz);
+      var turn=angWrap(Math.atan2(dx,dz)-c.heading);
+      c.heading+=Math.max(-1.9*dt,Math.min(1.9*dt,turn));
+      var target=dist>14?16.5:(dist>6?11:Math.max(0,(dist-3.4)*1.7));
+      c.speed+=(target-c.speed)*Math.min(1,dt*1.8);
+      if(c.lightMats){
+        var ph=Math.sin(t*13)>0;
+        c.lightMats[0].emissiveIntensity=ph?3.2:0.12;
+        c.lightMats[1].emissiveIntensity=ph?0.12:3.2;
+      }
+    }
+    gp.x+=Math.sin(c.heading)*c.speed*dt;
+    gp.z+=Math.cos(c.heading)*c.speed*dt;
+    // circle push-out against the shared colliders, the lite
+    // version of DriveSystem's — a cop may lean on a wall but
+    // never through one
+    var cr=1.05, i, b;
+    for(i=0;i<colliders.length;i++){
+      b=colliders[i];
+      if(gp.x<b.minX-cr||gp.x>b.maxX+cr||gp.z<b.minZ-cr||gp.z>b.maxZ+cr) continue;
+      var nx=Math.max(b.minX,Math.min(gp.x,b.maxX)), nz=Math.max(b.minZ,Math.min(gp.z,b.maxZ));
+      var ddx=gp.x-nx, ddz=gp.z-nz, d2=ddx*ddx+ddz*ddz;
+      if(d2>=cr*cr) continue;
+      if(d2>0.000001){ var dd=Math.sqrt(d2); gp.x+=ddx/dd*(cr-dd); gp.z+=ddz/dd*(cr-dd); }
+      else gp.x=b.maxX+cr;
+    }
+    gp.x=Math.max(-70.4,Math.min(70.4,gp.x));
+    gp.z=Math.max(-9.2,Math.min(98.4,gp.z));
+    c.group.rotation.y=c.heading;
+    for(i=0;i<c.spinWheels.length;i++) c.spinWheels[i].rotation.x+=c.speed*dt/0.33;
+    if(DriveSystem.driving&&DriveSystem.veh){
+      var vp=DriveSystem.veh.group.position;
+      var vx=gp.x-vp.x, vz=gp.z-vp.z, vd=Math.sqrt(vx*vx+vz*vz);
+      if(vd<2.7&&vd>0.001){ gp.x=vp.x+vx/vd*2.7; gp.z=vp.z+vz/vd*2.7; }
+      return Math.sqrt((vp.x-gp.x)*(vp.x-gp.x)+(vp.z-gp.z)*(vp.z-gp.z));
+    }
+    return Math.sqrt((player.x-gp.x)*(player.x-gp.x)+(player.z-gp.z)*(player.z-gp.z));
+  }
+  function doBusted(){
+    bustLock=3; bustMeter=0; peakWanted=0;
+    var fine=Math.min(money,150); money-=fine;
+    setWanted(0); drawHUD();
+    if(bustedEl){ bustedEl.classList.add('show'); setTimeout(function(){ bustedEl.classList.remove('show'); },2100); }
+    toast('BUSTED — $'+fine+' fine. They keep the cash, not the car.',3400);
+    if(DriveSystem.driving){ DriveSystem.speed=0; DriveSystem.exit(); }
+  }
+  /* ---- damage smoke: one shared sprite pool, fed by any car
+     (garage, traffic, parked, police) whose __dmg passes 0.42 ---- */
+  var smokeTex=makeTex(64,64,function(g2,w,h){
+    var gr=g2.createRadialGradient(32,32,2,32,32,30);
+    gr.addColorStop(0,'rgba(205,205,210,0.55)'); gr.addColorStop(1,'rgba(205,205,210,0)');
+    g2.fillStyle=gr; g2.fillRect(0,0,w,h);
+  });
+  var smokePool=[];
+  for(var si2=0;si2<30;si2++){
+    var sm=new THREE.Sprite(new THREE.SpriteMaterial({map:smokeTex,transparent:true,opacity:0,depthWrite:false}));
+    sm.visible=false; scene.add(sm);
+    smokePool.push({s:sm,life:0,max:1,amt:0,vx:0,vy:0,vz:0});
+  }
+  var smokeIdx=0, smokeT=0;
+  function puff(x,y,z,amt){
+    var p=smokePool[smokeIdx]; smokeIdx=(smokeIdx+1)%smokePool.length;
+    p.s.position.set(x,y,z); p.life=0; p.max=1.3+Math.random()*0.9; p.amt=amt;
+    p.vx=(Math.random()-0.5)*0.35; p.vy=0.9+Math.random()*0.5; p.vz=(Math.random()-0.5)*0.35;
+    p.s.visible=true;
+  }
+  /* ---- the minimap: north-up, player-centred, GTA IV style.
+     Streets are the real grid; blips are the real cars, cops,
+     Alina, the garage, the diner and the club. Redrawn at 8 Hz
+     on a 2D canvas — a few dozen rects, nothing more. ---- */
+  function drawMap(){
+    if(!mg) return;
+    var S=296, C=S/2, scale=2.35;
+    mg.clearRect(0,0,S,S);
+    mg.save();
+    mg.beginPath(); mg.arc(C,C,C-2,0,Math.PI*2); mg.clip();
+    mg.fillStyle='#12181f'; mg.fillRect(0,0,S,S);
+    function mx(x){ return C+(x-player.x)*scale; }
+    function mz(z){ return C+(z-player.z)*scale; }
+    mg.strokeStyle='#2e3640'; mg.lineCap='butt'; mg.lineWidth=8*scale;
+    [-30,0,30].forEach(function(x){ mg.beginPath(); mg.moveTo(mx(x),mz(-12)); mg.lineTo(mx(x),mz(102)); mg.stroke(); });
+    [22,52,82].forEach(function(z){ mg.beginPath(); mg.moveTo(mx(-74),mz(z)); mg.lineTo(mx(74),mz(z)); mg.stroke(); });
+    mg.fillStyle='rgba(255,176,58,0.28)'; mg.fillRect(mx(-13),mz(-10),26*scale,20*scale);
+    mg.strokeStyle='#ffb03a'; mg.lineWidth=2; mg.strokeRect(mx(-13),mz(-10),26*scale,20*scale);
+    mg.fillStyle='#ff5ca8'; mg.fillRect(mx(47)-4,mz(63)-4,8,8);
+    mg.fillStyle='#ff7a5c'; mg.fillRect(mx(16)-4,mz(32)-4,8,8);
+    var tv=TrafficSystem.vehicles(), i, gp;
+    for(i=0;i<tv.length;i++){
+      gp=tv[i].group.position;
+      mg.fillStyle=tv[i].state==='traffic'?'#e8e6df':'#878d97';
+      mg.beginPath(); mg.arc(mx(gp.x),mz(gp.z),4,0,Math.PI*2); mg.fill();
+    }
+    var flash=Math.floor(performance.now()/280)%2===0;
+    for(i=0;i<cops.length;i++){
+      if(cops[i].offDuty) continue;
+      gp=cops[i].group.position;
+      mg.fillStyle=flash?'#ff3524':'#2a5cff';
+      mg.beginPath(); mg.arc(mx(gp.x),mz(gp.z),5.5,0,Math.PI*2); mg.fill();
+    }
+    if(typeof FollowerSystem!=='undefined'&&FollowerSystem.root&&player.z>-20){
+      mg.fillStyle='#ff8fc0';
+      mg.beginPath(); mg.arc(mx(FollowerSystem.x),mz(FollowerSystem.z),4,0,Math.PI*2); mg.fill();
+    }
+    var yawA=DriveSystem.driving?DriveSystem.heading:camYaw;
+    mg.translate(C,C); mg.rotate(Math.PI-yawA);
+    mg.beginPath(); mg.moveTo(0,-10); mg.lineTo(6.5,7.5); mg.lineTo(0,3.4); mg.lineTo(-6.5,7.5); mg.closePath();
+    mg.fillStyle='#fff'; mg.fill();
+    mg.lineWidth=1.6; mg.strokeStyle='rgba(0,0,0,0.65)'; mg.stroke();
+    mg.restore();
+  }
+  /* ---- siren: one oscillator, two tones, volume by the
+     nearest cop. Started/stopped with the heat; the shared
+     audio() context rules (resume on gesture, mute) apply. ---- */
+  function sirenUpdate(dt){
+    var want=cops.length>0&&started&&!MUTED&&player.z>-20;
+    if(want&&!siren){
+      try{
+        var ac=audio(); if(!ac) return;
+        var o=ac.createOscillator(), gn=ac.createGain();
+        o.type='triangle'; o.frequency.value=780; gn.gain.value=0;
+        o.connect(gn); gn.connect(ac.destination); o.start();
+        siren={o:o,g:gn};
+      }catch(e){ siren=null; }
+    }
+    if(!siren) return;
+    if(!want){ try{ siren.o.stop(); }catch(e){} siren=null; return; }
+    sirenT+=dt;
+    siren.o.frequency.value=(Math.floor(sirenT*1.7)%2===0)?780:1045;
+    var nd=999, i;
+    for(i=0;i<cops.length;i++){
+      var cp=cops[i].group.position;
+      var d=Math.sqrt((cp.x-player.x)*(cp.x-player.x)+(cp.z-player.z)*(cp.z-player.z));
+      if(d<nd) nd=d;
+    }
+    siren.g.gain.value=Math.max(0.004,Math.min(0.045,1.35/Math.max(7,nd)*0.16));
+  }
+  function update(dt,t){
+    if(bustLock>0) bustLock-=dt;
+    /* cash for objective finds — polled off the shared counter */
+    if(foundCount!==lastFound){
+      if(foundCount>lastFound) earn(25*(foundCount-lastFound));
+      lastFound=foundCount;
+    }
+    /* police presence follows the wanted level */
+    var onDuty=[], i;
+    for(i=0;i<cops.length;i++) if(!cops[i].offDuty) onDuty.push(cops[i]);
+    var wantCops=wanted===0?0:(wanted>=3?2:1);
+    if(player.z>-20) while(onDuty.length<wantCops){ onDuty.push(spawnCop()); }
+    if(onDuty.length>wantCops) for(i=wantCops;i<onDuty.length;i++){ onDuty[i].offDuty=true; onDuty[i].goneT=2.2; }
+    var minCopD=999;
+    for(i=cops.length-1;i>=0;i--){
+      var cI=cops[i], d=copStep(cI,dt,t); // copStep may despawn (splice) an off-duty cop
+      if(cops.indexOf(cI)>=0&&!cI.offDuty&&d<minCopD) minCopD=d;
+    }
+    /* wanted decay: keep every cop 30 m away for 16 s and a
+       star falls off; clearing a real heat pays the bonus */
+    if(wanted>0){
+      if(minCopD>30){ decayT+=dt; if(decayT>16){ setWanted(wanted-1); decayT=0; } }
+      else decayT=0;
+    }
+    if(wanted===0&&peakWanted>=2){ earn(100); toast('EVADED — you lost the heat. +$100',2600); peakWanted=0; }
+    /* BUSTED: an on-duty cop within 5.5 m while you are stopped
+       (or on foot) fills the meter; a full meter ends the run */
+    var pSpeed=DriveSystem.driving?Math.abs(DriveSystem.speed):0;
+    if(wanted>0&&minCopD<5.5&&pSpeed<2.2&&player.z>-20&&bustLock<=0) bustMeter+=dt/2.6;
+    else bustMeter=Math.max(0,bustMeter-dt*0.7);
+    if(bustMeter>=1&&bustLock<=0) doBusted();
+    /* driving crimes + damage */
+    if(DriveSystem.driving&&DriveSystem.veh){
+      var veh=DriveSystem.veh, asp=Math.abs(DriveSystem.speed);
+      var drop=prevSpeed-asp;
+      if(crashCd>0) crashCd-=dt;
+      if(drop>4.5&&crashCd<=0){
+        crashCd=2.5;
+        veh.__dmg=Math.min(1,(veh.__dmg||0)+0.06+drop*0.012);
+        var tv2=TrafficSystem.vehicles();
+        for(i=0;i<tv2.length;i++){
+          if(tv2[i]===veh||tv2[i].state!=='traffic') continue;
+          var qd=Math.sqrt(Math.pow(tv2[i].group.position.x-veh.group.position.x,2)+Math.pow(tv2[i].group.position.z-veh.group.position.z,2));
+          if(qd<3.1) tv2[i].__dmg=Math.min(1,(tv2[i].__dmg||0)+0.25);
+        }
+        if(drop>7) crime('crash');
+      }
+      prevSpeed=asp;
+      if(recklessCd>0) recklessCd-=dt;
+      if(asp>15&&player.z>10){
+        recklessT+=dt;
+        if(recklessT>4&&recklessCd<=0){ crime('reckless'); recklessT=0; recklessCd=25; }
+      } else recklessT=Math.max(0,recklessT-dt);
+      if(veh.__dmg>0.72&&asp>11) DriveSystem.speed=11*(DriveSystem.speed<0?-1:1);
+      var aps=TrafficSystem.ambPeds();
+      for(i=0;i<aps.length;i++){
+        if(aps[i].down>0) continue;
+        var pdx=aps[i].grp.position.x-veh.group.position.x, pdz=aps[i].grp.position.z-veh.group.position.z;
+        if(pdx*pdx+pdz*pdz<2.2&&asp>2){
+          aps[i].down=6;
+          veh.__dmg=Math.min(1,(veh.__dmg||0)+0.08);
+          crime('ped');
+        }
+      }
+    } else prevSpeed=0;
+    /* smoke from anything badly damaged */
+    smokeT-=dt;
+    if(smokeT<=0){
+      smokeT=0.13;
+      var sources=cars.concat(TrafficSystem.vehicles());
+      for(i=0;i<sources.length;i++){
+        var v=sources[i];
+        if(!v.__dmg||v.__dmg<0.42||!v.group) continue;
+        var vp2=v.group.position, vh=v.group.rotation.y, vl=(v.spec&&v.spec.L)||4.6;
+        puff(vp2.x+Math.sin(vh)*vl*0.32,0.95,vp2.z+Math.cos(vh)*vl*0.32,Math.min(1,v.__dmg+0.25));
+      }
+    }
+    for(i=0;i<smokePool.length;i++){
+      var p=smokePool[i];
+      if(!p.s.visible) continue;
+      p.life+=dt;
+      if(p.life>=p.max){ p.s.visible=false; p.s.material.opacity=0; continue; }
+      p.s.position.x+=p.vx*dt; p.s.position.y+=p.vy*dt; p.s.position.z+=p.vz*dt;
+      var sc=0.7+p.life*1.5;
+      p.s.scale.set(sc,sc,1);
+      p.s.material.opacity=0.52*p.amt*(1-p.life/p.max);
+    }
+    sirenUpdate(dt);
+    mapT-=dt;
+    if(mapT<=0){ mapT=0.12; if(started) drawMap(); }
+  }
+  drawHUD();
+  return {
+    update:update, crime:crime, spend:spend, earn:earn,
+    state:function(){ return {money:money,wanted:wanted,cops:cops.length,bust:Math.round(bustMeter*100)/100}; }
+  };
+})();
+window.__GTA__=GTASystem; // headless verification hook, same spirit as __DRIVE__
 
 /* ================= PLAYER ================= */
 var player={x:0.4,z:7.6,yaw:0.12,pitch:-0.04};
@@ -5485,6 +6775,8 @@ function step(dt,t){
   SimulationSystem.guard('bay-doors',function(){ DriveSystem.updateDoors(dt); }); // v38: the roll-up doors breathe with proximity
   SimulationSystem.guard('alina',function(){ FollowerSystem.update(dt); }); // v27: the follower steps with the player, guarded like every actor
   SimulationSystem.guard('club',function(){ ClubSystem.update(dt); }); // v41: the club dancer + the room's moving light, guarded like every actor
+  SimulationSystem.guard('city',function(){ CitySystem.update(dt); }); // v45: traffic lights cycle
+  SimulationSystem.guard('gta',function(){ GTASystem.update(dt,t); }); // v45: wanted level, police, damage, minimap, money
 }
 
 buildAtmosphere();
